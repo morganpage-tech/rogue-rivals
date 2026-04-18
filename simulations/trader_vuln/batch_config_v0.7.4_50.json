@@ -1,0 +1,1194 @@
+{
+  "runs": [
+    {
+      "seed": 1,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_7381cbb18519343d43ae"
+    },
+    {
+      "seed": 2,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_78b9a8b3768671299606"
+    },
+    {
+      "seed": 3,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_44b607e56266d726e6e2"
+    },
+    {
+      "seed": 4,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_ef66cc2b4e1c3c90f21a"
+    },
+    {
+      "seed": 5,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_7bbda2d169dcdf5ab4fa"
+    },
+    {
+      "seed": 6,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_ad1d4d3d61f68dfc0778"
+    },
+    {
+      "seed": 7,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_faf6cc15cc24f67d5a2d"
+    },
+    {
+      "seed": 8,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_14d0ef363b49f169c2e7"
+    },
+    {
+      "seed": 9,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_6127df359f38a4896c2c"
+    },
+    {
+      "seed": 10,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_e32d62a8a118ccb00e8a"
+    },
+    {
+      "seed": 11,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_cace14007957db8f83c9"
+    },
+    {
+      "seed": 12,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "aggressive_raider",
+        "diversified_trader",
+        "banker",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_abd3f271f173131c2054"
+    },
+    {
+      "seed": 13,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "diversified_trader",
+        "banker",
+        "greedy_builder",
+        "aggressive_raider"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_d2b9b9964004c9e639df"
+    },
+    {
+      "seed": 14,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "banker",
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_d8fa8f2ef44d87a71ecc"
+    },
+    {
+      "seed": 15,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_9d7b1296ab890396878e"
+    },
+    {
+      "seed": 16,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "aggressive_raider",
+        "diversified_trader",
+        "banker",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_7b9e46c04d3a2e1123c9"
+    },
+    {
+      "seed": 17,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "diversified_trader",
+        "banker",
+        "greedy_builder",
+        "aggressive_raider"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_b1f759abc6c520a30399"
+    },
+    {
+      "seed": 18,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "banker",
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_0e11ac430346db660863"
+    },
+    {
+      "seed": 19,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_783f27da50391ab66ff2"
+    },
+    {
+      "seed": 20,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "aggressive_raider",
+        "diversified_trader",
+        "banker",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_8d715258b74512771a40"
+    },
+    {
+      "seed": 21,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "diversified_trader",
+        "banker",
+        "greedy_builder",
+        "aggressive_raider"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_f4507cb43dd29f33a66e"
+    },
+    {
+      "seed": 22,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "banker",
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_ff1568a64830fb8207dd"
+    },
+    {
+      "seed": 23,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_d1a1590f04a55fa0b9b4"
+    },
+    {
+      "seed": 24,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "aggressive_raider",
+        "diversified_trader",
+        "banker",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_4f7dec7746ce38e1a354"
+    },
+    {
+      "seed": 25,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "diversified_trader",
+        "banker",
+        "greedy_builder",
+        "aggressive_raider"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_76e1883ca189913f7807"
+    },
+    {
+      "seed": 26,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "banker",
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_a24e266c650db1a37521"
+    },
+    {
+      "seed": 27,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_4235544bb35152ba1e2a"
+    },
+    {
+      "seed": 28,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "aggressive_raider",
+        "diversified_trader",
+        "banker",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_ff38f2ebcdd1e1192ddb"
+    },
+    {
+      "seed": 29,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "diversified_trader",
+        "banker",
+        "greedy_builder",
+        "aggressive_raider"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_6b12d0dab8e9a2a2479e"
+    },
+    {
+      "seed": 30,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "banker",
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_40177d7187693a110f2d"
+    },
+    {
+      "seed": 31,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "alliance_duopoly",
+        "alliance_duopoly",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {
+          "partner_id": "P2"
+        },
+        {
+          "partner_id": "P1"
+        },
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_643138409c2e6e8db01d"
+    },
+    {
+      "seed": 32,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "alliance_duopoly",
+        "alliance_duopoly",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {
+          "partner_id": "P2"
+        },
+        {
+          "partner_id": "P1"
+        },
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_e7332c7150b3a5e5c518"
+    },
+    {
+      "seed": 33,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "alliance_duopoly",
+        "alliance_duopoly",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {
+          "partner_id": "P2"
+        },
+        {
+          "partner_id": "P1"
+        },
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_30f9e63fc7beb2f81ab9"
+    },
+    {
+      "seed": 34,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "alliance_duopoly",
+        "alliance_duopoly",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {
+          "partner_id": "P2"
+        },
+        {
+          "partner_id": "P1"
+        },
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_b23faf2756824c78a10a"
+    },
+    {
+      "seed": 35,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "alliance_duopoly",
+        "alliance_duopoly",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {
+          "partner_id": "P2"
+        },
+        {
+          "partner_id": "P1"
+        },
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_0b2dee97ad70093e637f"
+    },
+    {
+      "seed": 36,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "alliance_duopoly",
+        "alliance_duopoly",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {
+          "partner_id": "P2"
+        },
+        {
+          "partner_id": "P1"
+        },
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_a941dda893bab1ac176e"
+    },
+    {
+      "seed": 37,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "alliance_duopoly",
+        "alliance_duopoly",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {
+          "partner_id": "P2"
+        },
+        {
+          "partner_id": "P1"
+        },
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_3be2139a99a3f8034aec"
+    },
+    {
+      "seed": 38,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "alliance_duopoly",
+        "alliance_duopoly",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {
+          "partner_id": "P2"
+        },
+        {
+          "partner_id": "P1"
+        },
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_625e5d8db72efaf7e31a"
+    },
+    {
+      "seed": 39,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "alliance_duopoly",
+        "alliance_duopoly",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {
+          "partner_id": "P2"
+        },
+        {
+          "partner_id": "P1"
+        },
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_09c4faa8a7caffd71b09"
+    },
+    {
+      "seed": 40,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "alliance_duopoly",
+        "alliance_duopoly",
+        "greedy_builder",
+        "greedy_builder"
+      ],
+      "agent_params": [
+        {
+          "partner_id": "P2"
+        },
+        {
+          "partner_id": "P1"
+        },
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_2091ba4828be929aa78d"
+    },
+    {
+      "seed": 41,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "scout_paranoid",
+        "scout_paranoid",
+        "aggressive_raider",
+        "aggressive_raider"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_15ce567e78636819b60a"
+    },
+    {
+      "seed": 42,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "scout_paranoid",
+        "scout_paranoid",
+        "aggressive_raider",
+        "aggressive_raider"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_069fe2acced8d47f73e1"
+    },
+    {
+      "seed": 43,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "scout_paranoid",
+        "scout_paranoid",
+        "aggressive_raider",
+        "aggressive_raider"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_e9317ce39f4e9acb4c5a"
+    },
+    {
+      "seed": 44,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "scout_paranoid",
+        "scout_paranoid",
+        "aggressive_raider",
+        "aggressive_raider"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_5416a054bed65d567b32"
+    },
+    {
+      "seed": 45,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "scout_paranoid",
+        "scout_paranoid",
+        "aggressive_raider",
+        "aggressive_raider"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_b13786349411efae1757"
+    },
+    {
+      "seed": 46,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "random",
+        "random",
+        "random",
+        "random"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_76032f421b4becd5aa6b"
+    },
+    {
+      "seed": 47,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "agents": [
+        "random",
+        "random",
+        "random",
+        "random"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_90e11dc9e059cfaeee68"
+    },
+    {
+      "seed": 48,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "agents": [
+        "random",
+        "random",
+        "random",
+        "random"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_64b7512a336cabb8020b"
+    },
+    {
+      "seed": 49,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "agents": [
+        "random",
+        "random",
+        "random",
+        "random"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_9b141997723e8d885f2e"
+    },
+    {
+      "seed": 50,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "agents": [
+        "random",
+        "random",
+        "random",
+        "random"
+      ],
+      "agent_params": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "turn_order": null,
+      "match_id": "m_0edd6fe7747114fc09fa"
+    }
+  ]
+}

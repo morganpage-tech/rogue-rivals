@@ -26,6 +26,28 @@ export interface PlayerState {
    * ambush_expired event.
    */
   ambushRoundsRemaining: number;
+  /**
+   * v0.8: beads awarded from trades in the current round live here until
+   * `runEndOfRound` settles them. Under BEAD_VULN_MODE === "steal" (canonical),
+   * if the earner suffered any successful ambush this round these beads are
+   * transferred to the first ambusher; otherwise they flow into `beads` and
+   * the normal 2-bead -> 1-VP conversion runs. Under "deny" they are
+   * destroyed. Under "off" this field is unused and stays 0.
+   */
+  pendingBeads: number;
+  /**
+   * v0.8: hits suffered this round (any ambush_triggered where this player
+   * was the victim, excluding watchtower_absorbed). Reset in runEndOfRound
+   * after pending-bead settlement.
+   */
+  hitsThisRound: number;
+  /**
+   * v0.8: ordered list of ambushers who successfully hit this player this
+   * round (same exclusions as hitsThisRound). Used by the "steal" path to
+   * pick the primary ambusher deterministically (first hitter wins the
+   * pending beads). Reset in runEndOfRound.
+   */
+  hitByThisRound: string[];
   watchtowerUsedThisRound: boolean;
   trailingBonusActive: boolean;
   tributeRouteWith: string | null;
@@ -47,7 +69,7 @@ export interface TradeOffer {
 export type EndTrigger = "round_limit" | "vp_threshold" | "great_hall";
 
 export interface MatchState {
-  rulesVersion: "v0.7.4";
+  rulesVersion: "v0.8";
   seed: number;
   /** Mulberry32 PRNG state; all randomness goes through this. */
   rng: RngState;
@@ -113,6 +135,7 @@ export function clonePlayer(ps: PlayerState): PlayerState {
     resources: cloneResources(ps.resources),
     partnersTraded: [...ps.partnersTraded],
     buildings: [...ps.buildings],
+    hitByThisRound: [...ps.hitByThisRound],
   };
 }
 
@@ -148,6 +171,9 @@ export function createInitialPlayer(id: string, tribe: Tribe): PlayerState {
     buildings: [],
     activeAmbushRegion: null,
     ambushRoundsRemaining: 0,
+    pendingBeads: 0,
+    hitsThisRound: 0,
+    hitByThisRound: [],
     watchtowerUsedThisRound: false,
     trailingBonusActive: false,
     tributeRouteWith: null,

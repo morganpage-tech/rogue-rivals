@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 SCHEMA_VERSION = "1.0"
-RULES_VERSION = "v0.7.4"
+RULES_VERSION = "v0.8"
 
 VP_WIN_THRESHOLD = 8
 # Hard cap on total per-player turns in a match (safety; 15 rounds * 4 players = 60 normally)
@@ -69,6 +69,18 @@ BUILD_ORDER = ("shack", "den", "watchtower", "forge", "great_hall")
 #                  (canonical = 1; tested alternatives: 0 = free ambush)
 # RR_AMBUSH_PERSIST_ROUNDS how many end-of-round ticks an ambush survives
 #                  (canonical v0.7.4 = 2; set 1 to replay v0.7.3.1 baselines)
+# RR_BEAD_VULN_MODE  {"off","deny","steal"} bead-in-transit rule.
+#                  Canonical v0.8 = "steal". Trade beads earned in the current
+#                  round are placed in `pending_beads` and the 2-bead -> 1-VP
+#                  conversion is deferred to end_of_round. At EOR, if the
+#                  earner was a victim of any successful ambush that round,
+#                  pending beads are transferred to the first successful
+#                  ambusher (who banks + converts them). Otherwise they bank
+#                  normally. "deny" variant destroys the beads instead of
+#                  transferring. "off" reverts to the v0.7.4 behaviour where
+#                  beads are immune to ambush (kept for regression / replay
+#                  use; any batch run with RR_BEAD_VULN_MODE=off is NOT a
+#                  canonical v0.8 batch).
 #
 # v0.7.4 note: the canonical default for AMBUSH_PERSIST_ROUNDS was bumped from
 # 1 to 2 after the raider A/B experiment in simulations/raider_ab/ showed this
@@ -87,6 +99,11 @@ try:
     AMBUSH_PERSIST_ROUNDS = int(os.environ.get("RR_AMBUSH_PERSIST_ROUNDS", "2"))
 except ValueError:
     AMBUSH_PERSIST_ROUNDS = 2
+
+_BEAD_VULN_RAW = os.environ.get("RR_BEAD_VULN_MODE", "steal").strip().lower()
+if _BEAD_VULN_RAW not in ("off", "deny", "steal"):
+    _BEAD_VULN_RAW = "steal"
+BEAD_VULN_MODE = _BEAD_VULN_RAW
 
 # Greedy / trade heuristics (v0.7.1 agents; bead VP, no new-partner bonus)
 W1_AFFORD_DELTA = 10
@@ -129,6 +146,13 @@ class PlayerState:
     tribute_route: Optional[Dict[str, Any]] = None
     tribute_request_used: bool = False
     beads_earned_this_round: int = 0
+    # v0.8 canonical rule: beads awarded from trades in the current round sit
+    # here until end_of_round. If the player was a victim of any ambush that
+    # round, pending beads are transferred to the first successful ambusher
+    # (canonical: steal mode). Otherwise they are added to `beads` and the
+    # normal 2-bead -> 1-VP conversion runs at EOR. See BEAD_VULN_MODE for the
+    # regression / deny alternatives.
+    pending_beads: int = 0
 
 
 class GameEngine:
@@ -181,6 +205,12 @@ class GameEngine:
         # Per-ambusher successful-hit counter (used by agent heuristics to decide
         # when to stop re-arming and pivot to building). Not serialised.
         self._ambush_hits: Dict[str, int] = {p: 0 for p in self.player_ids}
+        # v0.8 per-round bookkeeping for bead-diversion on hit (reset in
+        # end_of_round). _ambushed_this_round counts hits suffered;
+        # _hit_by_this_round records the ambushers in hit order so pending
+        # beads are transferred to the *first* hitter deterministically.
+        self._ambushed_this_round: Dict[str, int] = {p: 0 for p in self.player_ids}
+        self._hit_by_this_round: Dict[str, List[str]] = {p: [] for p in self.player_ids}
 
         self._gathered: Dict[str, Dict[str, int]] = {p: empty_res() for p in self.player_ids}
         self._spent_build: Dict[str, Dict[str, int]] = {p: empty_res() for p in self.player_ids}
@@ -353,7 +383,13 @@ class GameEngine:
         for pid, partner in ((a, b), (b, a)):
             ps = self.players[pid]
             if ps.beads_earned_this_round < 2:
-                ps.beads += 1
+                if BEAD_VULN_MODE == "off":
+                    # Regression / replay only. Canonical v0.8 flows below.
+                    ps.beads += 1
+                else:
+                    # v0.8 canonical: bead is pending until end_of_round so
+                    # that ambush pressure on the earner can divert it.
+                    ps.pending_beads += 1
                 ps.beads_earned_this_round += 1
                 beads_awarded[pid] = 1
                 extra.append({"type": "bead_earned", "round": self.round_num, "player_id": pid, "partner": partner})
@@ -367,8 +403,13 @@ class GameEngine:
                         "partner": partner,
                     }
                 )
-        for pid in sorted((a, b)):
-            extra.extend(self.apply_bead_conversions(pid))
+        # v0.8 canonical: the 2-bead -> 1-VP conversion is deferred to
+        # end_of_round so a pending bead can actually be diverted. Only the
+        # legacy "off" mode performs immediate conversion here (kept for
+        # regression / replay determinism).
+        if BEAD_VULN_MODE == "off":
+            for pid in sorted((a, b)):
+                extra.extend(self.apply_bead_conversions(pid))
         self.trades_completed_total += 1
         self.trades_by_pair[canonical_pair(a, b)] += 1
         resolved = {
@@ -1434,6 +1475,11 @@ def _apply_gather(engine: GameEngine, pid: str, region: str, events: List[Dict[s
         engine._gathered[amb][rtype] += stolen
     engine.ambushes_hit += 1
     engine._ambush_hits[amb] = engine._ambush_hits.get(amb, 0) + 1
+    # v0.8: record that `pid` was hit this round (by `amb`, in hit order).
+    # Used by end_of_round to transfer (or, under the deny fallback, destroy)
+    # the victim's pending beads.
+    engine._ambushed_this_round[pid] = engine._ambushed_this_round.get(pid, 0) + 1
+    engine._hit_by_this_round.setdefault(pid, []).append(amb)
     events.append(
         {
             "type": "ambush_triggered",
@@ -1654,8 +1700,56 @@ def execute_turn(engine: GameEngine, pid: str, turn_idx: int) -> List[Dict[str, 
 
 
 def end_of_round(engine: GameEngine, round_events: List[Dict[str, Any]]) -> None:
+    # v0.8 canonical: settle pending trade beads before resetting the per-round
+    # bead cap. Legacy "off" mode is a no-op here (no pending beads ever stored).
+    if BEAD_VULN_MODE != "off":
+        # Iterate in deterministic turn order so "steal" transfers are stable.
+        for p in engine.turn_order:
+            ps = engine.players[p]
+            pending = ps.pending_beads
+            if pending <= 0:
+                continue
+            ps.pending_beads = 0
+            hits = engine._ambushed_this_round.get(p, 0)
+            if hits > 0:
+                # Victim was ambushed this round -> pending beads are at risk.
+                ambushers = engine._hit_by_this_round.get(p, [])
+                primary = ambushers[0] if ambushers else None
+                if BEAD_VULN_MODE == "deny" or primary is None:
+                    round_events.append(
+                        {
+                            "type": "bead_denied",
+                            "round": engine.round_num,
+                            "victim_id": p,
+                            "beads": pending,
+                            "cause": "ambushed",
+                        }
+                    )
+                else:  # steal
+                    ap = engine.players[primary]
+                    # Stolen beads bypass the 2-per-round cap (they're not
+                    # earned via trade this round from the ambusher's POV,
+                    # they're loot that enters `beads` directly).
+                    ap.beads += pending
+                    round_events.append(
+                        {
+                            "type": "bead_stolen",
+                            "round": engine.round_num,
+                            "victim_id": p,
+                            "ambusher_id": primary,
+                            "beads": pending,
+                        }
+                    )
+                    round_events.extend(engine.apply_bead_conversions(primary))
+            else:
+                # Safe -> bank and convert.
+                ps.beads += pending
+                round_events.extend(engine.apply_bead_conversions(p))
+    # Reset per-round bookkeeping.
     for p in engine.player_ids:
         engine.players[p].beads_earned_this_round = 0
+        engine._ambushed_this_round[p] = 0
+        engine._hit_by_this_round[p] = []
     for p in engine.player_ids:
         ps = engine.players[p]
         if ps.active_ambush_region:

@@ -133,11 +133,15 @@ describe("trade beads 2/round cap and conversion", () => {
 
     expect(s.players.P1.beadsEarnedThisRound).toBe(2);
     expect(s.players.P2.beadsEarnedThisRound).toBe(2);
+    // v0.8: beads from trades live in pendingBeads until end-of-round; the
+    // permanent `beads` stash still has nothing in it at this point.
     expect(s.players.P1.beads).toBe(0);
     expect(s.players.P2.beads).toBe(0);
+    expect(s.players.P1.pendingBeads).toBe(2);
+    expect(s.players.P2.pendingBeads).toBe(2);
   });
 
-  test("4 beads convert to 2 VP in one resolution chain", () => {
+  test("v0.8 pending trade beads flush + convert at end-of-round when safe", () => {
     let s = initMatch({
       seed: 1,
       seats: [
@@ -148,6 +152,7 @@ describe("trade beads 2/round cap and conversion", () => {
     });
     s.players.P1.resources = { T: 10, O: 10, F: 0, Rel: 0, S: 10 };
     s.players.P2.resources = { T: 10, O: 10, F: 0, Rel: 0, S: 10 };
+    // Pre-existing carry-over bead (not from a trade this round).
     s.players.P1.beads = 3;
     s.players.P2.beads = 0;
     s.pendingOffers.push({
@@ -160,8 +165,17 @@ describe("trade beads 2/round cap and conversion", () => {
       status: "pending",
     });
     resolveTrade(s, s.pendingOffers[0]!);
-    expect(s.players.P1.vp).toBe(2);
+    // Mid-round: conversion is deferred. P1 has 3 real beads + 1 pending.
+    expect(s.players.P1.vp).toBe(0);
+    expect(s.players.P1.beads).toBe(3);
+    expect(s.players.P1.pendingBeads).toBe(1);
+
+    // End-of-round with no ambush hits: pending flows into beads, 4 beads
+    // convert to 2 VP.
+    runEndOfRound(s);
+    expect(s.players.P1.pendingBeads).toBe(0);
     expect(s.players.P1.beads).toBe(0);
+    expect(s.players.P1.vp).toBe(2);
   });
 });
 
@@ -261,6 +275,91 @@ describe("ambush", () => {
 
     const evEOR = runEndOfRound(s);
     expect(evEOR.some((e) => e.type === "ambush_expired")).toBe(false);
+  });
+
+  test("v0.8 successful ambush on a trading victim steals their pending beads", () => {
+    // Scenario: P1 has been trading this round (pending bead for a bead-earned
+    // trade). P2 ambushes P1's home plains region, P1 subsequently gathers
+    // there -> ambush triggers. End-of-round (auto-fired after the final
+    // turn in the round) transfers the pending bead to P2 and converts it
+    // against P2's existing bead into 1 VP.
+    let s = initMatch({
+      seed: 11,
+      seats: [
+        { playerId: "P1", tribe: "orange" },
+        { playerId: "P2", tribe: "grey" },
+      ],
+      turnOrder: ["P2", "P1"],
+    });
+    const now = new Date(0);
+    // P1 enters this turn with 1 pending bead (emulating a trade earlier this
+    // round) and 0 real beads; P2 already holds 1 real bead (from trading).
+    s.players.P1.pendingBeads = 1;
+    s.players.P1.beadsEarnedThisRound = 1;
+    s.players.P1.beads = 0;
+    s.players.P2.beads = 1;
+    // P2 pays for an ambush on plains.
+    s.players.P2.resources.S = 5;
+    const setAmbush = applyCommand(s, "P2", { kind: "take_action", action: { kind: "ambush", region: "plains" } }, now);
+    s = (setAmbush as { newState: MatchState }).newState;
+    // P1 gathers at home (plains) -> ambush triggers; this is also the last
+    // turn of the round, so runEndOfRound fires automatically.
+    const gather = applyCommand(s, "P1", { kind: "take_action", action: { kind: "gather", region: "plains" } }, now);
+    expect("error" in gather).toBe(false);
+    const gevs = (gather as { events: Array<Record<string, unknown>> }).events;
+    const triggered = gevs.find((e) => e.type === "ambush_triggered");
+    expect(triggered?.victim_id).toBe("P1");
+    expect(triggered?.watchtower_absorbed).toBe(false);
+    const stolen = gevs.find((e) => e.type === "bead_stolen");
+    expect(stolen).toBeDefined();
+    expect(stolen?.victim_id).toBe("P1");
+    expect(stolen?.ambusher_id).toBe("P2");
+    expect(stolen?.beads).toBe(1);
+    // Exactly 1 VP conversion fires for P2 (stole 1 + had 1 = 2 → 1 VP).
+    const converts = gevs.filter((e) => e.type === "bead_converted");
+    expect(converts.length).toBe(1);
+    expect(converts[0]?.player_id).toBe("P2");
+
+    s = (gather as { newState: MatchState }).newState;
+    // Final state after EOR.
+    expect(s.players.P1.pendingBeads).toBe(0);
+    expect(s.players.P1.beads).toBe(0);
+    expect(s.players.P2.beads).toBe(0);
+    expect(s.players.P2.vp).toBe(1);
+    // Per-round hit bookkeeping is cleared by runEndOfRound.
+    expect(s.players.P1.hitsThisRound).toBe(0);
+    expect(s.players.P1.hitByThisRound).toEqual([]);
+  });
+
+  test("v0.8 watchtower-absorbed ambush does NOT steal the victim's pending beads", () => {
+    // Regression: watchtower prevents loot theft AND must prevent bead theft.
+    let s = initMatch({
+      seed: 13,
+      seats: [
+        { playerId: "P1", tribe: "orange" },
+        { playerId: "P2", tribe: "grey" },
+      ],
+      turnOrder: ["P2", "P1"],
+    });
+    const now = new Date(0);
+    s.players.P1.pendingBeads = 1;
+    s.players.P1.beadsEarnedThisRound = 1;
+    s.players.P1.buildings = ["watchtower"];
+    s.players.P2.resources.S = 5;
+    const setAmbush = applyCommand(s, "P2", { kind: "take_action", action: { kind: "ambush", region: "plains" } }, now);
+    s = (setAmbush as { newState: MatchState }).newState;
+    const gather = applyCommand(s, "P1", { kind: "take_action", action: { kind: "gather", region: "plains" } }, now);
+    const gevs = (gather as { events: Array<Record<string, unknown>> }).events;
+    const triggered = gevs.find((e) => e.type === "ambush_triggered");
+    expect(triggered?.watchtower_absorbed).toBe(true);
+    expect(gevs.some((e) => e.type === "bead_stolen")).toBe(false);
+    expect(gevs.some((e) => e.type === "bead_denied")).toBe(false);
+
+    s = (gather as { newState: MatchState }).newState;
+    // Pending bead survives the round intact -> banked into `beads` at EOR.
+    expect(s.players.P1.pendingBeads).toBe(0);
+    expect(s.players.P1.beads).toBe(1);
+    expect(s.players.P2.beads).toBe(0);
   });
 });
 

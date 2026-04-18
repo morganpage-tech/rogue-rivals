@@ -36,7 +36,7 @@ export function initMatch(opts: InitMatchOpts): MatchState {
   }
 
   return {
-    rulesVersion: "v0.7.4",
+    rulesVersion: "v0.8",
     seed,
     rng,
     seatPlayerIds,

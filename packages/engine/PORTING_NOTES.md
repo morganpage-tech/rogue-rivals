@@ -1,6 +1,6 @@
 # Porting notes (`tools/sim.py` → `@rr/engine`)
 
-References: **RULES.md v0.7.4**, **PROTOTYPE_SPEC.md §6**, **SIMULATION_SCHEMA.md v1.0**.
+References: **RULES.md v0.8**, **PROTOTYPE_SPEC.md §6**, **SIMULATION_SCHEMA.md v1.0**.
 
 ## Forge cost resolution
 
@@ -18,7 +18,19 @@ Per RULES §2.2 step 2, offers expire at the **start** of the offerer’s next t
 
 ## Bead cap timing
 
-`beads_earned_this_round` resets for every player in `end_of_round()` in `sim.py` **before** trailing bonus math. Same as TS `runEndOfRound`: reset bead counters first, then ambush expiry / standings / trailing flags.
+`beads_earned_this_round` resets for every player in `end_of_round()` in `sim.py` **before** trailing bonus math. Same as TS `runEndOfRound`.
+
+## Bead settlement order (v0.8)
+
+Under the canonical `RR_BEAD_VULN_MODE == "steal"` rule, beads awarded by `resolveTrade` go into `PlayerState.pendingBeads` (not `beads`) and the 2-bead → 1-VP conversion is deferred to `runEndOfRound`. Settlement **must** run first inside `runEndOfRound`, before any per-round counter is reset, because:
+
+1. It reads `hitsThisRound` and `hitByThisRound[0]` (populated by `applyGather` on non-absorbed hits) to decide whether to transfer pending beads to the primary ambusher or bank them on the earner.
+2. It may push `bead_stolen`, `bead_converted`, or `bead_denied` events into the round-end event stream; downstream subscribers expect these before `round_end`.
+3. The resulting VP gains must land before the `round_limit` / `vp_threshold` end check — a bead-steal can push the ambusher over VP 8.
+
+After settlement, zero all three per-round fields (`pendingBeads`, `hitsThisRound`, `hitByThisRound`) along with `beadsEarnedThisRound`. TS and Python implementations both iterate in `turnOrder` for determinism.
+
+Watchtower-absorbed ambush hits do **not** increment `hitsThisRound` — a watchtower defends both the gather loot and the pending trade beads. Only the non-absorbed `ambush_triggered` branch in `applyGather` / `_apply_gather` pushes to `hitByThisRound`.
 
 ## Trailing bonus
 
@@ -34,4 +46,4 @@ Python `random.Random(seed)` is only used for **initial turn-order shuffle** whe
 
 ## `rules_version`
 
-Logs and `MatchState.rulesVersion` use **`"v0.7.4"`**.
+Logs and `MatchState.rulesVersion` use **`"v0.8"`**.

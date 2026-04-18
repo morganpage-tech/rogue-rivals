@@ -1,0 +1,63 @@
+
+=== Trader-vulnerability A/B summary (50 matches each) ===
+
+metric                          A_off      B_deny     C_steal
+------------------------------------------------------------------------
+matches completed                0/50        0/50        0/50
+avg rounds                      10.72       10.92       10.94
+raider hit rate                 26.5%       25.0%       27.3%
+raider hits/attempts             9/34        8/32        9/33
+beads DENIED (total)                0          11           0
+beads STOLEN (total)                0           0          13
+trader matches w/ loss              0           2           2
+
+Archetype win rates (wins / apps):
+
+aggressive_raider           4/30  13.3%   4/30  13.3%   5/30  16.7%
+alliance_duopoly           20/20 100.0%  20/20 100.0%  20/20 100.0%
+banker                      7/20  35.0%  10/20  50.0%   9/20  45.0%
+diversified_trader         11/20  55.0%   9/20  45.0%   8/20  40.0%
+greedy_builder             18/80  22.5%  17/80  21.2%  18/80  22.5%
+random                      5/20  25.0%   5/20  25.0%   5/20  25.0%
+scout_paranoid              4/10  40.0%   4/10  40.0%   4/10  40.0%
+
+Archetype avg VP:
+
+aggressive_raider                4.80        5.27        5.60
+alliance_duopoly                 5.00        5.00        5.00
+banker                           7.50        7.70        7.85
+diversified_trader               7.05        6.75        6.65
+greedy_builder                   5.71        5.78        5.81
+random                           1.50        1.50        1.50
+scout_paranoid                   6.00        6.00        6.00
+
+Archetype avg buildings:
+
+aggressive_raider                2.47        2.60        2.57
+alliance_duopoly                 2.00        2.00        2.00
+banker                           1.70        1.80        1.75
+diversified_trader               2.85        2.65        2.65
+greedy_builder                   2.91        2.94        2.96
+random                           1.05        1.05        1.05
+scout_paranoid                   3.80        3.80        3.80
+
+Beads earned per app (raw supply):
+
+aggressive_raider                2.90        3.20        3.53
+alliance_duopoly                 5.00        5.00        5.00
+banker                          11.60       12.25       12.60
+diversified_trader               6.50        6.95        7.05
+greedy_builder                   2.25        2.36        2.38
+random                           0.00        0.00        0.00
+scout_paranoid                   1.00        1.00        1.00
+
+Beads LOST per app (denied/stolen):
+
+aggressive_raider                0.00        0.00        0.00
+alliance_duopoly                 0.00        0.00        0.00
+banker                           0.00        0.40        0.40
+diversified_trader               0.00        0.15        0.15
+greedy_builder                   0.00        0.00        0.03
+random                           0.00        0.00        0.00
+scout_paranoid                   0.00        0.00        0.00
+

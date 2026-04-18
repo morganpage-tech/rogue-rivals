@@ -141,6 +141,11 @@ export function applyGather(state: MatchState, pid: string, region: Region): Gat
   } else {
     ap.resources[rtype] += stolen;
   }
+  // v0.8: record that `pid` was hit this round (by `amb`, in hit order) so
+  // runEndOfRound can divert their pending trade beads under BEAD_VULN_MODE.
+  // Watchtower-absorbed hits do not count as "victim" hits.
+  ps.hitsThisRound += 1;
+  ps.hitByThisRound.push(amb);
   events.push({
     type: "ambush_triggered",
     round: state.round,

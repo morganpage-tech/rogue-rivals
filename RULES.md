@@ -1,4 +1,4 @@
-# ROGUE RIVALS ? Rules (v0.7.4)
+# ROGUE RIVALS — Rules (v0.8)
 
 > **Status:** Canonical, simulation-ready ruleset. If this document conflicts with `GDD.md`, this document is authoritative.
 >
@@ -8,6 +8,7 @@
 
 ## Revision history
 
+- **v0.8 bead-in-transit / trader vulnerability (2026-04-18)** — directly addresses the v0.7.4 open question (`diversified_trader` at 55 % wins because trade beads were immune to ambush pressure). **New canonical rule:** a Trade Bead earned from a completed trade is now *pending* until end-of-round, and the 2-Bead → 1-VP conversion is deferred to the same end-of-round settlement (§3.4). If the earner was the victim of any successful ambush that same round (i.e. at least one `ambush_triggered` event against them that was **not** `watchtower_absorbed`), all of their pending beads are **transferred** to the first such ambusher, who banks them and runs the normal conversion (§3.4.3). Otherwise pending beads flow into `beads` as before and convert. Per-round bead cap (`beads_earned_this_round < 2`) still applies to the earning side. Rationale: the trader-vulnerability A/B (`simulations/trader_vuln/COMPARISON_trader_vuln.md`) tested three variants — `off` (canonical v0.7.4), `deny` (destroy pending beads on hit), and `steal` (transfer to ambusher). `steal` was selected because it (a) creates a new strategic loop — raiders can hunt bead-earners for VP payoff — rather than only nerfing trader, (b) cuts the `diversified_trader` "podium" rate (won OR within 1 VP of the leader) from 15/20 to 9/20 across the canonical 50-match baseline, and (c) lifts `aggressive_raider` avgVP 4.80 → 5.60. The fallback `deny` behaviour and the legacy `off` (v0.7.4) behaviour are both still available via the `RR_BEAD_VULN_MODE` env var in `tools/sim.py` for regression replays and future A/B work, but neither is canonical. `rules_version` bumps to `"v0.8"`. New canonical heuristic baseline: `simulations/batch_v0.8.jsonl` (50 matches). TS engine picks up the same rule via `PlayerState.pendingBeads` + per-round hit bookkeeping (`hitsThisRound` / `hitByThisRound`) wired through `trade.ts`, `actions.ts`, and `endOfRound.ts`; TS replay test retargets the new baseline and the suite adds two unit tests covering the steal path and the watchtower regression (watchtower-absorbed hits do **not** count as "victim" hits for bead theft). **Known limitation, deferred to v0.8.1+:** firing rate is modest (~0.26 beads stolen per 4-player match); the mechanism bites `banker` harder than `diversified_trader` in raw bead-loss terms. A raider heuristic update that specifically hunts bead-earners' home regions, or a 2-round pending window, are the two obvious follow-up experiments if further rebalance is needed.
 - **v0.7.4 ambush persistence + raider heuristic (2026-04-18)** ? **ambush actions now remain active for up to 2 end-of-round ticks instead of 1** (§4.3). Motivation: in the v0.7.3.1 baseline, 72 % of ambushes expired before any opponent gathered the targeted region, making the raider archetype structurally underpowered. The raider A/B experiment (`simulations/raider_ab/COMPARISON_raider_ab.md`) tested seven rule variants; persistence was the only lever that lifted raider hit-rate (11.8 % → 22.0 %) without distorting other archetypes' win distributions. Yield multiplier changes and scrap-cost removal were both rejected: multiplier is a cosmetic no-op because yield is not the binding constraint, and free ambush causes every agent with an ambush branch to spam the action, collapsing overall hit-rate and handing `diversified_trader` a 55 % win rate. The heuristic `aggressive_raider` was also rewritten: it now maintains a Scrap reserve sized for `ambush_cost + next_build_scrap_cost`, then delegates to `greedy_gather_action` so stolen loot can flow into higher-tier buildings; and it applies a mild post-hit throttle (0.85× after 1 hit, 0.70× after 2) so the raider spends some turns banking loot between raids rather than re-arming every turn. Raider avgVP lifts 4.13 → 4.80; raider build-mix now includes `forge` and `great_hall` (were absent in v0.7.3.1). New canonical heuristic baseline: `simulations/batch_v0.7.4.jsonl`. `rules_version` bumps to `"v0.7.4"`. TS engine picks up the same persistence rule via the new `PlayerState.ambushRoundsRemaining` TTL and `AMBUSH_PERSIST_ROUNDS = 2` constant in `packages/engine/src/rules.ts`; TS test suite adds two unit tests covering the TTL decrement and triggered-ambush early-clear paths. **Known open question** (deferred to v0.8): `diversified_trader`'s win rate surged 30 % → 55 % with persist=2 because trade beads are structurally immune to ambush pressure.
 - **v0.7.3.1 engine patch (2026-04-18)** ? no rule text change; fixes a Watchtower cost implementation bug in `compute_build_cost`. In both `tools/sim.py` and `packages/engine/src/actions.ts` the watchtower cost candidate was written as `{k: 2, S: 1}`. When the loop reached `k = "S"`, the dict-literal duplicate-key rule collapsed the cost to `{S: 1}`, letting any player with just **1 Scrap** (and no other resource in quantity 2) purchase a Watchtower for 1 Scrap, gaining 2 VP off-spec. Across the v0.7.3 50-match baseline this subsidised **43 of 213** Watchtowers (20%), most severely benefiting the trading/bead archetypes. The patch constructs the `k == "S"` case as `{S: 3}` (i.e. 2 + 1 = 3 Scrap) which matches ?4.2 as written. `rules_version` bumps to `"v0.7.3.1"`. The regenerated baseline is `simulations/batch_v0.7.3.1.jsonl`; the TS replay test now pins against that file. Heuristic `aggressive_raider` was also rewritten to build the full ladder (shack/den added); see `tools/sim.py`.
 - **v0.7.3 clarifications pass (2026-04-18)** ? no behavior change; surfaced during TS engine port. ?1.4 documents the narrow RNG scope (turn-order shuffle only; gameplay resolution uses no randomness). ?4.2 adds the Forge tie-break rule for choosing among equally-feasible 3-resource bundles. ?7.1 documents the match-end ordering when Great Hall and VP threshold fire on the same turn. `rules_version` remains `"v0.7.3"` ? existing simulation logs are unaffected.
@@ -23,7 +24,7 @@
 
 - Players are identified as `P1`, `P2`, `P3`, `P4`.
 - Resources are denoted by single letters in pseudocode: `T` (Timber), `O` (Ore), `F` (Fiber), `Rel` (Relics), `S` (Scrap).
-- Player state is always defined as a tuple: `(vp, resources, beads, beads_earned_this_round, partners_traded, buildings, active_ambush_region, trailing_bonus_active)`.
+- Player state is always defined as a tuple: `(vp, resources, beads, pending_beads, beads_earned_this_round, partners_traded, buildings, active_ambush_region, hits_this_round, hit_by_this_round, trailing_bonus_active)`.
 - `resources = {T: int, O: int, F: int, Rel: int, S: int}`, all non-negative integers.
 
 ---
@@ -50,10 +51,13 @@ vp                      = 0
 resources.T/O/F/Rel/S   = 0, 0, 0, 0, 0
 resources[home_resource]= 2
 beads                   = 0
-beads_earned_this_round = 0   # resets end of each round; gates Bead income from trades (?3.4)
+pending_beads           = 0   # v0.8: trade-bead-in-transit; settled at end-of-round (§3.4.3)
+beads_earned_this_round = 0   # resets end of each round; gates Bead income from trades (§3.4.1)
 partners_traded         = [] (empty list)
 buildings               = [] (empty list)
 active_ambush_region    = null
+hits_this_round         = 0   # v0.8: count of non-absorbed ambush hits suffered this round (§3.4.3)
+hit_by_this_round       = [] (empty list)  # v0.8: ambusher ids in hit order
 trailing_bonus_active   = false
 ```
 
@@ -148,13 +152,15 @@ When accepted:
 
 ### 3.4 Trade Beads
 
-After resources transfer (?3.3), update `partners_traded` for both parties (unique partner bookkeeping for tiebreakers ?7.2 #2 only).
+After resources transfer (§3.3), update `partners_traded` for both parties (unique partner bookkeeping for tiebreakers §7.2 #2 only).
+
+#### 3.4.1 Earn (pending until end-of-round)
 
 Then for each party `X` in the trade:
 
 ```
 if X.beads_earned_this_round < 2:
-    X.beads += 1
+    X.pending_beads += 1
     X.beads_earned_this_round += 1
     log bead_earned event
 # else: trade still completed; no Bead for X this round
@@ -163,18 +169,57 @@ if X.beads_earned_this_round < 2:
 
 Each player may earn at most **2 Beads per round** from trades.
 
-`beads_earned_this_round` resets to **0** for every player at **end of each round** (before the next round begins).
+**v0.8:** Beads earned from a trade do **not** enter `X.beads` immediately. They sit in a per-player `pending_beads` accumulator until end-of-round (§3.4.3). **Bead → VP conversion is likewise deferred to end-of-round**; no conversion runs inside `trade_resolved`.
 
-Then, for each party `X`:
+#### 3.4.2 Per-round counter reset
+
+`beads_earned_this_round` resets to **0** for every player at end of each round (step §3.4.3 below), **before** the next round begins.
+
+#### 3.4.3 End-of-round settlement (Beads-in-transit rule; canonical v0.8)
+
+At the end of each round, before any other end-of-round housekeeping, iterate players in `turn_order` and resolve their `pending_beads` as follows:
 
 ```
-while X.beads >= 2:
-    X.beads -= 2
-    X.vp += 1
-    log bead_converted event
+for each player X in turn_order:
+    pending = X.pending_beads
+    X.pending_beads = 0
+    if pending == 0:
+        continue
+    if X.hits_this_round > 0:
+        # X was the victim of at least one ambush_triggered event this round
+        # (watchtower_absorbed hits do NOT count here). Pending beads are
+        # transferred to the primary ambusher = X.hit_by_this_round[0].
+        A = X.hit_by_this_round[0]
+        A.beads += pending
+        log bead_stolen event {victim: X, ambusher: A, beads: pending}
+        # A immediately runs the standard 2-bead -> 1-VP conversion:
+        while A.beads >= 2:
+            A.beads -= 2
+            A.vp += 1
+            log bead_converted event
+    else:
+        # Safe delivery -> bank and convert on X.
+        X.beads += pending
+        while X.beads >= 2:
+            X.beads -= 2
+            X.vp += 1
+            log bead_converted event
+
+# After settlement, reset per-round hit bookkeeping for every player:
+for each player X:
+    X.beads_earned_this_round = 0
+    X.hits_this_round = 0
+    X.hit_by_this_round = []
 ```
 
-Each conversion spends Beads; conversions may repeat within the same trade resolution and across the match until `beads < 2`.
+`hits_this_round` increments on every `ambush_triggered` event where the victim is `X` and `watchtower_absorbed == false`. `hit_by_this_round` records the ambuser ids in the order the hits occurred; the first entry is the "primary" ambusher and wins any stolen beads.
+
+Stolen beads bypass the 2/round earn cap on the ambusher's side (they are loot, not trade earnings) — they enter `ambusher.beads` directly. The ambusher's own conversion loop then fires as usual.
+
+> **Rule variants.** Two non-canonical fallbacks exist in `tools/sim.py` under the `RR_BEAD_VULN_MODE` env var for regression / experimentation:
+> - `deny`: on-hit, pending beads are destroyed (no transfer, no event beyond `bead_denied`). Produces the same trader nerf as `steal` but without the raider upside.
+> - `off`: legacy v0.7.4 behaviour — beads award + convert inside `trade_resolved`, pending_beads is unused. Used only to replay pre-v0.8 batches byte-identically.
+> Neither variant is part of the v0.8 rule set; batches run with either must record `RR_BEAD_VULN_MODE` in `run_metadata.notes`.
 
 ---
 
@@ -300,13 +345,17 @@ Note: Scout is strictly weaker than Gather in yield when no ambush is present. I
 
 ## 5. End of round resolution
 
-After all players have taken their turn in a round:
+After all players have taken their turn in a round, resolve in this order:
 
-1. Clear all `active_ambush_region` values (ambushes don't carry into next round).
-2. Reset Watchtower "used this round" flags.
-3. Compute standings (?6.1).
-4. Update trailing bonus (?6.2).
-5. Increment round counter (if not ending).
+1. **Settle pending trade beads** (§3.4.3). For each player with `pending_beads > 0`, either transfer to the primary ambusher (if `hits_this_round > 0`) or bank into the earner's `beads` and run the 2-Bead → 1-VP conversion loop. Emit `bead_stolen` / `bead_converted` events as applicable.
+2. Reset per-round bead/hit bookkeeping: `beads_earned_this_round = 0`, `hits_this_round = 0`, `hit_by_this_round = []`, `pending_beads = 0` (already zeroed in step 1).
+3. Decrement each `active_ambush_region` TTL by 1 (v0.7.4: ambushes persist for up to 2 end-of-round ticks). Clear the region and emit `ambush_expired` when the TTL reaches 0.
+4. Reset Watchtower "used this round" flags.
+5. Compute standings (§6.1).
+6. Update trailing bonus (§6.2).
+7. Increment round counter (if not ending).
+
+> **Why bead settlement runs first.** Pending beads that are stolen become VP on the ambusher's side via `bead_converted`. Because VP threshold (§7.1) is a match-end trigger and this is the last chance in the round to award VP, settlement MUST complete before the round-end `vp_reached` / `round_limit` check. Implementations that invert the order (e.g. reset bookkeeping first) will lose the hit attribution and silently skip all bead transfers for the round.
 
 ---
 
@@ -394,9 +443,11 @@ else: apply tiebreakers in order:
 | `ambush_triggered` | X ambushed Y at region | yes |
 | `ambush_scouted` | Z scouted X's ambush at region | yes |
 | `ambush_expired` | X's ambush at region expired with no effect | yes (but retroactively) |
-| `bead_earned` | X earned Bead from trade with Y | yes |
+| `bead_earned` | X earned Bead from trade with Y (goes to `pending_beads` under v0.8) | yes |
 | `bead_capped` | X completed a trade but earned no Bead (already at the per-round trade Bead cap) | yes |
-| `bead_converted` | X converted Beads to +1 VP | yes |
+| `bead_stolen` | v0.8: X was ambushed this round; their pending Beads transferred to ambusher A at end-of-round | yes |
+| `bead_denied` | v0.8 (deny variant only): X was ambushed this round; pending Beads destroyed at end-of-round | yes |
+| `bead_converted` | X (or an ambusher who just stole beads) converted 2 Beads to +1 VP | yes |
 | `trailing_bonus_applied` | X is trailing, +1 Gather next round | yes |
 | `tribute_route_proposed` | X requests tribute from Y | yes |
 | `tribute_route_accepted` | Y accepted tribute route | yes |
@@ -412,11 +463,11 @@ Any simulation run (human-played, AI-agent-played, or scripted) MUST:
 
 1. Follow these rules exactly.
 2. Emit a match log conforming to `SIMULATION_SCHEMA.md`.
-3. Set `rules_version: "v0.7.4"` in the log.
+3. Set `rules_version: "v0.8"` in the log.
 4. Use the provided `seed` deterministically.
 
 Agents may vary in decision-making (e.g. `greedy_builder`, `aggressive_raider`, `diversified_trader`, `random`, `human`), but the rule enforcement must be identical. Analysis across runs depends on rule determinism ? any divergence invalidates the comparison.
 
 ---
 
-*End of RULES.md ? v0.7.4*
+*End of RULES.md — v0.8*

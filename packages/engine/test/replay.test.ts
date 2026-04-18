@@ -9,7 +9,7 @@ import { replayOneTurn } from "../src/replay.js";
 import type { SimTurnEvent } from "../src/replay.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BATCH_PATH = path.resolve(__dirname, "../../../simulations/batch_v0.7.4.jsonl");
+const BATCH_PATH = path.resolve(__dirname, "../../../simulations/batch_v0.8.jsonl");
 
 interface BatchMatch {
   match_id: string;
@@ -100,7 +100,7 @@ function computeWinnersFromState(
   return [...outcome.winner_ids];
 }
 
-describe("v0.7.4 replay determinism", () => {
+describe("v0.8 replay determinism", () => {
   const matches = loadMatches();
   expect(matches.length).toBe(50);
 

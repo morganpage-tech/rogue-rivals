@@ -1,4 +1,4 @@
-/** Types and constants aligned with RULES.md v0.7.3 */
+/** Types and constants aligned with RULES.md v0.8 */
 
 export type Tribe = "orange" | "grey" | "brown" | "red";
 export type Region = "plains" | "mountains" | "swamps" | "desert" | "ruins";
@@ -52,6 +52,24 @@ export const MAX_ROUNDS = 15;
 export const AMBUSH_PERSIST_ROUNDS = 2;
 export const AMBUSH_COST_S = 1;
 export const AMBUSH_YIELD_MULT = 2;
+
+/**
+ * v0.8: bead-vulnerability mode.
+ *
+ * "steal" (canonical) — beads awarded from trades in the current round are
+ *   parked in `PlayerState.pendingBeads`; their 2-bead -> 1-VP conversion is
+ *   deferred to end-of-round. If the earner was the victim of any successful
+ *   ambush that round, pending beads are transferred to the first successful
+ *   ambusher (who banks + converts them).
+ * "deny" — same pending window, but pending beads are destroyed instead of
+ *   transferred. Not canonical; kept for rule experiments only.
+ * "off"  — legacy v0.7.4 behaviour: beads are immune to ambush. Kept purely
+ *   for regression / replay determinism of pre-v0.8 batches.
+ *
+ * See: simulations/trader_vuln/COMPARISON_trader_vuln.md for the rationale.
+ */
+export type BeadVulnMode = "off" | "deny" | "steal";
+export const BEAD_VULN_MODE: BeadVulnMode = "steal";
 
 export function emptyResources(): Resources {
   return { T: 0, O: 0, F: 0, Rel: 0, S: 0 };

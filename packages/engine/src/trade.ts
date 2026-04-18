@@ -1,5 +1,5 @@
 import type { MatchState, PlayerState, TradeOffer } from "./state.js";
-import { RES_KEYS } from "./rules.js";
+import { BEAD_VULN_MODE, RES_KEYS } from "./rules.js";
 import type { LogEvent } from "./log.js";
 
 export function canPayResources(ps: PlayerState, cost: Partial<Record<string, number>>): boolean {
@@ -67,7 +67,14 @@ export function resolveTrade(
   ]) {
     const ps = state.players[pid];
     if (ps.beadsEarnedThisRound < 2) {
-      ps.beads += 1;
+      // v0.8 canonical: park the bead in pendingBeads so runEndOfRound can
+      // divert it if the earner is ambushed this round. Legacy "off" mode
+      // awards + converts immediately (for pre-v0.8 replay determinism).
+      if (BEAD_VULN_MODE === "off") {
+        ps.beads += 1;
+      } else {
+        ps.pendingBeads += 1;
+      }
       ps.beadsEarnedThisRound += 1;
       beadsAwarded[pid] = 1;
       extra.push({
@@ -87,8 +94,12 @@ export function resolveTrade(
     }
   }
 
-  for (const pid of [a, b].sort()) {
-    extra.push(...applyBeadConversions(state, pid));
+  // v0.8: 2-bead -> 1-VP conversion is deferred to runEndOfRound so pending
+  // beads are actually at risk. Only the legacy "off" mode converts here.
+  if (BEAD_VULN_MODE === "off") {
+    for (const pid of [a, b].sort()) {
+      extra.push(...applyBeadConversions(state, pid));
+    }
   }
 
   const resolved = {
