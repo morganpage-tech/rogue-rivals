@@ -1,0 +1,214 @@
+{
+  "runs": [
+    {
+      "seed": 31,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "turn_order": [
+        "P3",
+        "P4",
+        "P2",
+        "P1"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ]
+    },
+    {
+      "seed": 32,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "turn_order": [
+        "P2",
+        "P3",
+        "P4",
+        "P1"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ]
+    },
+    {
+      "seed": 33,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "turn_order": [
+        "P4",
+        "P1",
+        "P3",
+        "P2"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ]
+    },
+    {
+      "seed": 34,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "turn_order": [
+        "P2",
+        "P1",
+        "P4",
+        "P3"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ]
+    },
+    {
+      "seed": 35,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "turn_order": [
+        "P4",
+        "P2",
+        "P1",
+        "P3"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ]
+    },
+    {
+      "seed": 36,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "turn_order": [
+        "P2",
+        "P4",
+        "P1",
+        "P3"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ]
+    },
+    {
+      "seed": 37,
+      "tribes": [
+        "grey",
+        "brown",
+        "red",
+        "orange"
+      ],
+      "turn_order": [
+        "P2",
+        "P4",
+        "P3",
+        "P1"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ]
+    },
+    {
+      "seed": 38,
+      "tribes": [
+        "brown",
+        "red",
+        "orange",
+        "grey"
+      ],
+      "turn_order": [
+        "P3",
+        "P1",
+        "P2",
+        "P4"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ]
+    },
+    {
+      "seed": 39,
+      "tribes": [
+        "red",
+        "orange",
+        "grey",
+        "brown"
+      ],
+      "turn_order": [
+        "P1",
+        "P3",
+        "P4",
+        "P2"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ]
+    },
+    {
+      "seed": 40,
+      "tribes": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "turn_order": [
+        "P2",
+        "P1",
+        "P3",
+        "P4"
+      ],
+      "agents": [
+        "greedy_builder",
+        "aggressive_raider",
+        "diversified_trader",
+        "banker"
+      ]
+    }
+  ]
+}

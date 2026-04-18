@@ -116,6 +116,8 @@ def _build_match_specs(
 
     skip = max(0, int(getattr(args, "skip", 0) or 0))
 
+    literal = bool(getattr(args, "literal_agents", False))
+
     if config_runs is not None:
         # --config already defines the runs; --skip trims the leading N entries.
         sliced = config_runs[skip : skip + args.n]
@@ -126,7 +128,11 @@ def _build_match_specs(
                 raise RuntimeError(f"No baseline row for seed {seed}")
             turn_order = bl["config"]["turn_order"]
             tribes = list(run["tribes"])
-            agents = [_map_agent(a) for a in run["agents"]]
+            agents = (
+                list(run["agents"])
+                if literal
+                else [_map_agent(a) for a in run["agents"]]
+            )
             npl = len(agents)
             apar = run.get("agent_params") or [{} for _ in range(npl)]
             if len(apar) < npl:
@@ -302,6 +308,12 @@ def main() -> int:
         action="store_true",
         help="If set, reuse any already-completed match fragments from simulations/_partials/ "
         "matching the batch-id/seed rather than re-running those matches.",
+    )
+    ap.add_argument(
+        "--literal-agents",
+        action="store_true",
+        help="In --config mode, pass agent names through verbatim (no auto-map of "
+        "heuristic names to *_llm). Use for mixed LLM-vs-heuristic experiments.",
     )
     args = ap.parse_args()
 
