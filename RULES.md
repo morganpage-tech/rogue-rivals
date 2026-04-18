@@ -8,6 +8,7 @@
 
 ## Revision history
 
+- **v0.7.3 clarifications pass (2026-04-18)** ? no behavior change; surfaced during TS engine port. ?1.4 documents the narrow RNG scope (turn-order shuffle only; gameplay resolution uses no randomness). ?4.2 adds the Forge tie-break rule for choosing among equally-feasible 3-resource bundles. ?7.1 documents the match-end ordering when Great Hall and VP threshold fire on the same turn. `rules_version` remains `"v0.7.3"` ? existing simulation logs are unaffected.
 - **v0.7.3** ? Trade Beads: each player earns **at most 2 Beads per round** from completed trades (further trades in the same round still transfer resources and update `partners_traded`, but award **no** extra Bead once the cap is reached). *Rationale:* v0.7.2's **1 Bead/round** cap over-corrected and zeroed **alliance** viability; v0.7.3 relaxes to **2 Beads/round** to preserve the banker nerf while keeping volume-trading strategies alive.
 - **v0.7.2** ? Trade Beads: each player earns **at most 1 Bead per round** from completed trades (later trades in the same round still transfer resources and update `partners_traded`, but award **no** extra Bead). *Rationale:* v0.7.1 smart-agent batch showed **banker** snowballing via uncapped per-round bead income; the round cap preserves trading for resources while blunting pure trade-spam VP.
 - **v0.7.1** ? Trade Beads: **+1 Bead on every completed trade** (no longer first-new-partner only); conversion spends **2 Beads** per **+1 VP** (repeatable `while` loop, uncapped). *Rationale:* v0.7 uncapped bead-to-VP conversion had little room to operate because bead **earning** was still capped at **num_players ? 1** per match; v0.7.1 makes **trade volume** the bead VP engine while keeping **`partners_traded`** for tiebreakers (?7.2 #2).
@@ -67,6 +68,8 @@ match_end_trigger       = null
 ### 1.4 Seed
 
 Every match takes an integer `seed`. All pseudorandom events (tiebreakers, agent stochastic decisions if any) derive from this seed. Two runs with the same seed, same agent set, and same turn order MUST produce identical match logs.
+
+**Scope of randomness (clarification).** In the current v0.7.3 ruleset, *gameplay resolution uses no randomness at all*. The seed only feeds (a) the initial turn-order shuffle, if `turn_order` was not supplied explicitly, and (b) any agent-internal stochastic choices. Every rule-enforced outcome ? gather yields, trade resolution, ambush resolution, scouting, end-of-round standings ? is fully deterministic given the current `MatchState` and the next command. Implementations MAY omit a PRNG entirely if `turn_order` is always passed in. This means replay from a command log is exact and does not require reproducing any PRNG state.
 
 ---
 
@@ -244,6 +247,7 @@ player.resources[resource_type] += yield_amount
 Notes:
 - `watchtower` resource does NOT need to be home. 2 of any resource works.
 - `forge` 3-different requirement is INCLUSIVE of Scrap, then the building itself costs another 1 Scrap on top. In other words: pick 3 different resources from {T,O,F,Rel,S}, pay 1 of each, plus 1 additional Scrap (so if one of the 3 was Scrap, total Scrap cost = 2). Simpler restatement: `forge = pick 3 different resources, pay 1 each, then pay 1 Scrap`.
+- **Forge triple tie-break (determinism requirement).** When a player can afford multiple valid 3-resource bundles, the engine MUST choose the lexicographically smallest feasible triple under the canonical resource ordering `(T, O, F, Rel, S)`. Generate candidate triples with nested index loops `i < j < k` over that ordering, filter to those the player can actually pay (accounting for the extra 1 Scrap), then take the first. This matches the reference Python simulator (`tools/sim.py`) and ensures byte-identical replay across implementations.
 - `great_hall` cost is exactly as listed (6 resources total: one of each home type plus two Scrap) and does not allow substitutions.
 
 ### 4.3 `Ambush(region)`
@@ -350,6 +354,8 @@ Match ends at the *first* of the following:
 1. **Great Hall built:** At end of the round in which any player builds a Great Hall.
 2. **VP threshold:** Any player has `vp >= 8` at end of their turn.
 3. **Round 15 complete.**
+
+**Ordering clarification.** Triggers (1) and (2) can fire on the same turn ? e.g., a player's build action both constructs Great Hall (+4 VP) and pushes them from 4 VP to 8 VP. In this case the **VP threshold fires first** because it is checked at **end of turn**, whereas the Great Hall trigger is checked at **end of round**. The match-end log records `end_trigger: "vp_threshold"` in this scenario, not `"great_hall"`. Implementations MUST check VP threshold at the end of every turn (including after trade resolutions that yield Bead conversions) and Great Hall only during end-of-round resolution.
 
 ### 7.2 Winner determination
 
