@@ -81,7 +81,7 @@ function SetupScreen({ onStart }: SetupScreenProps) {
     <div className="card" style={{ maxWidth: 640, margin: "40px auto" }}>
       <h2 style={{ marginBottom: 6 }}>New match</h2>
       <div className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
-        Local hot-seat — pass the device between players. Rules v0.8.
+        Local hot-seat â€” pass the device between players. Rules v0.8.
       </div>
       <div className="col" style={{ gap: 14 }}>
         <label className="row" style={{ justifyContent: "space-between" }}>
@@ -96,9 +96,9 @@ function SetupScreen({ onStart }: SetupScreenProps) {
         </label>
         <div className="col" style={{ gap: 8 }}>
           {seats.map((seat, i) => (
+            <div className="col" key={i} style={{ gap: 4 }}>
             <div
               className="row"
-              key={i}
               style={{ gap: 8, justifyContent: "space-between" }}
             >
               <span className="mono muted" style={{ width: 32 }}>
@@ -130,11 +130,14 @@ function SetupScreen({ onStart }: SetupScreenProps) {
                     key={t}
                     value={t}
                     disabled={usedTribes.has(t) && seat.tribe !== t}
-                  >
-                    {TRIBE_LABEL[t]}
+                  >{`${TRIBE_LABEL[t]} â€” ${REGION_LABEL[TRIBE_HOME[t].region]} (${RES_LABEL[TRIBE_HOME[t].resource]})`}
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="muted" style={{ fontSize: 11, marginLeft: 40 }}>
+              Home: {REGION_LABEL[TRIBE_HOME[seat.tribe].region]} Â· gathers there yield +2 {RES_LABEL[TRIBE_HOME[seat.tribe].resource]}
+            </div>
             </div>
           ))}
         </div>
@@ -191,7 +194,7 @@ function ResourceStrip({ resources }: { resources: Record<Resource, number> }) {
       ))}
       <div className="r">
         <div className="k">VP</div>
-        <div className="v">—</div>
+        <div className="v">â€”</div>
       </div>
     </div>
   );
@@ -243,7 +246,7 @@ function MatchView({
   const turnOrderSummary = state.turnOrder
     .map((id) => nameOf(id))
     .map((n, i) => (i === state.turnOrder.indexOf(activeId) ? `? ${n}` : n))
-    .join(" · ");
+    .join(" Â· ");
 
   const sortedByVp = [...state.seatPlayerIds].sort(
     (a, b) => state.players[b].vp - state.players[a].vp,
@@ -284,10 +287,12 @@ function MatchView({
               paddingTop: 14,
             }}
           >
-            <b className="accent">New to Rogue Rivals?</b> Each turn you propose
-            any trades you like, then take one action: <b>Gather</b> resources,{" "}
-            <b>Build</b> a structure for VP + bonuses, set an <b>Ambush</b> to
-            steal someone's next gather, <b>Scout</b> to disarm one, or{" "}
+            <b className="accent">New to Rogue Rivals?</b> You are the{" "}
+            <b>{TRIBE_LABEL[activeSeat.tribe]} tribe</b> and your home is the{" "}
+            <b>{REGION_LABEL[TRIBE_HOME[activeSeat.tribe].region]}</b> â€” gathers
+            there yield <b>+2 {RES_LABEL[TRIBE_HOME[activeSeat.tribe].resource]}</b>{" "}
+            instead of +1. Each turn propose any trades, then take one action:{" "}
+            <b>Gather</b>, <b>Build</b>, <b>Ambush</b>, <b>Scout</b>, or{" "}
             <b>Pass</b>. First player to <b>{VP_WIN_THRESHOLD} VP</b> wins. A
             "How to play" panel is open on the right once you start your turn.
           </div>
@@ -327,15 +332,15 @@ function MatchView({
         <div>
           <h1>Rogue Rivals</h1>
           <div className="sub">
-            Round {state.round}/15 — {activeName}'s turn —{" "}
+            Round {state.round}/15 â€” {activeName}'s turn â€”{" "}
             turn order: <span className="mono">{turnOrderSummary}</span>
           </div>
           <div className="sub" style={{ marginTop: 2 }}>
             <span className="accent">
               Goal: first to {VP_WIN_THRESHOLD} VP wins
             </span>{" "}
-            — leader: <b>{leaderSummary}</b> —{" "}
-            <span className="mono">seed {state.seed}</span> —{" "}
+            â€” leader: <b>{leaderSummary}</b> â€”{" "}
+            <span className="mono">seed {state.seed}</span> â€”{" "}
             <span className="mono">{state.rulesVersion}</span>
           </div>
         </div>
@@ -352,10 +357,13 @@ function MatchView({
               <div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   <span className={`tribe-chip tribe-${activeSeat.tribe}`} />
-                  {activeName} — {TRIBE_LABEL[activeSeat.tribe]} tribe
+                  {activeName} â€” {TRIBE_LABEL[activeSeat.tribe]} tribe
+                </div>
+                <div className="accent" style={{ fontSize: 12, marginTop: 2 }}>
+                  Home region: {REGION_LABEL[TRIBE_HOME[activeSeat.tribe].region]} ({RES_LABEL[TRIBE_HOME[activeSeat.tribe].resource]})
                 </div>
                 <div style={{ marginTop: 4, fontSize: 14 }}>
-                  VP: <b>{activePs.vp}</b> — Beads:{" "}
+                  VP: <b>{activePs.vp}</b> â€” Beads:{" "}
                   <b>{activePs.beads}</b>
                   {activePs.pendingBeads > 0 && (
                     <span className="accent"> (+{activePs.pendingBeads} pending)</span>
@@ -363,7 +371,7 @@ function MatchView({
                 </div>
                 {activePs.activeAmbushRegion && (
                   <div className="accent" style={{ fontSize: 12, marginTop: 4 }}>
-                    Ambush set at {REGION_LABEL[activePs.activeAmbushRegion]} —{" "}
+                    Ambush set at {REGION_LABEL[activePs.activeAmbushRegion]} â€”{" "}
                     {activePs.ambushRoundsRemaining} rnd left
                   </div>
                 )}
@@ -373,7 +381,7 @@ function MatchView({
             <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
               Buildings:{" "}
               {activePs.buildings.length
-                ? activePs.buildings.map((b) => BUILDING_LABEL[b]).join(" — ")
+                ? activePs.buildings.map((b) => BUILDING_LABEL[b]).join(" â€” ")
                 : "none yet"}
             </div>
           </div>
@@ -389,17 +397,21 @@ function MatchView({
                 const isMyHome = reg === TRIBE_HOME[activeSeat.tribe].region;
                 const yieldForMe = computeGatherYield(state, activeId, reg);
                 return (
-                  <div className="region" key={reg}>
+                  <div className={`region${isMyHome ? " home" : ""}`} key={reg}>
                     <div className="name">
                       <span className={`region-chip region-${reg}`} />
                       {REGION_LABEL[reg]}
+                      {isMyHome && (
+                        <span className="home-badge" title="Your tribe's home region">HOME</span>
+                      )}
                     </div>
                     <div className="meta">
                       Yields {REGION_RES_NAME[reg]}
-                      {isMyHome ? " · your home" : ""}
+                      {isMyHome ? " Â· your home" : ""}
                     </div>
                     <div className="meta accent">
                       If you gather: +{yieldForMe} {REGION_RES_NAME[reg]}
+                      {isMyHome && yieldForMe > 1 ? " (home bonus)" : ""}
                     </div>
                     {myAmbush && <div className="mine">You are ambushing here.</div>}
                     {ambushers.length > 0 && !myAmbush && (
@@ -415,16 +427,17 @@ function MatchView({
 
           {selectedActionKind === "gather" && (
             <div className="card">
-              <h3>Gather from…</h3>
+              <h3>Gather fromâ€¦</h3>
               <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
                 {ACTION_EFFECT.gather}
               </div>
               <div className="regions" style={{ marginTop: 10 }}>
                 {REGION_KEYS.map((reg) => {
                   const y = computeGatherYield(state, activeId, reg);
+                  const isHome = reg === TRIBE_HOME[activeSeat.tribe].region;
                   return (
                     <button
-                      className="region"
+                      className={`region${isHome ? " home" : ""}`}
                       key={reg}
                       disabled={!canGather(reg)}
                       onClick={() => doAction({ kind: "gather", region: reg })}
@@ -432,6 +445,7 @@ function MatchView({
                       <div className="name">
                         <span className={`region-chip region-${reg}`} />
                         {REGION_LABEL[reg]}
+                        {isHome && <span className="home-badge">HOME</span>}
                       </div>
                       <div className="meta">
                         Gain <b>+{y} {REGION_RES_NAME[reg]}</b>
@@ -448,7 +462,7 @@ function MatchView({
 
           {selectedActionKind === "ambush" && (
             <div className="card">
-              <h3>Set an ambush at…</h3>
+              <h3>Set an ambush atâ€¦</h3>
               <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
                 {ACTION_EFFECT.ambush}
               </div>
@@ -476,7 +490,7 @@ function MatchView({
 
           {selectedActionKind === "scout" && (
             <div className="card">
-              <h3>Scout…</h3>
+              <h3>Scoutâ€¦</h3>
               <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
                 {ACTION_EFFECT.scout}
               </div>
@@ -504,7 +518,7 @@ function MatchView({
 
           {selectedActionKind === "build" && (
             <div className="card">
-              <h3>Build…</h3>
+              <h3>Buildâ€¦</h3>
               <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
                 {ACTION_EFFECT.build}
               </div>
@@ -608,10 +622,10 @@ function MatchView({
                       <span className="mono">{pid}</span>
                     </div>
                     <div className="line">
-                      {TRIBE_LABEL[seat.tribe]} tribe
+                      {TRIBE_LABEL[seat.tribe]} tribe Â· home: {REGION_LABEL[TRIBE_HOME[seat.tribe].region]}
                     </div>
                     <div className="line">
-                      VP: <b className="accent">{ps.vp}</b> — Beads: <b>{ps.beads}</b>
+                      VP: <b className="accent">{ps.vp}</b> â€” Beads: <b>{ps.beads}</b>
                       {ps.pendingBeads > 0 && ` (+${ps.pendingBeads})`}
                     </div>
                     <div className="line">
@@ -624,7 +638,7 @@ function MatchView({
                       Buildings:{" "}
                       {ps.buildings.length
                         ? ps.buildings.map((b) => BUILDING_LABEL[b]).join(", ")
-                        : "—"}
+                        : "â€”"}
                     </div>
                   </div>
                 );
@@ -650,7 +664,7 @@ function MatchView({
                       {formatResourceBag(o.offered)} ? {formatResourceBag(o.requested)}
                     </div>
                     <div className="btns">
-                      <button onClick={() => setRespondingTo(o.id)}>Review…</button>
+                      <button onClick={() => setRespondingTo(o.id)}>Reviewâ€¦</button>
                     </div>
                   </div>
                 </div>
@@ -658,7 +672,7 @@ function MatchView({
               {outgoingOffers.map((o) => (
                 <div className="offer" key={o.id}>
                   <div className="line">
-                    you ? <b>{nameOf(o.recipient)}</b> — waiting
+                    you ? <b>{nameOf(o.recipient)}</b> â€” waiting
                   </div>
                   <div className="body">
                     <div className="swap mono">
@@ -769,7 +783,7 @@ function MatchEndScreen({ match, onNewMatch }: MatchEndProps) {
         <div className="trophy">??</div>
         <h2>{winnerText}</h2>
         <div className="muted" style={{ marginTop: 6 }}>
-          {trigger} — {state.rulesVersion}
+          {trigger} â€” {state.rulesVersion}
         </div>
         <div className="standings">
           {sorted.map((id, idx) => {
@@ -868,7 +882,7 @@ export function App() {
         <div className="header">
           <div>
             <h1>Rogue Rivals</h1>
-            <div className="sub">Hot-seat prototype — rules v0.8</div>
+            <div className="sub">Hot-seat prototype â€” rules v0.8</div>
           </div>
         </div>
         <SetupScreen onStart={startMatch} />
