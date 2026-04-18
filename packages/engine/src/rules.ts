@@ -42,6 +42,17 @@ export const BUILD_ORDER: readonly BuildingType[] = [
 export const VP_WIN_THRESHOLD = 8;
 export const MAX_ROUNDS = 15;
 
+/**
+ * v0.7.4: how many end-of-round ticks an ambush survives before expiring.
+ * Bumped from 1 (v0.7.3.1) to 2 after the raider A/B experiment showed this
+ * is the only ambush-knob that meaningfully lifts raider hit rate without
+ * distorting other archetypes' win distributions.
+ * See: simulations/raider_ab/COMPARISON_raider_ab.md
+ */
+export const AMBUSH_PERSIST_ROUNDS = 2;
+export const AMBUSH_COST_S = 1;
+export const AMBUSH_YIELD_MULT = 2;
+
 export function emptyResources(): Resources {
   return { T: 0, O: 0, F: 0, Rel: 0, S: 0 };
 }

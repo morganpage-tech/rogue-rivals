@@ -1,4 +1,4 @@
-# ROGUE RIVALS ? Rules (v0.7.3.1)
+# ROGUE RIVALS ? Rules (v0.7.4)
 
 > **Status:** Canonical, simulation-ready ruleset. If this document conflicts with `GDD.md`, this document is authoritative.
 >
@@ -8,6 +8,7 @@
 
 ## Revision history
 
+- **v0.7.4 ambush persistence + raider heuristic (2026-04-18)** ? **ambush actions now remain active for up to 2 end-of-round ticks instead of 1** (§4.3). Motivation: in the v0.7.3.1 baseline, 72 % of ambushes expired before any opponent gathered the targeted region, making the raider archetype structurally underpowered. The raider A/B experiment (`simulations/raider_ab/COMPARISON_raider_ab.md`) tested seven rule variants; persistence was the only lever that lifted raider hit-rate (11.8 % → 22.0 %) without distorting other archetypes' win distributions. Yield multiplier changes and scrap-cost removal were both rejected: multiplier is a cosmetic no-op because yield is not the binding constraint, and free ambush causes every agent with an ambush branch to spam the action, collapsing overall hit-rate and handing `diversified_trader` a 55 % win rate. The heuristic `aggressive_raider` was also rewritten: it now maintains a Scrap reserve sized for `ambush_cost + next_build_scrap_cost`, then delegates to `greedy_gather_action` so stolen loot can flow into higher-tier buildings; and it applies a mild post-hit throttle (0.85× after 1 hit, 0.70× after 2) so the raider spends some turns banking loot between raids rather than re-arming every turn. Raider avgVP lifts 4.13 → 4.80; raider build-mix now includes `forge` and `great_hall` (were absent in v0.7.3.1). New canonical heuristic baseline: `simulations/batch_v0.7.4.jsonl`. `rules_version` bumps to `"v0.7.4"`. TS engine picks up the same persistence rule via the new `PlayerState.ambushRoundsRemaining` TTL and `AMBUSH_PERSIST_ROUNDS = 2` constant in `packages/engine/src/rules.ts`; TS test suite adds two unit tests covering the TTL decrement and triggered-ambush early-clear paths. **Known open question** (deferred to v0.8): `diversified_trader`'s win rate surged 30 % → 55 % with persist=2 because trade beads are structurally immune to ambush pressure.
 - **v0.7.3.1 engine patch (2026-04-18)** ? no rule text change; fixes a Watchtower cost implementation bug in `compute_build_cost`. In both `tools/sim.py` and `packages/engine/src/actions.ts` the watchtower cost candidate was written as `{k: 2, S: 1}`. When the loop reached `k = "S"`, the dict-literal duplicate-key rule collapsed the cost to `{S: 1}`, letting any player with just **1 Scrap** (and no other resource in quantity 2) purchase a Watchtower for 1 Scrap, gaining 2 VP off-spec. Across the v0.7.3 50-match baseline this subsidised **43 of 213** Watchtowers (20%), most severely benefiting the trading/bead archetypes. The patch constructs the `k == "S"` case as `{S: 3}` (i.e. 2 + 1 = 3 Scrap) which matches ?4.2 as written. `rules_version` bumps to `"v0.7.3.1"`. The regenerated baseline is `simulations/batch_v0.7.3.1.jsonl`; the TS replay test now pins against that file. Heuristic `aggressive_raider` was also rewritten to build the full ladder (shack/den added); see `tools/sim.py`.
 - **v0.7.3 clarifications pass (2026-04-18)** ? no behavior change; surfaced during TS engine port. ?1.4 documents the narrow RNG scope (turn-order shuffle only; gameplay resolution uses no randomness). ?4.2 adds the Forge tie-break rule for choosing among equally-feasible 3-resource bundles. ?7.1 documents the match-end ordering when Great Hall and VP threshold fire on the same turn. `rules_version` remains `"v0.7.3"` ? existing simulation logs are unaffected.
 - **v0.7.3** ? Trade Beads: each player earns **at most 2 Beads per round** from completed trades (further trades in the same round still transfer resources and update `partners_traded`, but award **no** extra Bead once the cap is reached). *Rationale:* v0.7.2's **1 Bead/round** cap over-corrected and zeroed **alliance** viability; v0.7.3 relaxes to **2 Beads/round** to preserve the banker nerf while keeping volume-trading strategies alive.
@@ -262,10 +263,11 @@ Notes:
 1. `player.resources.S -= 1` (paid regardless of outcome).
 2. `player.active_ambush_region = region`.
 3. Log `ambush_set` event with `hidden: true` ? other players see only a generic "moved in secret" message in the public log.
-4. The ambush persists until end of round:
-   - If another player `Gather`s this region during this round, resolve per ?4.1's ambush check.
-   - If a player `Scout`s this region during this round, resolve per ?4.4.
-   - If neither happens, at `end_of_round_resolution()` the ambush expires with no effect.
+4. The ambush persists **across up to 2 end-of-round ticks** before expiring (v0.7.4; was 1 in v0.7.3.1):
+   - If another player `Gather`s this region at any time while the ambush is active, resolve per ?4.1's ambush check; a triggered ambush clears immediately (the TTL is set to 0 regardless of how many ticks remain).
+   - If a player `Scout`s this region while the ambush is active, resolve per ?4.4; the ambush is cleared immediately.
+   - Otherwise, at each `end_of_round_resolution()` the ambush's TTL is decremented; the ambush expires (and logs `ambush_expired`) only when the TTL reaches 0. A freshly-set ambush therefore survives the round in which it was set **and** the following round before auto-expiry.
+   - An ambusher has at most **one** active ambush at a time, regardless of TTL state; this is unchanged from v0.7.3.1.
 
 ### 4.4 `Scout(region)`
 
@@ -410,11 +412,11 @@ Any simulation run (human-played, AI-agent-played, or scripted) MUST:
 
 1. Follow these rules exactly.
 2. Emit a match log conforming to `SIMULATION_SCHEMA.md`.
-3. Set `rules_version: "v0.7.3"` in the log.
+3. Set `rules_version: "v0.7.4"` in the log.
 4. Use the provided `seed` deterministically.
 
 Agents may vary in decision-making (e.g. `greedy_builder`, `aggressive_raider`, `diversified_trader`, `random`, `human`), but the rule enforcement must be identical. Analysis across runs depends on rule determinism ? any divergence invalidates the comparison.
 
 ---
 
-*End of RULES.md ? v0.7.3*
+*End of RULES.md ? v0.7.4*

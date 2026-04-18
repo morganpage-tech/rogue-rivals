@@ -5,7 +5,15 @@
 
 import type { MatchState, PlayerState } from "./state.js";
 import type { BuildingType, Region, Resource, Resources } from "./rules.js";
-import { BUILD_ORDER, REGION_TO_RES, RES_KEYS, TRIBE_HOME } from "./rules.js";
+import {
+  AMBUSH_COST_S,
+  AMBUSH_PERSIST_ROUNDS,
+  AMBUSH_YIELD_MULT,
+  BUILD_ORDER,
+  REGION_TO_RES,
+  RES_KEYS,
+  TRIBE_HOME,
+} from "./rules.js";
 import { insertBuildingSorted } from "./state.js";
 import type { LogEvent } from "./log.js";
 
@@ -108,7 +116,11 @@ export function applyGather(state: MatchState, pid: string, region: Region): Gat
       watchtower_absorbed: true,
     });
     ap.activeAmbushRegion = null;
-    for (const x of rest) state.players[x].activeAmbushRegion = null;
+    ap.ambushRoundsRemaining = 0;
+    for (const x of rest) {
+      state.players[x].activeAmbushRegion = null;
+      state.players[x].ambushRoundsRemaining = 0;
+    }
     return {
       action: {
         type: "gather",
@@ -120,7 +132,7 @@ export function applyGather(state: MatchState, pid: string, region: Region): Gat
     };
   }
 
-  const stolen = amt * 2;
+  const stolen = amt * AMBUSH_YIELD_MULT;
   const rtype = rk;
   if (rtype === "S") {
     const take = Math.min(stolen, state.scrapPool);
@@ -139,7 +151,11 @@ export function applyGather(state: MatchState, pid: string, region: Region): Gat
     watchtower_absorbed: false,
   });
   ap.activeAmbushRegion = null;
-  for (const x of rest) state.players[x].activeAmbushRegion = null;
+  ap.ambushRoundsRemaining = 0;
+  for (const x of rest) {
+    state.players[x].activeAmbushRegion = null;
+    state.players[x].ambushRoundsRemaining = 0;
+  }
 
   return {
     action: {
@@ -322,12 +338,13 @@ export function applyAmbushSet(
   region: Region,
 ): { ok: boolean; costPaid?: Partial<Record<"S", number>> } {
   const ps = state.players[pid];
-  if (ps.resources.S < 1 || ps.activeAmbushRegion !== null) {
+  if (ps.resources.S < AMBUSH_COST_S || ps.activeAmbushRegion !== null) {
     return { ok: false };
   }
-  ps.resources.S -= 1;
+  ps.resources.S -= AMBUSH_COST_S;
   ps.activeAmbushRegion = region;
-  return { ok: true, costPaid: { S: 1 } };
+  ps.ambushRoundsRemaining = AMBUSH_PERSIST_ROUNDS;
+  return { ok: true, costPaid: { S: AMBUSH_COST_S } };
 }
 
 export function applyScout(
@@ -345,6 +362,7 @@ export function applyScout(
   if (ambushers.length) {
     for (const a of ambushers) {
       state.players[a].activeAmbushRegion = null;
+      state.players[a].ambushRoundsRemaining = 0;
     }
     events.push({
       type: "ambush_scouted",

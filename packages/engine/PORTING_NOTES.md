@@ -1,6 +1,6 @@
 # Porting notes (`tools/sim.py` → `@rr/engine`)
 
-References: **RULES.md v0.7.3**, **PROTOTYPE_SPEC.md §6**, **SIMULATION_SCHEMA.md v1.0**.
+References: **RULES.md v0.7.4**, **PROTOTYPE_SPEC.md §6**, **SIMULATION_SCHEMA.md v1.0**.
 
 ## Forge cost resolution
 
@@ -34,4 +34,4 @@ Python `random.Random(seed)` is only used for **initial turn-order shuffle** whe
 
 ## `rules_version`
 
-Logs and `MatchState.rulesVersion` use **`"v0.7.3"`**.
+Logs and `MatchState.rulesVersion` use **`"v0.7.4"`**.

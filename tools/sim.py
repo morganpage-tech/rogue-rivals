@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 SCHEMA_VERSION = "1.0"
-RULES_VERSION = "v0.7.3.1"
+RULES_VERSION = "v0.7.4"
 
 VP_WIN_THRESHOLD = 8
 # Hard cap on total per-player turns in a match (safety; 15 rounds * 4 players = 60 normally)
@@ -68,8 +68,12 @@ BUILD_ORDER = ("shack", "den", "watchtower", "forge", "great_hall")
 # RR_AMBUSH_COST_S integer Scrap cost to set an ambush
 #                  (canonical = 1; tested alternatives: 0 = free ambush)
 # RR_AMBUSH_PERSIST_ROUNDS how many end-of-round ticks an ambush survives
-#                  (canonical = 1; tested alternatives: 2 = persists across
-#                  two round boundaries before expiring)
+#                  (canonical v0.7.4 = 2; set 1 to replay v0.7.3.1 baselines)
+#
+# v0.7.4 note: the canonical default for AMBUSH_PERSIST_ROUNDS was bumped from
+# 1 to 2 after the raider A/B experiment in simulations/raider_ab/ showed this
+# is the only lever that meaningfully improves raider hit rate without
+# distorting the balance of economic archetypes.
 # -----------------------------------------------------------------------------
 try:
     AMBUSH_MULT = int(os.environ.get("RR_AMBUSH_MULT", "2"))
@@ -80,9 +84,9 @@ try:
 except ValueError:
     AMBUSH_COST_S = 1
 try:
-    AMBUSH_PERSIST_ROUNDS = int(os.environ.get("RR_AMBUSH_PERSIST_ROUNDS", "1"))
+    AMBUSH_PERSIST_ROUNDS = int(os.environ.get("RR_AMBUSH_PERSIST_ROUNDS", "2"))
 except ValueError:
-    AMBUSH_PERSIST_ROUNDS = 1
+    AMBUSH_PERSIST_ROUNDS = 2
 
 # Greedy / trade heuristics (v0.7.1 agents; bead VP, no new-partner bonus)
 W1_AFFORD_DELTA = 10
@@ -171,9 +175,12 @@ class GameEngine:
         self.buildings_by_player: Dict[str, List[str]] = {p: [] for p in self.player_ids}
         self.ambushes_attempted = self.ambushes_hit = self.ambushes_scouted = self.ambushes_expired = 0
         self.scouts_attempted = 0
-        # Per-ambusher TTL counter (end-of-round ticks remaining); canonical rules
-        # expire after 1 tick, matching the original active_ambush_region clear.
+        # Per-ambusher TTL counter (end-of-round ticks remaining); canonical v0.7.4
+        # rules expire after AMBUSH_PERSIST_ROUNDS ticks (default 2).
         self._ambush_ttl: Dict[str, int] = {p: 0 for p in self.player_ids}
+        # Per-ambusher successful-hit counter (used by agent heuristics to decide
+        # when to stop re-arming and pivot to building). Not serialised.
+        self._ambush_hits: Dict[str, int] = {p: 0 for p in self.player_ids}
 
         self._gathered: Dict[str, Dict[str, int]] = {p: empty_res() for p in self.player_ids}
         self._spent_build: Dict[str, Dict[str, int]] = {p: empty_res() for p in self.player_ids}
@@ -888,15 +895,23 @@ def agent_greedy_builder(view: Dict[str, Any], rng: random.Random) -> Dict[str, 
 
 @register_agent("aggressive_raider")
 def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
-    """v0.7.3.1+ raider: raid-focused but economically viable.
+    """v0.7.4 raider: ambush to disrupt, then convert stolen loot to builds.
 
-    Earlier versions only built watchtower/forge/great_hall, skipping shack/den.
-    This capped the ceiling at 4 VP of buildings and (combined with the
-    watchtower-cost implementation bug, see compute_build_cost patch notes)
-    made the archetype uncompetitive. Now the raider walks the full build
-    ladder like other archetypes, but preserves its aggressive identity by
-    (a) guarding its last Scrap for an ambush when behind mid-game, and
-    (b) using a slightly boosted ambush-threshold curve.
+    Context (from simulations/raider_ab/COMPARISON_raider_ab.md):
+      - With ambush persistence bumped to 2 rounds in v0.7.4, the raider now
+        lands roughly 30% of its ambushes (up from 12%), so stolen loot
+        genuinely flows in. The v0.7.3.1 heuristic could not convert that
+        loot into VP because it (a) re-armed too eagerly after every success
+        and (b) never chased the Great Hall.
+      - v0.7.4 raider: after landing 1+ ambushes this match, raise the bar
+        for re-arming, actively pursue Great Hall, and use the smart
+        resource-seeking gather (greedy_gather_action) instead of always
+        mining Ruins.
+
+    Behavioural identity preserved:
+      - Still the only archetype that actively sets ambushes.
+      - Still keeps its last Scrap for an ambush when behind mid-game.
+      - Threshold curve still aggressive at behind_gap >= 1.
     """
     eng: GameEngine = view["_engine"]
     pid = view["acting_player"]
@@ -908,12 +923,12 @@ def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[st
     leading = player_is_strict_leader(eng, pid)
     max_vp = max(eng.players[p].vp for p in eng.player_ids)
     behind_gap = max_vp - ps.vp
+    my_hits = eng._ambush_hits.get(pid, 0)
 
     accept: List[str] = []
     reject_reasons: Dict[str, str] = {}
     for o in incoming:
         req = dict(o["requested"])
-        # Don't give up a Scrap if it's our last one and an ambush is on the table.
         if req.get("S", 0) > 0 and ps.resources.get("S", 0) <= 1 and leader != pid:
             continue
         if not eng._can_pay(ps, req):
@@ -933,14 +948,11 @@ def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[st
 
     action: Optional[Dict[str, Any]] = None
 
-    # 1. Close via Great Hall when possible.
     if "great_hall" not in ps.buildings:
         cgh = eng.compute_build_cost(pid, "great_hall")
         if cgh and eng._can_pay(ps, cgh):
             action = {"kind": "build", "building": "great_hall"}
 
-    # 2. Cheap VP ladder: shack then den. If this would spend our last Scrap
-    #    but we could instead ambush the leader for high EV, defer.
     if action is None:
         pst_res = ps.resources
         last_scrap = pst_res.get("S", 0) == 1
@@ -951,20 +963,18 @@ def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[st
             and not leading
             and behind_gap >= 1
             and 3 <= eng.round_num <= 12
+            and my_hits == 0
         )
         for bt in ("shack", "den"):
             if bt in ps.buildings:
                 continue
             c = eng.compute_build_cost(pid, bt)
             if c and eng._can_pay(ps, c):
-                # Cost includes 1 Scrap. If we'd empty our scrap pile and
-                # an ambush is plausible, hold off on this build for a turn.
                 if c.get("S", 0) >= 1 and ambush_plausible:
                     break
                 action = {"kind": "build", "building": bt}
                 break
 
-    # 3. Defensive / yield buildings.
     if action is None:
         for bt in ("watchtower", "forge"):
             if bt in ps.buildings:
@@ -974,12 +984,10 @@ def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[st
                 action = {"kind": "build", "building": bt}
                 break
 
-    # 4. Low-prob scouting (mostly when not in closing endgame lead).
     scout_chance = 0.04 if (endg and leading) else 0.10
     if action is None and rng.random() < scout_chance and ps.active_ambush_region is None:
         action = {"kind": "scout", "region": rng.choice(list(REGION_KEYS))}
 
-    # 5. Primary raid behavior: ambush the leader's home when scrap allows.
     pst = _state_after_accepting_offers(eng, ps, incoming, accept)
     if (
         action is None
@@ -992,21 +1000,45 @@ def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[st
             do_ambush = not leading
         else:
             roll = rng.random()
-            # Slightly raised thresholds vs v0.7.3 (was 0.40 / 0.22 / 0.08).
+            # Base aggressive curve (same as v0.7.3.1).
             thresh = 0.50 if behind_gap >= 2 else (0.30 if behind_gap == 1 else 0.12)
+            # v0.7.4: mild post-hit throttle so the raider converts loot into
+            # builds between raids, without abandoning its signature identity.
+            # Tested values (scrap-reserve gather, persist=2, 50-match batch):
+            #   throttle  raider_wr  trader_wr  raider_avgVP
+            #   none      13.3%      55.0%      4.80
+            #   0.75/0.50 16.7%      55.0%      4.97
+            #   0.85/0.70 16.7%      55.0%      4.93
+            # Trader dominance (~55%) is a separate, persist=2 side-effect
+            # (trade beads are immune to ambush) and is a v0.8 design question.
+            if my_hits >= 2:
+                thresh *= 0.70
+            elif my_hits == 1:
+                thresh *= 0.85
             if leading and max_vp >= 6:
                 thresh *= 0.35
             do_ambush = roll < thresh
         if do_ambush:
             action = {"kind": "ambush", "region": lh}
 
-    # 6. Default: gather Scrap while pool lasts, else home.
+    # v0.7.4 gather policy: keep a Scrap reserve sufficient to fund an ambush
+    # AND the next build's Scrap cost; beyond that, steer toward the next
+    # missing build ingredient (via greedy_gather_action) so stolen loot is
+    # actually converted to VP. Without the reserve, the raider starves itself
+    # of the one resource that powers its signature action.
     if action is None:
-        home_reg = eng.home_region(pid)
-        if eng.scrap_pool > 0:
+        next_bt = next((b for b in BUILD_ORDER if b not in ps.buildings), None)
+        next_cost_s = 0
+        if next_bt is not None:
+            nc = eng.compute_build_cost(pid, next_bt) or {}
+            next_cost_s = int(nc.get("S", 0))
+        # Want: 1 Scrap for ambush + the Scrap needed for the next build.
+        scrap_target = AMBUSH_COST_S + next_cost_s if leader != pid else next_cost_s
+        have_s = ps.resources.get("S", 0)
+        if have_s < scrap_target and eng.scrap_pool > 0:
             action = {"kind": "gather", "region": "ruins"}
         else:
-            action = {"kind": "gather", "region": home_reg}
+            action = greedy_gather_action(eng, pid, ps)
 
     return {
         "trade_accept": accept,
@@ -1401,6 +1433,7 @@ def _apply_gather(engine: GameEngine, pid: str, region: str, events: List[Dict[s
         ap.resources[rtype] += stolen
         engine._gathered[amb][rtype] += stolen
     engine.ambushes_hit += 1
+    engine._ambush_hits[amb] = engine._ambush_hits.get(amb, 0) + 1
     events.append(
         {
             "type": "ambush_triggered",

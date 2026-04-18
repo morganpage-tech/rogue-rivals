@@ -49,13 +49,19 @@ export function runEndOfRound(state: MatchState): LogEvent[] {
   for (const p of state.seatPlayerIds) {
     const ps = state.players[p];
     if (ps.activeAmbushRegion) {
-      events.push({
-        type: "ambush_expired",
-        round: state.round,
-        ambusher_id: p,
-        region: ps.activeAmbushRegion,
-      });
-      ps.activeAmbushRegion = null;
+      // v0.7.4: ambushes persist AMBUSH_PERSIST_ROUNDS end-of-round ticks
+      // (2 by default) before expiring. Decrement TTL; only fire the
+      // expired event and clear the region when it reaches zero.
+      ps.ambushRoundsRemaining = Math.max(0, ps.ambushRoundsRemaining - 1);
+      if (ps.ambushRoundsRemaining <= 0) {
+        events.push({
+          type: "ambush_expired",
+          round: state.round,
+          ambusher_id: p,
+          region: ps.activeAmbushRegion,
+        });
+        ps.activeAmbushRegion = null;
+      }
     }
     ps.watchtowerUsedThisRound = false;
   }

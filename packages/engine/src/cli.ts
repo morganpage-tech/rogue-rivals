@@ -360,7 +360,7 @@ async function main(): Promise<void> {
 
   const record = {
     schema_version: "1.0",
-    rules_version: "v0.7.3.1",
+    rules_version: "v0.7.4",
     match_id: matchId,
     seed: argv.seed,
     run_metadata: {

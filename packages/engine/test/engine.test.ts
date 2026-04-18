@@ -7,6 +7,8 @@ import type { MatchState } from "../src/state.js";
 import { cloneMatchState } from "../src/state.js";
 import { resolveTrade } from "../src/trade.js";
 import { computeMatchOutcome } from "../src/matchEnd.js";
+import { runEndOfRound } from "../src/endOfRound.js";
+import { AMBUSH_PERSIST_ROUNDS } from "../src/rules.js";
 
 describe("initial state", () => {
   test("home resource is 2, scrap 5×n, round 1, rng and current player set", () => {
@@ -202,6 +204,63 @@ describe("ambush", () => {
     expect("error" in sc).toBe(false);
     const turn = (sc as { events: Record<string, unknown>[] }).events.find((e) => e.type === "turn");
     expect((turn?.action as Record<string, unknown>)?.yield).toEqual({});
+  });
+
+  test("v0.7.4 ambush persists AMBUSH_PERSIST_ROUNDS end-of-round ticks", () => {
+    expect(AMBUSH_PERSIST_ROUNDS).toBe(2);
+    let s = initMatch({
+      seed: 1,
+      seats: [
+        { playerId: "P1", tribe: "orange" },
+        { playerId: "P2", tribe: "grey" },
+      ],
+      turnOrder: ["P2", "P1"],
+    });
+    const now = new Date(0);
+    s.players.P2.resources.S = 5;
+    const a1 = applyCommand(s, "P2", { kind: "take_action", action: { kind: "ambush", region: "plains" } }, now);
+    expect("error" in a1).toBe(false);
+    s = (a1 as { newState: MatchState }).newState;
+
+    expect(s.players.P2.activeAmbushRegion).toBe("plains");
+    expect(s.players.P2.ambushRoundsRemaining).toBe(AMBUSH_PERSIST_ROUNDS);
+
+    const ev1 = runEndOfRound(s);
+    expect(s.players.P2.activeAmbushRegion).toBe("plains");
+    expect(s.players.P2.ambushRoundsRemaining).toBe(AMBUSH_PERSIST_ROUNDS - 1);
+    expect(ev1.some((e) => e.type === "ambush_expired")).toBe(false);
+
+    const ev2 = runEndOfRound(s);
+    expect(s.players.P2.activeAmbushRegion).toBeNull();
+    expect(s.players.P2.ambushRoundsRemaining).toBe(0);
+    expect(ev2.some((e) => e.type === "ambush_expired")).toBe(true);
+  });
+
+  test("v0.7.4 triggered ambush clears TTL immediately (no delayed expire)", () => {
+    let s = initMatch({
+      seed: 3,
+      seats: [
+        { playerId: "P1", tribe: "orange" },
+        { playerId: "P2", tribe: "grey" },
+      ],
+      turnOrder: ["P2", "P1"],
+    });
+    const now = new Date(0);
+    s.players.P2.resources.S = 5;
+    const a1 = applyCommand(s, "P2", { kind: "take_action", action: { kind: "ambush", region: "plains" } }, now);
+    s = (a1 as { newState: MatchState }).newState;
+    expect(s.players.P2.ambushRoundsRemaining).toBe(AMBUSH_PERSIST_ROUNDS);
+
+    const g = applyCommand(s, "P1", { kind: "take_action", action: { kind: "gather", region: "plains" } }, now);
+    expect("error" in g).toBe(false);
+    const evs = (g as { events: { type: string }[] }).events;
+    expect(evs.some((e) => e.type === "ambush_triggered")).toBe(true);
+    s = (g as { newState: MatchState }).newState;
+    expect(s.players.P2.activeAmbushRegion).toBeNull();
+    expect(s.players.P2.ambushRoundsRemaining).toBe(0);
+
+    const evEOR = runEndOfRound(s);
+    expect(evEOR.some((e) => e.type === "ambush_expired")).toBe(false);
   });
 });
 
