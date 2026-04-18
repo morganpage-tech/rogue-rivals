@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import random
 import sys
 import time
@@ -56,6 +57,32 @@ REGION_TO_RES = {
 }
 
 BUILD_ORDER = ("shack", "den", "watchtower", "forge", "great_hall")
+
+# -----------------------------------------------------------------------------
+# Experimental rule knobs (off by default; canonical v0.7.3.1 rules apply when
+# neither env var is set). These are intended for A/B rule experiments only;
+# any batch run with non-default values is NOT a v0.7.3.1 canonical batch.
+#
+# RR_AMBUSH_MULT   integer multiplier applied to pre-ambush yield on a hit
+#                  (canonical = 2; tested alternatives: 3)
+# RR_AMBUSH_COST_S integer Scrap cost to set an ambush
+#                  (canonical = 1; tested alternatives: 0 = free ambush)
+# RR_AMBUSH_PERSIST_ROUNDS how many end-of-round ticks an ambush survives
+#                  (canonical = 1; tested alternatives: 2 = persists across
+#                  two round boundaries before expiring)
+# -----------------------------------------------------------------------------
+try:
+    AMBUSH_MULT = int(os.environ.get("RR_AMBUSH_MULT", "2"))
+except ValueError:
+    AMBUSH_MULT = 2
+try:
+    AMBUSH_COST_S = int(os.environ.get("RR_AMBUSH_COST_S", "1"))
+except ValueError:
+    AMBUSH_COST_S = 1
+try:
+    AMBUSH_PERSIST_ROUNDS = int(os.environ.get("RR_AMBUSH_PERSIST_ROUNDS", "1"))
+except ValueError:
+    AMBUSH_PERSIST_ROUNDS = 1
 
 # Greedy / trade heuristics (v0.7.1 agents; bead VP, no new-partner bonus)
 W1_AFFORD_DELTA = 10
@@ -144,6 +171,9 @@ class GameEngine:
         self.buildings_by_player: Dict[str, List[str]] = {p: [] for p in self.player_ids}
         self.ambushes_attempted = self.ambushes_hit = self.ambushes_scouted = self.ambushes_expired = 0
         self.scouts_attempted = 0
+        # Per-ambusher TTL counter (end-of-round ticks remaining); canonical rules
+        # expire after 1 tick, matching the original active_ambush_region clear.
+        self._ambush_ttl: Dict[str, int] = {p: 0 for p in self.player_ids}
 
         self._gathered: Dict[str, Dict[str, int]] = {p: empty_res() for p in self.player_ids}
         self._spent_build: Dict[str, Dict[str, int]] = {p: empty_res() for p in self.player_ids}
@@ -252,7 +282,7 @@ class GameEngine:
             acts.append({"kind": "gather", "region": reg})
         for reg in REGION_KEYS:
             acts.append({"kind": "scout", "region": reg})
-        if ps.resources.get("S", 0) >= 1 and ps.active_ambush_region is None:
+        if ps.resources.get("S", 0) >= AMBUSH_COST_S and ps.active_ambush_region is None:
             for reg in ("plains", "mountains", "swamps", "desert", "ruins"):
                 acts.append({"kind": "ambush", "region": reg})
         for bt in BUILD_ORDER:
@@ -837,7 +867,7 @@ def agent_greedy_builder(view: Dict[str, Any], rng: random.Random) -> Dict[str, 
             endg
             and not leading
             and ps.vp >= 6
-            and pst.resources.get("S", 0) >= 1
+            and pst.resources.get("S", 0) >= AMBUSH_COST_S
             and ps.active_ambush_region is None
         )
         if want_ambush_risk:
@@ -953,7 +983,7 @@ def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[st
     pst = _state_after_accepting_offers(eng, ps, incoming, accept)
     if (
         action is None
-        and pst.resources.get("S", 0) >= 1
+        and pst.resources.get("S", 0) >= AMBUSH_COST_S
         and ps.active_ambush_region is None
         and leader != pid
     ):
@@ -1360,7 +1390,7 @@ def _apply_gather(engine: GameEngine, pid: str, region: str, events: List[Dict[s
             engine.players[x].active_ambush_region = None
         return {"type": "gather", "region": region, "yield": yv, "intercepted_by": None}
 
-    stolen = amt * 2
+    stolen = amt * AMBUSH_MULT
     rtype = REGION_TO_RES[region]
     if rtype == "S":
         take = min(stolen, engine.scrap_pool)
@@ -1513,14 +1543,17 @@ def execute_turn(engine: GameEngine, pid: str, turn_idx: int) -> List[Dict[str, 
     elif kind == "scout":
         apay = _apply_scout(engine, pid, action["region"], events)
     elif kind == "ambush":
-        if ps.resources.get("S", 0) < 1 or ps.active_ambush_region is not None:
+        if ps.resources.get("S", 0) < AMBUSH_COST_S or ps.active_ambush_region is not None:
             apay = {"type": "pass"}
         else:
             engine.ambushes_attempted += 1
-            engine.pay(pid, {"S": 1}, None)
-            engine._spent_ambush[pid] += 1
+            if AMBUSH_COST_S > 0:
+                engine.pay(pid, {"S": AMBUSH_COST_S}, None)
+                engine._spent_ambush[pid] += AMBUSH_COST_S
             ps.active_ambush_region = action["region"]
-            apay = {"type": "ambush", "region": action["region"], "cost_paid": {"S": 1}}
+            engine._ambush_ttl[pid] = AMBUSH_PERSIST_ROUNDS
+            cost_log: Dict[str, int] = {"S": AMBUSH_COST_S} if AMBUSH_COST_S > 0 else {}
+            apay = {"type": "ambush", "region": action["region"], "cost_paid": cost_log}
     elif kind == "build":
         bt = action["building"]
         cost = engine.compute_build_cost(pid, bt)
@@ -1593,16 +1626,21 @@ def end_of_round(engine: GameEngine, round_events: List[Dict[str, Any]]) -> None
     for p in engine.player_ids:
         ps = engine.players[p]
         if ps.active_ambush_region:
-            engine.ambushes_expired += 1
-            round_events.append(
-                {
-                    "type": "ambush_expired",
-                    "round": engine.round_num,
-                    "ambusher_id": p,
-                    "region": ps.active_ambush_region,
-                }
-            )
-            ps.active_ambush_region = None
+            # Decrement TTL; only expire when it reaches zero. Default
+            # AMBUSH_PERSIST_ROUNDS == 1 reproduces the canonical behaviour
+            # (ambush cleared at the first end-of-round tick).
+            engine._ambush_ttl[p] = max(0, engine._ambush_ttl[p] - 1)
+            if engine._ambush_ttl[p] <= 0:
+                engine.ambushes_expired += 1
+                round_events.append(
+                    {
+                        "type": "ambush_expired",
+                        "round": engine.round_num,
+                        "ambusher_id": p,
+                        "region": ps.active_ambush_region,
+                    }
+                )
+                ps.active_ambush_region = None
         ps.watchtower_used = False
 
     st = engine.standings()
