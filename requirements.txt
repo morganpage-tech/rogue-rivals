@@ -1,0 +1,4 @@
+# Rogue Rivals Python tooling (simulator + LLM Level-1 experiment)
+anthropic>=0.40.0
+openai>=1.40.0
+jsonschema>=4.22.0

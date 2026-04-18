@@ -19,6 +19,11 @@ import json
 import random
 import sys
 import time
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -29,6 +34,8 @@ SCHEMA_VERSION = "1.0"
 RULES_VERSION = "v0.7.3"
 
 VP_WIN_THRESHOLD = 8
+# Hard cap on total per-player turns in a match (safety; 15 rounds * 4 players = 60 normally)
+MAX_TURNS_SAFETY = 200
 
 RES_KEYS = ("T", "O", "F", "Rel", "S")
 REGION_KEYS = ("plains", "mountains", "swamps", "desert", "ruins")
@@ -147,6 +154,9 @@ class GameEngine:
         self.vp_curve: Dict[str, List[int]] = {p: [0] for p in self.player_ids}
         self.leader_identity_history: List[str] = []
         self.rounds_last_place: Dict[str, int] = {p: 0 for p in self.player_ids}
+
+        # Short string digest for agent prompts (LLM track); deterministic order append
+        self.recent_turn_summaries: List[str] = []
 
     def home_region(self, pid: str) -> str:
         return TRIBE_HOME[self.players[pid].tribe][0]
@@ -1196,6 +1206,55 @@ def agent_scout_paranoid(view: Dict[str, Any], rng: random.Random) -> Dict[str, 
     return agent_greedy_builder(view, rng)
 
 
+@register_agent("greedy_builder_llm")
+def agent_greedy_builder_llm(view: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+    from tools.llm_agent import llm_agent_decide
+
+    return llm_agent_decide("greedy_builder_llm", view, rng)
+
+
+@register_agent("aggressive_raider_llm")
+def agent_aggressive_raider_llm(view: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+    from tools.llm_agent import llm_agent_decide
+
+    return llm_agent_decide("aggressive_raider_llm", view, rng)
+
+
+@register_agent("diversified_trader_llm")
+def agent_diversified_trader_llm(view: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+    from tools.llm_agent import llm_agent_decide
+
+    return llm_agent_decide("diversified_trader_llm", view, rng)
+
+
+@register_agent("banker_llm")
+def agent_banker_llm(view: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+    from tools.llm_agent import llm_agent_decide
+
+    return llm_agent_decide("banker_llm", view, rng)
+
+
+@register_agent("alliance_duopoly_llm")
+def agent_alliance_duopoly_llm(view: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+    from tools.llm_agent import llm_agent_decide
+
+    return llm_agent_decide("alliance_duopoly_llm", view, rng)
+
+
+@register_agent("scout_paranoid_llm")
+def agent_scout_paranoid_llm(view: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+    from tools.llm_agent import llm_agent_decide
+
+    return llm_agent_decide("scout_paranoid_llm", view, rng)
+
+
+@register_agent("random_llm")
+def agent_random_llm(view: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+    from tools.llm_agent import llm_agent_decide
+
+    return llm_agent_decide("random_llm", view, rng)
+
+
 # -----------------------------------------------------------------------------
 # Turn / round / match
 # -----------------------------------------------------------------------------
@@ -1340,6 +1399,7 @@ def execute_turn(engine: GameEngine, pid: str, turn_idx: int) -> List[Dict[str, 
         },
         "your_state": engine.snapshot_private(pid),
         "pending_offers_to_you": engine.incoming_offers(pid),
+        "recent_turn_digest": list(engine.recent_turn_summaries[-16:]),
         "secrets": {"secret_ambush_pending": secret_pending, "scout_target_region": scout_reg},
         "_engine": engine,
     }
@@ -1436,6 +1496,12 @@ def execute_turn(engine: GameEngine, pid: str, turn_idx: int) -> List[Dict[str, 
                 }
             )
 
+    rationale_txt = dec.get("rationale")
+    if isinstance(rationale_txt, str) and rationale_txt.strip():
+        pass
+    else:
+        rationale_txt = ""
+
     events.append(
         {
             "type": "turn",
@@ -1449,9 +1515,23 @@ def execute_turn(engine: GameEngine, pid: str, turn_idx: int) -> List[Dict[str, 
             "offers_countered": [],
             "offers_made": made,
             "action": apay,
+            "rationale": rationale_txt,
             "state_after": sa,
         }
     )
+
+    atype = apay.get("type", "pass")
+    summ = f"R{engine.round_num} {pid} act={atype}"
+    if atype == "gather":
+        summ += f" region={apay.get('region')}"
+    elif atype in ("scout", "ambush"):
+        summ += f" region={apay.get('region')}"
+    elif atype == "build":
+        summ += f" {apay.get('building')}"
+    engine.recent_turn_summaries.append(summ)
+    if len(engine.recent_turn_summaries) > 64:
+        engine.recent_turn_summaries = engine.recent_turn_summaries[-64:]
+
     return events
 
 
@@ -1512,6 +1592,7 @@ def run_match(
     eng = GameEngine(seed, tribes, agents, agent_params, turn_order)
     rounds_out: List[Dict[str, Any]] = []
     final_round = 0
+    total_turns_run = 0
 
     for r in range(1, 16):
         eng.round_num = r
@@ -1519,6 +1600,11 @@ def run_match(
         evs: List[Dict[str, Any]] = []
         for ti, pid in enumerate(eng.turn_order):
             if eng.match_ended:
+                break
+            total_turns_run += 1
+            if total_turns_run > MAX_TURNS_SAFETY:
+                eng.match_ended = True
+                eng.end_trigger = "round_limit"
                 break
             evs.extend(execute_turn(eng, pid, ti))
             if any(eng.players[p].vp >= VP_WIN_THRESHOLD for p in eng.player_ids):
@@ -1631,22 +1717,43 @@ def build_match_json(
     turn_order: Optional[Sequence[str]],
     match_id: Optional[str],
     runner_tag: str = "tools/sim.py",
+    runner_model: str = "script",
+    llm_trace_batch_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    t0 = time.perf_counter()
-    eng, rounds_out, meta = run_match(seed, tribes, agents, agent_params, turn_order)
-    dur_ms = int((time.perf_counter() - t0) * 1000)
+    if turn_order is not None:
+        to_for_id = list(turn_order)
+    else:
+        to_for_id = None
+
+    if match_id is None:
+        if to_for_id is None:
+            probe = GameEngine(seed, tribes, agents, agent_params, None)
+            to_for_id = list(probe.turn_order)
+        key = json.dumps(
+            {"seed": seed, "tribes": list(tribes), "agents": list(agents), "turn_order": to_for_id},
+            sort_keys=True,
+        )
+        match_id = "m_" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:20]
+
+    if llm_trace_batch_id:
+        from tools.llm_agent import begin_match_trace
+
+        begin_match_trace(llm_trace_batch_id, match_id, seed)
+
+    try:
+        t0 = time.perf_counter()
+        eng, rounds_out, meta = run_match(seed, tribes, agents, agent_params, turn_order)
+        dur_ms = int((time.perf_counter() - t0) * 1000)
+    finally:
+        if llm_trace_batch_id:
+            from tools.llm_agent import end_match_trace
+
+            end_match_trace()
 
     if turn_order is None:
         turn_order = eng.turn_order
     else:
         turn_order = list(turn_order)
-
-    if match_id is None:
-        key = json.dumps(
-            {"seed": seed, "tribes": list(tribes), "agents": list(agents), "turn_order": turn_order},
-            sort_keys=True,
-        )
-        match_id = "m_" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:20]
 
     players = [
         {
@@ -1668,7 +1775,7 @@ def build_match_json(
         "seed": seed,
         "run_metadata": {
             "runner": runner_tag,
-            "runner_model": "script",
+            "runner_model": runner_model,
             "started_at": started,
             "completed_at": completed,
             "duration_ms": dur_ms,
