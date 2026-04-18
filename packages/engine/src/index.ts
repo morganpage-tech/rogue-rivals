@@ -56,7 +56,10 @@ export { advanceAfterTakeAction, anyPlayerReachedVp, computeMatchOutcome } from 
 export {
   forgeTriple,
   computeBuildCost,
+  computeBaseYield,
+  computeGatherYield,
   applyGather,
+  vpForBuilding,
 } from "./actions.js";
 
 export { replayOneTurn, mapSimActionPayload } from "./replay.js";

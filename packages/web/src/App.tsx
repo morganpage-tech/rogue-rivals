@@ -2,8 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   applyCommand,
   computeBuildCost,
+  computeGatherYield,
   initMatch,
   listLegalActions,
+  TRIBE_HOME,
+  VP_WIN_THRESHOLD,
   type Action,
   type BuildingType,
   type MatchState,
@@ -13,9 +16,13 @@ import {
 } from "@rr/engine";
 import { ProposeTrade, RespondTrade } from "./TradeModal";
 import { renderEvent } from "./events";
+import { HelpPanel } from "./HelpPanel";
 import {
+  ACTION_EFFECT,
+  BUILDING_EFFECT,
   BUILDING_LABEL,
   BUILDING_VP,
+  BUILDING_WHY,
   REGION_LABEL,
   REGION_RES_NAME,
   RES_LABEL,
@@ -74,7 +81,7 @@ function SetupScreen({ onStart }: SetupScreenProps) {
     <div className="card" style={{ maxWidth: 640, margin: "40px auto" }}>
       <h2 style={{ marginBottom: 6 }}>New match</h2>
       <div className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
-        Local hot-seat ù pass the device between players. Rules v0.8.
+        Local hot-seat ó pass the device between players. Rules v0.8.
       </div>
       <div className="col" style={{ gap: 14 }}>
         <label className="row" style={{ justifyContent: "space-between" }}>
@@ -184,7 +191,7 @@ function ResourceStrip({ resources }: { resources: Record<Resource, number> }) {
       ))}
       <div className="r">
         <div className="k">VP</div>
-        <div className="v">ù</div>
+        <div className="v">ó</div>
       </div>
     </div>
   );
@@ -236,7 +243,19 @@ function MatchView({
   const turnOrderSummary = state.turnOrder
     .map((id) => nameOf(id))
     .map((n, i) => (i === state.turnOrder.indexOf(activeId) ? `? ${n}` : n))
-    .join(" ù ");
+    .join(" ∑ ");
+
+  const sortedByVp = [...state.seatPlayerIds].sort(
+    (a, b) => state.players[b].vp - state.players[a].vp,
+  );
+  const topVp = state.players[sortedByVp[0]!].vp;
+  const topPlayers = sortedByVp.filter((id) => state.players[id].vp === topVp);
+  const leaderSummary =
+    topVp === 0
+      ? "nobody yet"
+      : topPlayers.length === 1
+        ? `${nameOf(topPlayers[0]!)} (${topVp} VP)`
+        : `tied ${topPlayers.map((id) => nameOf(id)).join(" & ")} (${topVp} VP)`;
 
   if (!acknowledged) {
     const isVeryFirstTurn = log.every((l) => {
@@ -255,6 +274,24 @@ function MatchView({
             ? ` Turn order this match: ${turnOrderSummary}.`
             : " Any private state from the previous turn has been hidden."}
         </div>
+        {isVeryFirstTurn && (
+          <div
+            className="hint"
+            style={{
+              fontSize: 13,
+              maxWidth: 520,
+              borderTop: "1px solid var(--border)",
+              paddingTop: 14,
+            }}
+          >
+            <b className="accent">New to Rogue Rivals?</b> Each turn you propose
+            any trades you like, then take one action: <b>Gather</b> resources,{" "}
+            <b>Build</b> a structure for VP + bonuses, set an <b>Ambush</b> to
+            steal someone's next gather, <b>Scout</b> to disarm one, or{" "}
+            <b>Pass</b>. First player to <b>{VP_WIN_THRESHOLD} VP</b> wins. A
+            "How to play" panel is open on the right once you start your turn.
+          </div>
+        )}
         <button
           className="primary"
           onClick={onAcknowledgeTurn}
@@ -290,8 +327,15 @@ function MatchView({
         <div>
           <h1>Rogue Rivals</h1>
           <div className="sub">
-            Round {state.round}/15 ù {activeName}'s turn ù{" "}
-            turn order: <span className="mono">{turnOrderSummary}</span> ∑ <span className="mono">seed {state.seed}</span> ù{" "}
+            Round {state.round}/15 ó {activeName}'s turn ó{" "}
+            turn order: <span className="mono">{turnOrderSummary}</span>
+          </div>
+          <div className="sub" style={{ marginTop: 2 }}>
+            <span className="accent">
+              Goal: first to {VP_WIN_THRESHOLD} VP wins
+            </span>{" "}
+            ó leader: <b>{leaderSummary}</b> ó{" "}
+            <span className="mono">seed {state.seed}</span> ó{" "}
             <span className="mono">{state.rulesVersion}</span>
           </div>
         </div>
@@ -308,10 +352,10 @@ function MatchView({
               <div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   <span className={`tribe-chip tribe-${activeSeat.tribe}`} />
-                  {activeName} ù {TRIBE_LABEL[activeSeat.tribe]} tribe
+                  {activeName} ó {TRIBE_LABEL[activeSeat.tribe]} tribe
                 </div>
                 <div style={{ marginTop: 4, fontSize: 14 }}>
-                  VP: <b>{activePs.vp}</b> ù Beads:{" "}
+                  VP: <b>{activePs.vp}</b> ó Beads:{" "}
                   <b>{activePs.beads}</b>
                   {activePs.pendingBeads > 0 && (
                     <span className="accent"> (+{activePs.pendingBeads} pending)</span>
@@ -319,7 +363,7 @@ function MatchView({
                 </div>
                 {activePs.activeAmbushRegion && (
                   <div className="accent" style={{ fontSize: 12, marginTop: 4 }}>
-                    Ambush set at {REGION_LABEL[activePs.activeAmbushRegion]} ù{" "}
+                    Ambush set at {REGION_LABEL[activePs.activeAmbushRegion]} ó{" "}
                     {activePs.ambushRoundsRemaining} rnd left
                   </div>
                 )}
@@ -329,7 +373,7 @@ function MatchView({
             <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
               Buildings:{" "}
               {activePs.buildings.length
-                ? activePs.buildings.map((b) => BUILDING_LABEL[b]).join(" ù ")
+                ? activePs.buildings.map((b) => BUILDING_LABEL[b]).join(" ó ")
                 : "none yet"}
             </div>
           </div>
@@ -342,16 +386,8 @@ function MatchView({
                   (p) => state.players[p].activeAmbushRegion === reg,
                 );
                 const myAmbush = activePs.activeAmbushRegion === reg;
-                const isMyHome =
-                  reg ===
-                  (
-                    {
-                      orange: "plains",
-                      grey: "mountains",
-                      brown: "swamps",
-                      red: "desert",
-                    } as Record<Tribe, Region>
-                  )[activeSeat.tribe];
+                const isMyHome = reg === TRIBE_HOME[activeSeat.tribe].region;
+                const yieldForMe = computeGatherYield(state, activeId, reg);
                 return (
                   <div className="region" key={reg}>
                     <div className="name">
@@ -360,7 +396,10 @@ function MatchView({
                     </div>
                     <div className="meta">
                       Yields {REGION_RES_NAME[reg]}
-                      {isMyHome ? " ù your home" : ""}
+                      {isMyHome ? " ∑ your home" : ""}
+                    </div>
+                    <div className="meta accent">
+                      If you gather: +{yieldForMe} {REGION_RES_NAME[reg]}
                     </div>
                     {myAmbush && <div className="mine">You are ambushing here.</div>}
                     {ambushers.length > 0 && !myAmbush && (
@@ -376,22 +415,30 @@ function MatchView({
 
           {selectedActionKind === "gather" && (
             <div className="card">
-              <h3>Gather fromù</h3>
+              <h3>Gather fromÖ</h3>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                {ACTION_EFFECT.gather}
+              </div>
               <div className="regions" style={{ marginTop: 10 }}>
-                {REGION_KEYS.map((reg) => (
-                  <button
-                    className="region"
-                    key={reg}
-                    disabled={!canGather(reg)}
-                    onClick={() => doAction({ kind: "gather", region: reg })}
-                  >
-                    <div className="name">
-                      <span className={`region-chip region-${reg}`} />
-                      {REGION_LABEL[reg]}
-                    </div>
-                    <div className="meta">Pick up {REGION_RES_NAME[reg]}</div>
-                  </button>
-                ))}
+                {REGION_KEYS.map((reg) => {
+                  const y = computeGatherYield(state, activeId, reg);
+                  return (
+                    <button
+                      className="region"
+                      key={reg}
+                      disabled={!canGather(reg)}
+                      onClick={() => doAction({ kind: "gather", region: reg })}
+                    >
+                      <div className="name">
+                        <span className={`region-chip region-${reg}`} />
+                        {REGION_LABEL[reg]}
+                      </div>
+                      <div className="meta">
+                        Gain <b>+{y} {REGION_RES_NAME[reg]}</b>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
               <button style={{ marginTop: 10 }} onClick={() => setSelectedActionKind(null)}>
                 Back
@@ -401,9 +448,9 @@ function MatchView({
 
           {selectedActionKind === "ambush" && (
             <div className="card">
-              <h3>Set an ambush atù</h3>
+              <h3>Set an ambush atÖ</h3>
               <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-                Costs 1 Scrap. Persists 2 rounds or until triggered / scouted.
+                {ACTION_EFFECT.ambush}
               </div>
               <div className="regions">
                 {REGION_KEYS.map((reg) => (
@@ -429,7 +476,10 @@ function MatchView({
 
           {selectedActionKind === "scout" && (
             <div className="card">
-              <h3>Scoutù</h3>
+              <h3>ScoutÖ</h3>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                {ACTION_EFFECT.scout}
+              </div>
               <div className="regions">
                 {REGION_KEYS.map((reg) => (
                   <button
@@ -454,8 +504,11 @@ function MatchView({
 
           {selectedActionKind === "build" && (
             <div className="card">
-              <h3>Buildù</h3>
-              <div className="col" style={{ marginTop: 8, gap: 8 }}>
+              <h3>BuildÖ</h3>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+                {ACTION_EFFECT.build}
+              </div>
+              <div className="col" style={{ gap: 8 }}>
                 {BUILDING_KEYS.map((b) => {
                   const cost = computeBuildCost(state, activeId, b);
                   const already = activePs.buildings.includes(b);
@@ -469,12 +522,18 @@ function MatchView({
                         justifyContent: "space-between",
                       }}
                     >
-                      <div>
+                      <div style={{ flex: 1 }}>
                         <div>
                           <b>{BUILDING_LABEL[b]}</b>{" "}
-                          <span className="muted">(+{BUILDING_VP[b]} VP)</span>
+                          <span className="accent">+{BUILDING_VP[b]} VP</span>
                         </div>
-                        <div className="muted mono" style={{ fontSize: 12 }}>
+                        <div style={{ fontSize: 12, marginTop: 2 }}>
+                          {BUILDING_EFFECT[b]}
+                        </div>
+                        <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                          Why: {BUILDING_WHY[b]}
+                        </div>
+                        <div className="muted mono" style={{ fontSize: 12, marginTop: 4 }}>
                           {already
                             ? "already built"
                             : cost
@@ -502,7 +561,8 @@ function MatchView({
           <div className="card">
             <h3>Your turn</h3>
             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              Propose trades freely, then take one action to end your turn.
+              Propose trades freely, then take <b>one</b> action to end your turn.
+              Your turn ends automatically after you pick an action.
             </div>
             <div className="action-tray">
               <button onClick={() => setSelectedActionKind("gather")}>Gather</button>
@@ -526,6 +586,7 @@ function MatchView({
         </div>
 
         <div className="col">
+          <HelpPanel />
           <div className="card">
             <h3>Players</h3>
             <div className="players" style={{ marginTop: 10 }}>
@@ -550,7 +611,7 @@ function MatchView({
                       {TRIBE_LABEL[seat.tribe]} tribe
                     </div>
                     <div className="line">
-                      VP: <b className="accent">{ps.vp}</b> ù Beads: <b>{ps.beads}</b>
+                      VP: <b className="accent">{ps.vp}</b> ó Beads: <b>{ps.beads}</b>
                       {ps.pendingBeads > 0 && ` (+${ps.pendingBeads})`}
                     </div>
                     <div className="line">
@@ -563,7 +624,7 @@ function MatchView({
                       Buildings:{" "}
                       {ps.buildings.length
                         ? ps.buildings.map((b) => BUILDING_LABEL[b]).join(", ")
-                        : "ù"}
+                        : "ó"}
                     </div>
                   </div>
                 );
@@ -589,7 +650,7 @@ function MatchView({
                       {formatResourceBag(o.offered)} ? {formatResourceBag(o.requested)}
                     </div>
                     <div className="btns">
-                      <button onClick={() => setRespondingTo(o.id)}>Reviewù</button>
+                      <button onClick={() => setRespondingTo(o.id)}>ReviewÖ</button>
                     </div>
                   </div>
                 </div>
@@ -597,7 +658,7 @@ function MatchView({
               {outgoingOffers.map((o) => (
                 <div className="offer" key={o.id}>
                   <div className="line">
-                    you ? <b>{nameOf(o.recipient)}</b> ù waiting
+                    you ? <b>{nameOf(o.recipient)}</b> ó waiting
                   </div>
                   <div className="body">
                     <div className="swap mono">
@@ -708,7 +769,7 @@ function MatchEndScreen({ match, onNewMatch }: MatchEndProps) {
         <div className="trophy">??</div>
         <h2>{winnerText}</h2>
         <div className="muted" style={{ marginTop: 6 }}>
-          {trigger} ù {state.rulesVersion}
+          {trigger} ó {state.rulesVersion}
         </div>
         <div className="standings">
           {sorted.map((id, idx) => {
@@ -807,7 +868,7 @@ export function App() {
         <div className="header">
           <div>
             <h1>Rogue Rivals</h1>
-            <div className="sub">Hot-seat prototype ù rules v0.8</div>
+            <div className="sub">Hot-seat prototype ó rules v0.8</div>
           </div>
         </div>
         <SetupScreen onStart={startMatch} />
