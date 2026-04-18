@@ -178,21 +178,32 @@ def _build_match_specs(
     return specs
 
 
+def _match_frag_paths(batch_id: str, idx: int, seed: int) -> tuple[Path, Path]:
+    """Return (trace_frag, match_frag) paths used by workers & resume logic."""
+    partials_dir = ROOT / "simulations" / "_partials"
+    partials_dir.mkdir(parents=True, exist_ok=True)
+    trace_frag = partials_dir / f"llm_trace_{batch_id}_idx{idx:04d}_seed{seed}.jsonl"
+    match_frag = partials_dir / f"match_{batch_id}_idx{idx:04d}_seed{seed}.jsonl"
+    return trace_frag, match_frag
+
+
 def _run_match_worker(spec: Dict[str, Any]) -> Dict[str, Any]:
     """Worker: run one full match in this process. Returns match_line + trace_path.
 
-    Each process writes its own trace fragment file; the parent merges them in
-    order after all futures resolve.
+    Writes both a per-match trace fragment (LLM call log) AND a per-match JSON
+    fragment (final match state) to ``simulations/_partials/`` so that a crash
+    or SIGKILL of the parent does not discard completed match state. The parent
+    merges fragments in match-order after all futures resolve.
     """
     idx = int(spec["match_index"])
     seed = int(spec["seed"])
     batch_id = str(spec["batch_id"])
 
-    partials_dir = ROOT / "simulations" / "_partials"
-    partials_dir.mkdir(parents=True, exist_ok=True)
-    trace_frag = partials_dir / f"llm_trace_{batch_id}_idx{idx:04d}_seed{seed}.jsonl"
+    trace_frag, match_frag = _match_frag_paths(batch_id, idx, seed)
     if trace_frag.exists():
         trace_frag.unlink()
+    if match_frag.exists():
+        match_frag.unlink()
 
     t0 = time.perf_counter()
     with open(trace_frag, "a", encoding="utf-8") as tf:
@@ -221,12 +232,17 @@ def _run_match_worker(spec: Dict[str, Any]) -> Dict[str, Any]:
         finally:
             set_trace_emitter(None)
 
+    # Persist the completed match as a single-line JSONL fragment so the
+    # parent can recover it after an abrupt shutdown via --resume.
+    match_frag.write_text(match_line + "\n", encoding="utf-8")
+
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
     return {
         "match_index": idx,
         "seed": seed,
         "match_line": match_line,
         "trace_frag": str(trace_frag),
+        "match_frag": str(match_frag),
         "elapsed_ms": elapsed_ms,
     }
 
@@ -281,6 +297,12 @@ def main() -> int:
         action="store_true",
         help="Keep per-match trace fragment files under simulations/_partials/ after merging.",
     )
+    ap.add_argument(
+        "--resume",
+        action="store_true",
+        help="If set, reuse any already-completed match fragments from simulations/_partials/ "
+        "matching the batch-id/seed rather than re-running those matches.",
+    )
     args = ap.parse_args()
 
     base_path = ROOT / args.baseline
@@ -324,20 +346,58 @@ def main() -> int:
 
     n_matches = len(specs)
     workers = max(1, min(int(args.workers), n_matches))
-    parallel_mode = workers > 1
 
-    print(
-        f"Running {n_matches} matches with {workers} parallel worker(s); "
-        f"model={_runner_model_name()}  batch_id={args.batch_id}",
-        flush=True,
-    )
-
+    # Resume: pick up any per-match fragments that already exist for this batch_id + seed.
     results: Dict[int, Dict[str, Any]] = {}
+    specs_to_run: List[Dict[str, Any]] = []
+    if args.resume:
+        for s in specs:
+            idx = int(s["match_index"])
+            seed = int(s["seed"])
+            _, match_frag = _match_frag_paths(str(s["batch_id"]), idx, seed)
+            if match_frag.is_file():
+                try:
+                    line = match_frag.read_text(encoding="utf-8").strip()
+                    json.loads(line)  # sanity-check parseability
+                    trace_frag, _ = _match_frag_paths(str(s["batch_id"]), idx, seed)
+                    results[idx] = {
+                        "match_index": idx,
+                        "seed": seed,
+                        "match_line": line,
+                        "trace_frag": str(trace_frag),
+                        "match_frag": str(match_frag),
+                        "elapsed_ms": 0,
+                        "resumed": True,
+                    }
+                    continue
+                except Exception:
+                    pass
+            specs_to_run.append(s)
+        n_resumed = len(results)
+        if n_resumed:
+            print(
+                f"Resumed {n_resumed} match fragment(s) from simulations/_partials/ "
+                f"(batch_id={args.batch_id}); running {len(specs_to_run)} fresh.",
+                flush=True,
+            )
+    else:
+        specs_to_run = list(specs)
+
+    parallel_mode = workers > 1 and len(specs_to_run) > 1
+    if specs_to_run:
+        print(
+            f"Running {len(specs_to_run)} matches with {workers} parallel worker(s); "
+            f"model={_runner_model_name()}  batch_id={args.batch_id}",
+            flush=True,
+        )
+
     t_start = time.perf_counter()
 
-    if parallel_mode:
+    if specs_to_run and parallel_mode:
         with ProcessPoolExecutor(max_workers=workers) as ex:
-            fut_to_idx = {ex.submit(_run_match_worker, s): s["match_index"] for s in specs}
+            fut_to_idx = {
+                ex.submit(_run_match_worker, s): s["match_index"] for s in specs_to_run
+            }
             completed = 0
             for fut in as_completed(fut_to_idx):
                 idx = fut_to_idx[fut]
@@ -350,17 +410,17 @@ def main() -> int:
                 completed += 1
                 wall_s = time.perf_counter() - t_start
                 print(
-                    f"  [{completed}/{n_matches}] seed={res['seed']} idx={res['match_index']} "
+                    f"  [{completed}/{len(specs_to_run)}] seed={res['seed']} idx={res['match_index']} "
                     f"done in {res['elapsed_ms']/1000:.1f}s  (wall {wall_s:.1f}s)",
                     flush=True,
                 )
-    else:
-        for s in specs:
+    elif specs_to_run:
+        for s in specs_to_run:
             res = _run_match_worker(s)
             results[res["match_index"]] = res
             wall_s = time.perf_counter() - t_start
             print(
-                f"  [{res['match_index']+1}/{n_matches}] seed={res['seed']} "
+                f"  [{res['match_index']+1}/{len(specs_to_run)}] seed={res['seed']} "
                 f"done in {res['elapsed_ms']/1000:.1f}s  (wall {wall_s:.1f}s)",
                 flush=True,
             )
@@ -387,6 +447,12 @@ def main() -> int:
                     frag_p.unlink()
                 except OSError:
                     pass
+                mfrag_raw = r.get("match_frag")
+                if mfrag_raw:
+                    try:
+                        Path(mfrag_raw).unlink()
+                    except OSError:
+                        pass
 
     if not args.keep_partials:
         partials_dir = ROOT / "simulations" / "_partials"
