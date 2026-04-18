@@ -39,7 +39,7 @@ export interface TradeOffer {
 export type EndTrigger = "round_limit" | "vp_threshold" | "great_hall";
 
 export interface MatchState {
-  rulesVersion: "v0.7.3";
+  rulesVersion: "v0.7.3.1";
   seed: number;
   /** Mulberry32 PRNG state; all randomness goes through this. */
   rng: RngState;

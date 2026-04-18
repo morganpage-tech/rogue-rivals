@@ -1,32 +1,33 @@
-# ROGUE RIVALS ù Game Design Document
+# ROGUE RIVALS ? Game Design Document
 
-**Version:** 0.7.3 (Draft ù core loop ruleset stable, pre-prototype)
+**Version:** 0.7.3 (Draft ? core loop ruleset stable, pre-prototype)
 **Studio:** Rogues Studio
-**IP:** Rogues Universe ù The Barren Lands
+**IP:** Rogues Universe ? The Barren Lands
 **Platform:** Jest (SMS/RCS)
 **Engine:** HTML5 Canvas
 **Genre:** Turn-based Multiplayer Strategy
-**Players:** 2ù4
+**Players:** 2?4
 **Session Model:** Asynchronous, ~30s per turn, up to 15 rounds per match
 **Target Timeline:** Playable prototype in 6 weeks
 
 **Companion specs:**
 
-- `RULES.md` ù canonical, simulation-ready rule set
-- `SIMULATION_SCHEMA.md` ù data format for automated playtest runs
+- `RULES.md` ? canonical, simulation-ready rule set
+- `SIMULATION_SCHEMA.md` ? data format for automated playtest runs
 
 **Revision history:**
 
-- v0.1 ù initial draft derived from Jest pitch
-- v0.2 ù first simulation pass (2P); locked trade-as-passive, reframed raid to ambush
-- v0.3 ù added starter building, Ambush-failure-is-cheap, Trade Beads
-- v0.4 ù added Scout counter-mechanic, resource-gated buildings
-- v0.5 ù 4P stress test; ordinal standings, ambush Scrap cost, trailing-player bonus
-- v0.6 ù dropped Rogue-bind, simplified Bead cap to once-per-partner, tightened comeback
-- v0.7 ù pacing pass: cheaper Great Hall (6 resources), VP threshold **8**, repeatable Bead conversions (spend 3 Beads per +1 VP)
-- v0.7.3 ù Trade Beads: still **+1 Bead per qualifying trade** up to a **2 Bead per player per round** cap from trades (further trades that round complete without extra Beads); spend **2 Beads** per **+1 VP** (repeat loop). Relaxes v0.7.2's 1-Bead cap to restore **alliance**-style volume without reintroducing unlimited per-round Bead income.
-- v0.7.2 ù Trade Beads: still **+1 Bead per qualifying trade**, but **at most one Bead per player per round** from trades (extra trades complete without extra Beads); spend **2 Beads** per **+1 VP** (repeat loop). Paired with agent **leader-awareness** (decline feeding near-winners). Targets banker snowball without killing trade volume.
-- v0.7.1 ù Trade Beads: earn **+1 Bead every completed trade**; spend **2 Beads** per **+1 VP** (repeat loop). Fixes v0.7 where uncapped conversion barely fired because bead income stayed partner-limited.
+- v0.1 ? initial draft derived from Jest pitch
+- v0.2 ? first simulation pass (2P); locked trade-as-passive, reframed raid to ambush
+- v0.3 ? added starter building, Ambush-failure-is-cheap, Trade Beads
+- v0.4 ? added Scout counter-mechanic, resource-gated buildings
+- v0.5 ? 4P stress test; ordinal standings, ambush Scrap cost, trailing-player bonus
+- v0.6 ? dropped Rogue-bind, simplified Bead cap to once-per-partner, tightened comeback
+- v0.7 ? pacing pass: cheaper Great Hall (6 resources), VP threshold **8**, repeatable Bead conversions (spend 3 Beads per +1 VP)
+- v0.7.3.1 ? engine patch: fixes a Watchtower cost bug (`{k: 2, S: 1}` duplicate-key collapse when `k == "S"` let anyone with 1 Scrap buy a Watchtower for 1 Scrap). Rewrote `aggressive_raider` heuristic to build the full ladder (shack/den). See `RULES.md` revision history; no rule-text changes. Canonical baseline is now `simulations/batch_v0.7.3.1.jsonl`.
+- v0.7.3 ? Trade Beads: still **+1 Bead per qualifying trade** up to a **2 Bead per player per round** cap from trades (further trades that round complete without extra Beads); spend **2 Beads** per **+1 VP** (repeat loop). Relaxes v0.7.2's 1-Bead cap to restore **alliance**-style volume without reintroducing unlimited per-round Bead income.
+- v0.7.2 ? Trade Beads: still **+1 Bead per qualifying trade**, but **at most one Bead per player per round** from trades (extra trades complete without extra Beads); spend **2 Beads** per **+1 VP** (repeat loop). Paired with agent **leader-awareness** (decline feeding near-winners). Targets banker snowball without killing trade volume.
+- v0.7.1 ? Trade Beads: earn **+1 Bead every completed trade**; spend **2 Beads** per **+1 VP** (repeat loop). Fixes v0.7 where uncapped conversion barely fired because bead income stayed partner-limited.
 
 > *"From the ashes, a fox arose..."*
 
@@ -34,15 +35,15 @@
 
 ## 1. Executive Summary
 
-Rogue Rivals is a turn-based, asynchronous multiplayer strategy game designed natively for messaging platforms (Jest SMS/RCS). 2ù4 players lead rival fox tribes in the post-apocalyptic Barren Lands, competing to rebuild civilization after The Great Collapse by **scavenging**, **building**, **trading**, and **raiding**. Each turn is a single 30-second decision delivered as a text message ù the SMS thread itself becomes the living chronicle of the match.
+Rogue Rivals is a turn-based, asynchronous multiplayer strategy game designed natively for messaging platforms (Jest SMS/RCS). 2?4 players lead rival fox tribes in the post-apocalyptic Barren Lands, competing to rebuild civilization after The Great Collapse by **scavenging**, **building**, **trading**, and **raiding**. Each turn is a single 30-second decision delivered as a text message ? the SMS thread itself becomes the living chronicle of the match.
 
 ### Design Pillars
 
-1. **One decision, 30 seconds** ù Every turn is a clear tactical choice, optimized for mobile micro-sessions.
-2. **The thread is the game** ù SMS/RCS isn't a notification layer; it is the primary UI for social context and narrative.
-3. **Trade or die** ù No tribe has all resources; negotiation with rivals is mandatory.
-4. **Viral by lore** ù Inviting a friend to play IS texting them, reinforced by the "Rogue" archetype in-universe.
-5. **Cosmetic-first monetization** ù Never pay-to-win; identity, style, and flair only.
+1. **One decision, 30 seconds** ? Every turn is a clear tactical choice, optimized for mobile micro-sessions.
+2. **The thread is the game** ? SMS/RCS isn't a notification layer; it is the primary UI for social context and narrative.
+3. **Trade or die** ? No tribe has all resources; negotiation with rivals is mandatory.
+4. **Viral by lore** ? Inviting a friend to play IS texting them, reinforced by the "Rogue" archetype in-universe.
+5. **Cosmetic-first monetization** ? Never pay-to-win; identity, style, and flair only.
 
 ### Design Targets (KPIs)
 
@@ -50,9 +51,9 @@ Rogue Rivals is a turn-based, asynchronous multiplayer strategy game designed na
 | Metric                        | Target                        |
 | ----------------------------- | ----------------------------- |
 | Average turn time             | **30 seconds**                |
-| Daily return sessions per DAU | **8ù12x**                     |
+| Daily return sessions per DAU | **8?12x**                     |
 | Viral coefficient (K-factor)  | **? 1.5**                     |
-| Match length                  | 20ù30 rounds over a few hours |
+| Match length                  | 20?30 rounds over a few hours |
 | Prototype delivery            | 6 weeks                       |
 
 
@@ -62,23 +63,23 @@ Rogue Rivals is a turn-based, asynchronous multiplayer strategy game designed na
 
 ### 2.1 Setting
 
-Centuries after **The Great Collapse** shattered civilization, scattered fox tribes (Foxiz) have carved out survival in the harshest corners of the continent ù the **Barren Lands**. Resources are scarce, unevenly distributed, and every alliance is temporary.
+Centuries after **The Great Collapse** shattered civilization, scattered fox tribes (Foxiz) have carved out survival in the harshest corners of the continent ? the **Barren Lands**. Resources are scarce, unevenly distributed, and every alliance is temporary.
 
 ### 2.2 Tone
 
 Quirky post-apocalyptic. Serious enough for strategic stakes; playful enough to invite cosmetic expression. Matches an existing visual language from *Outmine* and *World of Rogues*.
 
-### 2.3 Core Lore Hook ù "The Rogue"
+### 2.3 Core Lore Hook ? "The Rogue"
 
 A *Rogue* is a fox with no tribe, one who crosses all borders. In-fiction, recruiting a new player = sending a Rogue across the desert to find a new tribe leader. **The invite IS the onboarding.**
 
-> *"Becoming territorial, suspicious and protective of their native culture ù Foxiz engaged with their own kin and rarely with others, only for essential trade."*
+> *"Becoming territorial, suspicious and protective of their native culture ? Foxiz engaged with their own kin and rarely with others, only for essential trade."*
 
 ---
 
 ## 3. Fox Tribes (Factions)
 
-Prototype ships with **four tribes**, each occupying a unique region with a unique home resource. (Tricoloured and Arctic Foxiz from the original pitch are planned post-launch content ù kept out of launch scope to keep balance surface tight.)
+Prototype ships with **four tribes**, each occupying a unique region with a unique home resource. (Tricoloured and Arctic Foxiz from the original pitch are planned post-launch content ? kept out of launch scope to keep balance surface tight.)
 
 
 | Tribe            | Region         | Home Resource |
@@ -89,9 +90,9 @@ Prototype ships with **four tribes**, each occupying a unique region with a uniq
 | **Red Foxiz**    | Vast Desert    | Relics        |
 
 
-All four tribes share the neutral **Ruins** region, the only source of **Scrap**. The Scrap pool is finite and does not regenerate ù creating a natural pacing mechanism and an emergent race.
+All four tribes share the neutral **Ruins** region, the only source of **Scrap**. The Scrap pool is finite and does not regenerate ? creating a natural pacing mechanism and an emergent race.
 
-**Design principle:** No tribe can win without trading. Endgame buildings require resource types a single tribe can never self-gather, forcing cross-tribe negotiation. Tribe asymmetry is **spatial/resource**, not statistical ù there are no combat or yield modifiers by tribe. This keeps the prototype balance tractable; flavor abilities return post-launch.
+**Design principle:** No tribe can win without trading. Endgame buildings require resource types a single tribe can never self-gather, forcing cross-tribe negotiation. Tribe asymmetry is **spatial/resource**, not statistical ? there are no combat or yield modifiers by tribe. This keeps the prototype balance tractable; flavor abilities return post-launch.
 
 ---
 
@@ -114,10 +115,10 @@ That's it. 30 seconds, one action, plus as much free negotiation as you want.
 
 | Action     | What it does                                                                                                                             | Cost      |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| **Gather** | Send a Rogue to a region, receive resources immediately                                                                                  | ù         |
+| **Gather** | Send a Rogue to a region, receive resources immediately                                                                                  | ?         |
 | **Build**  | Pay resources to construct a structure; gain VP + passive effect                                                                         | Resources |
-| **Ambush** | Hidden from opponents. If another player Gathers that region this round, you intercept their yield (2ù); otherwise your action is wasted | 1 Scrap   |
-| **Scout**  | Gather + bluff-call. Reveals any pending Ambush at that region (cancels both); otherwise small safe yield                                | ù         |
+| **Ambush** | Hidden from opponents. If another player Gathers that region this round, you intercept their yield (2?); otherwise your action is wasted | 1 Scrap   |
+| **Scout**  | Gather + bluff-call. Reveals any pending Ambush at that region (cancels both); otherwise small safe yield                                | ?         |
 
 
 ### 4.3 Resources and regions
@@ -136,7 +137,7 @@ Five resources, five regions:
 
 - **Home yield:** +2 of home resource at your home region.
 - **Away yield:** +1 of target region's resource elsewhere.
-- **Ruins Scrap pool is finite** (5 ù player count, so 20 at 4P) and does not regenerate.
+- **Ruins Scrap pool is finite** (5 ? player count, so 20 at 4P) and does not regenerate.
 - **Stacking modifiers:** +1 from own Shack, +1 from own Den, +1 from own Forge (global), +1 from Trailing Bonus.
 
 ### 4.4 Buildings (VP engine)
@@ -165,7 +166,7 @@ Max 1 of each type per player. Great Hall still requires every home resource typ
 If the VP gap between 1st and last ? 3 at the end of a round, the last-place player gets, for the next round:
 
 - **+1 Gather yield** (on top of all other modifiers)
-- Option to request a **Tribute Route** from any one other player: that player gives the trailer 1 chosen resource per round for 2 rounds. Trailer gains no Beads. Target gains a Bead only if it's their first trade with the trailer (see `RULES.md` ù6.3).
+- Option to request a **Tribute Route** from any one other player: that player gives the trailer 1 chosen resource per round for 2 rounds. Trailer gains no Beads. Target gains a Bead only if it's their first trade with the trailer (see `RULES.md` ?6.3).
 
 ### 4.7 Match end
 
@@ -204,10 +205,10 @@ Five resources total. Four home resources (one per tribe) plus Scrap (shared, fi
 
 | Resource | Home tribe       | Scarcity driver                                |
 | -------- | ---------------- | ---------------------------------------------- |
-| Timber   | Orange           | ù                                              |
-| Ore      | Grey             | ù                                              |
-| Fiber    | Brown            | ù                                              |
-| Relics   | Red              | ù                                              |
+| Timber   | Orange           | ?                                              |
+| Ore      | Grey             | ?                                              |
+| Fiber    | Brown            | ?                                              |
+| Relics   | Red              | ?                                              |
 | Scrap    | (neutral, Ruins) | **Hard pool cap** (20 at 4P, non-regenerating) |
 
 
@@ -227,18 +228,18 @@ In v0.7 "Rogues" are purely narrative. Each player takes **exactly 1 action per 
 
 ### 6.1 Principle
 
-The SMS/RCS thread **is** the game log. It is not a notification feed ù it is the canonical record of the match.
+The SMS/RCS thread **is** the game log. It is not a notification feed ? it is the canonical record of the match.
 
 ### 6.2 Message Types
 
 
 | Message       | Example                                                                      |
 | ------------- | ---------------------------------------------------------------------------- |
-| Turn notice   | *"Your turn ù Red Foxiz. Brown has offered a trade."*                        |
+| Turn notice   | *"Your turn ? Red Foxiz. Brown has offered a trade."*                        |
 | Action result | *"Grey Foxiz scavenged 3 Ore from the Mountain Ruins"*                       |
-| Trade offer   | *"Grey Foxiz offer your tribe: 2 Ore ? 1 Relic ù Accept / Counter / Reject"* |
+| Trade offer   | *"Grey Foxiz offer your tribe: 2 Ore ? 1 Relic ? Accept / Counter / Reject"* |
 | Raid alert    | *"Tricoloured Foxiz raided your scrap pile! Watchtower held."*               |
-| Standings     | *"Standings: Red (42) ù Grey (38) ù Brown (34) ù Tricolour (31)"*            |
+| Standings     | *"Standings: Red (42) ? Grey (38) ? Brown (34) ? Tricolour (31)"*            |
 | Match end     | *"The Barren Lands bow to the Red Foxiz."*                                   |
 
 
@@ -285,19 +286,19 @@ The SMS/RCS thread **is** the game log. It is not a notification feed ù it is th
 
 ### 8.1 Screens
 
-1. **Settlement View** (home) ù Map, stockpile, last-turn summary, action buttons
-2. **Action Select** ù 4 buttons (Scavenge / Build / Trade / Raid), each expands to 2ù3 sub-options
-3. **Trade Composer** ù Pick resources to offer, pick resources wanted, pick recipient tribe
-4. **Raid Target** ù Choose rival tribe, see estimated success odds
-5. **Match Thread** ù In-game mirror of the SMS log for players who prefer app context
-6. **Standings** ù Score breakdown across all tribes
+1. **Settlement View** (home) ? Map, stockpile, last-turn summary, action buttons
+2. **Action Select** ? 4 buttons (Scavenge / Build / Trade / Raid), each expands to 2?3 sub-options
+3. **Trade Composer** ? Pick resources to offer, pick resources wanted, pick recipient tribe
+4. **Raid Target** ? Choose rival tribe, see estimated success odds
+5. **Match Thread** ? In-game mirror of the SMS log for players who prefer app context
+6. **Standings** ? Score breakdown across all tribes
 
 ### 8.2 UX Principles
 
 - **Two taps max** to complete any turn
 - **Zero typing** required for core gameplay (trade offers use preset increments)
 - **Color-coded tribes** consistent across map, messages, and standings
-- **Glanceable state** ù every screen answers "what just happened" in <1 second
+- **Glanceable state** ? every screen answers "what just happened" in <1 second
 
 ---
 
@@ -305,18 +306,18 @@ The SMS/RCS thread **is** the game log. It is not a notification feed ù it is th
 
 ### 9.1 Model
 
-**Free-to-play, cosmetic + season pass.** Core gameplay is never gated. All IAP is identity, style, or convenience ù **no pay-to-win**.
+**Free-to-play, cosmetic + season pass.** Core gameplay is never gated. All IAP is identity, style, or convenience ? **no pay-to-win**.
 
 ### 9.2 Item Catalog
 
 
 | Item Type             | Description                                            | Price       |
 | --------------------- | ------------------------------------------------------ | ----------- |
-| **Fox Skins**         | Rare tribe variants ù Pink, Blue, Cheetah Foxiz        | $1.99ù$4.99 |
-| **Settlement Themes** | Visual overhauls ù Dim Cave, Bamboo Maze, Arctic       | $2.99ù$4.99 |
-| **Emote Packs**       | Quirky fox reactions ù taunt, howl, beg, celebrate     | $0.99       |
+| **Fox Skins**         | Rare tribe variants ? Pink, Blue, Cheetah Foxiz        | $1.99?$4.99 |
+| **Settlement Themes** | Visual overhauls ? Dim Cave, Bamboo Maze, Arctic       | $2.99?$4.99 |
+| **Emote Packs**       | Quirky fox reactions ? taunt, howl, beg, celebrate     | $0.99       |
 | **Rogue Pass**        | Monthly: exclusive skins, new regions, bonus cosmetics | $4.99/mo    |
-| **Quick Match**       | Skip the queue ù instant matchmaking                   | $0.49       |
+| **Quick Match**       | Skip the queue ? instant matchmaking                   | $0.49       |
 
 
 ### 9.3 Economy Safeguards
@@ -344,7 +345,7 @@ The SMS/RCS thread **is** the game log. It is not a notification feed ù it is th
 
 ## 11. Development Roadmap
 
-### Phase 1 ù Prototype (Weeks 1ù6)
+### Phase 1 ? Prototype (Weeks 1?6)
 
 - Core turn loop (Scavenge, Build, Trade, Raid)
 - 2-tribe vertical slice (Orange vs Grey)
@@ -353,7 +354,7 @@ The SMS/RCS thread **is** the game log. It is not a notification feed ù it is th
 - Manual matchmaking via phone number invite
 - **Deliverable:** Playable 2-player match end-to-end
 
-### Phase 2 ù Alpha (Weeks 7ù12)
+### Phase 2 ? Alpha (Weeks 7?12)
 
 - All 6 tribes playable
 - Raid & fortification system
@@ -361,7 +362,7 @@ The SMS/RCS thread **is** the game log. It is not a notification feed ù it is th
 - Standings, match-end scoring
 - Basic cosmetics framework
 
-### Phase 3 ù Beta (Weeks 13ù20)
+### Phase 3 ? Beta (Weeks 13?20)
 
 - 3-4 player matches
 - RCS rich media messages (inline trade buttons, score cards)
@@ -369,7 +370,7 @@ The SMS/RCS thread **is** the game log. It is not a notification feed ù it is th
 - Analytics, A/B framework, anti-grief tooling
 - Closed beta with Outmine community
 
-### Phase 4 ù Launch & Live Ops
+### Phase 4 ? Launch & Live Ops
 
 - Public launch on Jest
 - Weekly events, seasonal regions
@@ -405,13 +406,13 @@ The SMS/RCS thread **is** the game log. It is not a notification feed ù it is th
 ### Growth (Month 3)
 
 - K-factor ? 1.5
-- 8ù12x daily sessions per DAU
+- 8?12x daily sessions per DAU
 - IAP ARPDAU ? industry benchmark for F2P strategy
 - Tournament participation ? 15% of MAU
 
 ---
 
-## 14. Studio ù Rogues Studio
+## 14. Studio ? Rogues Studio
 
 Founded 2022 by gaming and startup veterans with 10+ years of collaboration.
 
@@ -427,29 +428,29 @@ Founded 2022 by gaming and startup veterans with 10+ years of collaboration.
 
 ### 15.1 Glossary
 
-- **Foxiz** ù A fox tribe member
-- **Rogue** ù A tribeless fox; lore basis for viral invites; also the labor unit
-- **Barren Lands** ù The post-Collapse continent where matches take place
-- **The Great Collapse** ù The cataclysm that ended the prior civilization
+- **Foxiz** ? A fox tribe member
+- **Rogue** ? A tribeless fox; lore basis for viral invites; also the labor unit
+- **Barren Lands** ? The post-Collapse continent where matches take place
+- **The Great Collapse** ? The cataclysm that ended the prior civilization
 
 ### 15.2 Resolved in v0.6 / v0.7
 
-- **Does Trade consume a turn?** No ù free side channel.
-- **Do raids steal home stockpile?** No ù reframed as Ambush on regions, targeting gather yields only.
-- **Is any resource gated to force trade?** Yes ù Great Hall requires all 4 home resource types (plus Scrap).
+- **Does Trade consume a turn?** No ? free side channel.
+- **Do raids steal home stockpile?** No ? reframed as Ambush on regions, targeting gather yields only.
+- **Is any resource gated to force trade?** Yes ? Great Hall requires all 4 home resource types (plus Scrap).
 - **How to avoid banker runaway?** v0.7.3 keeps a **per-round Bead cap** on trade income (two Beads per round from trades) and strategic agents decline trades that feed near-winners; v0.7.1-style unlimited same-round stacking remains ruled out.
 - **How to avoid action-lock on heavy builders?** Buildings no longer bind Rogues; 1 action per turn always.
 - **How to avoid attack-the-leader pile-ons?** Ordinal-only standings + Ambush costs 1 Scrap.
-- **Can trailing players come back?** Yes ù trailing bonus + Tribute Route at 3+ VP gap.
+- **Can trailing players come back?** Yes ? trailing bonus + Tribute Route at 3+ VP gap.
 
 ### 15.3 Still open (stress-test in prototype & further simulation)
 
-- **Scrap pool sizing** ù is 5ù player count correct, or should it scale with round cap?
-- **Ambush Scrap cost** ù 1 is enough to deter spam; is it too high to deter attempted bluffs on leaders?
-- **Tribute Route asymmetry** ù is "target gives resource, gains nothing material" acceptable or demotivating?
-- **3-player dynamics** ù simulations focused on 2P and 4P; 3P has classic kingmaker geometry that needs its own sim pass.
-- **Turn cadence in real async play** ù 4P ù 15 rounds = 60 turns; needs real-world timing data.
-- **Tribe flavor abilities** ù currently no per-tribe modifiers (pure spatial asymmetry); add in v1.x once balance baseline is confirmed.
+- **Scrap pool sizing** ? is 5? player count correct, or should it scale with round cap?
+- **Ambush Scrap cost** ? 1 is enough to deter spam; is it too high to deter attempted bluffs on leaders?
+- **Tribute Route asymmetry** ? is "target gives resource, gains nothing material" acceptable or demotivating?
+- **3-player dynamics** ? simulations focused on 2P and 4P; 3P has classic kingmaker geometry that needs its own sim pass.
+- **Turn cadence in real async play** ? 4P ? 15 rounds = 60 turns; needs real-world timing data.
+- **Tribe flavor abilities** ? currently no per-tribe modifiers (pure spatial asymmetry); add in v1.x once balance baseline is confirmed.
 
 ---
 
@@ -457,11 +458,11 @@ Founded 2022 by gaming and startup veterans with 10+ years of collaboration.
 
 This GDD is a design-intent document. Two companion specs make the design **executable and testable**:
 
-### 16.1 `RULES.md` ù canonical rule spec
+### 16.1 `RULES.md` ? canonical rule spec
 
-The authoritative, simulation-ready ruleset. Written to be followed by an AI (or human) without ambiguity so that independent simulation runs are comparable. It is the source of truth for any game-rule question ù if the GDD and `RULES.md` disagree, `RULES.md` wins. The GDD will be updated to match at each design revision.
+The authoritative, simulation-ready ruleset. Written to be followed by an AI (or human) without ambiguity so that independent simulation runs are comparable. It is the source of truth for any game-rule question ? if the GDD and `RULES.md` disagree, `RULES.md` wins. The GDD will be updated to match at each design revision.
 
-### 16.2 `SIMULATION_SCHEMA.md` ù data format for automated runs
+### 16.2 `SIMULATION_SCHEMA.md` ? data format for automated runs
 
 Every simulation run (human or AI) MUST emit its match log in the format specified in `SIMULATION_SCHEMA.md`. This enables:
 
@@ -478,7 +479,7 @@ Design iteration cadence: any rules tweak bumps the `rules_version`; runs from d
 
 1. Read `RULES.md` start to finish.
 2. Read `SIMULATION_SCHEMA.md` for the required output shape.
-3. Pick a seed, a player count (2ù4), and a **player agent** per seat (e.g., `greedy_builder`, `aggressive_raider`, `random`, `human`).
+3. Pick a seed, a player count (2?4), and a **player agent** per seat (e.g., `greedy_builder`, `aggressive_raider`, `random`, `human`).
 4. Play a full match round-by-round, logging every turn, trade, and ambush as required by the schema.
 5. Write the resulting JSON object to a file named `sim_<match_id>.json` in the `simulations/` directory.
 
@@ -486,4 +487,4 @@ Multiple runs can be concatenated as a JSONL file for bulk analysis.
 
 ---
 
-*End of document ù v0.7.3 Draft*
+*End of document ? v0.7.3 Draft*

@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 SCHEMA_VERSION = "1.0"
-RULES_VERSION = "v0.7.3"
+RULES_VERSION = "v0.7.3.1"
 
 VP_WIN_THRESHOLD = 8
 # Hard cap on total per-player turns in a match (safety; 15 rounds * 4 players = 60 normally)
@@ -224,8 +224,13 @@ class GameEngine:
                     return c
             return None
         if bt == "watchtower":
+            # "2 of any single resource + 1 Scrap". When k == "S", that is 2 + 1 = 3 Scrap total;
+            # the dict-literal {k: 2, "S": 1} would key-collide to {"S": 1}, so construct explicitly.
             for k in RES_KEYS:
-                c = {k: 2, "S": 1}
+                if k == "S":
+                    c = {"S": 3}
+                else:
+                    c = {k: 2, "S": 1}
                 if self._can_pay(ps, c):
                     return c
             return None
@@ -421,8 +426,12 @@ def compute_build_cost_for_player(
                 return c
         return None
     if bt == "watchtower":
+        # See GameEngine.compute_build_cost for the S-collision rationale.
         for k in RES_KEYS:
-            c = {k: 2, "S": 1}
+            if k == "S":
+                c = {"S": 3}
+            else:
+                c = {k: 2, "S": 1}
             if eng._can_pay(ps, c):
                 return c
         return None
@@ -849,6 +858,16 @@ def agent_greedy_builder(view: Dict[str, Any], rng: random.Random) -> Dict[str, 
 
 @register_agent("aggressive_raider")
 def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+    """v0.7.3.1+ raider: raid-focused but economically viable.
+
+    Earlier versions only built watchtower/forge/great_hall, skipping shack/den.
+    This capped the ceiling at 4 VP of buildings and (combined with the
+    watchtower-cost implementation bug, see compute_build_cost patch notes)
+    made the archetype uncompetitive. Now the raider walks the full build
+    ladder like other archetypes, but preserves its aggressive identity by
+    (a) guarding its last Scrap for an ambush when behind mid-game, and
+    (b) using a slightly boosted ambush-threshold curve.
+    """
     eng: GameEngine = view["_engine"]
     pid = view["acting_player"]
     ps = eng.players[pid]
@@ -864,7 +883,8 @@ def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[st
     reject_reasons: Dict[str, str] = {}
     for o in incoming:
         req = dict(o["requested"])
-        if req.get("S", 0) > 0:
+        # Don't give up a Scrap if it's our last one and an ambush is on the table.
+        if req.get("S", 0) > 0 and ps.resources.get("S", 0) <= 1 and leader != pid:
             continue
         if not eng._can_pay(ps, req):
             continue
@@ -882,11 +902,39 @@ def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[st
         accept.append(o["offer_id"])
 
     action: Optional[Dict[str, Any]] = None
+
+    # 1. Close via Great Hall when possible.
     if "great_hall" not in ps.buildings:
         cgh = eng.compute_build_cost(pid, "great_hall")
         if cgh and eng._can_pay(ps, cgh):
             action = {"kind": "build", "building": "great_hall"}
 
+    # 2. Cheap VP ladder: shack then den. If this would spend our last Scrap
+    #    but we could instead ambush the leader for high EV, defer.
+    if action is None:
+        pst_res = ps.resources
+        last_scrap = pst_res.get("S", 0) == 1
+        ambush_plausible = (
+            last_scrap
+            and ps.active_ambush_region is None
+            and leader != pid
+            and not leading
+            and behind_gap >= 1
+            and 3 <= eng.round_num <= 12
+        )
+        for bt in ("shack", "den"):
+            if bt in ps.buildings:
+                continue
+            c = eng.compute_build_cost(pid, bt)
+            if c and eng._can_pay(ps, c):
+                # Cost includes 1 Scrap. If we'd empty our scrap pile and
+                # an ambush is plausible, hold off on this build for a turn.
+                if c.get("S", 0) >= 1 and ambush_plausible:
+                    break
+                action = {"kind": "build", "building": bt}
+                break
+
+    # 3. Defensive / yield buildings.
     if action is None:
         for bt in ("watchtower", "forge"):
             if bt in ps.buildings:
@@ -896,10 +944,12 @@ def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[st
                 action = {"kind": "build", "building": bt}
                 break
 
+    # 4. Low-prob scouting (mostly when not in closing endgame lead).
     scout_chance = 0.04 if (endg and leading) else 0.10
     if action is None and rng.random() < scout_chance and ps.active_ambush_region is None:
         action = {"kind": "scout", "region": rng.choice(list(REGION_KEYS))}
 
+    # 5. Primary raid behavior: ambush the leader's home when scrap allows.
     pst = _state_after_accepting_offers(eng, ps, incoming, accept)
     if (
         action is None
@@ -912,13 +962,15 @@ def agent_aggressive_raider(view: Dict[str, Any], rng: random.Random) -> Dict[st
             do_ambush = not leading
         else:
             roll = rng.random()
-            thresh = 0.40 if behind_gap >= 2 else (0.22 if behind_gap == 1 else 0.08)
+            # Slightly raised thresholds vs v0.7.3 (was 0.40 / 0.22 / 0.08).
+            thresh = 0.50 if behind_gap >= 2 else (0.30 if behind_gap == 1 else 0.12)
             if leading and max_vp >= 6:
                 thresh *= 0.35
             do_ambush = roll < thresh
         if do_ambush:
             action = {"kind": "ambush", "region": lh}
 
+    # 6. Default: gather Scrap while pool lasts, else home.
     if action is None:
         home_reg = eng.home_region(pid)
         if eng.scrap_pool > 0:

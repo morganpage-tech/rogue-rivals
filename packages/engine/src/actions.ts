@@ -235,8 +235,11 @@ export function computeBuildCost(
     return null;
   }
   if (bt === "watchtower") {
+    // "2 of any single resource + 1 Scrap". For k === "S" the object literal
+    // { [k]: 2, S: 1 } key-collides to { S: 1 }; construct the S case explicitly
+    // so the cost is the full 3 Scrap (2 + 1).
     for (const k of RES_KEYS) {
-      const c: Partial<Resources> = { [k]: 2, S: 1 };
+      const c: Partial<Resources> = k === "S" ? { S: 3 } : { [k]: 2, S: 1 };
       if (canPay(c)) return c;
     }
     return null;

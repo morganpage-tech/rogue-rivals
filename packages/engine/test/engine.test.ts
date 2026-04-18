@@ -72,6 +72,32 @@ describe("building VP and costs", () => {
     c = computeBuildCost(gh, "P1", "great_hall");
     expect(c).toEqual({ T: 1, O: 1, F: 1, Rel: 1, S: 2 });
   });
+
+  test("watchtower cost: 2 of non-Scrap + 1 Scrap; 3 Scrap when only S available", () => {
+    const s = initMatch({
+      seed: 1,
+      seats: [
+        { playerId: "P1", tribe: "orange" },
+        { playerId: "P2", tribe: "grey" },
+      ],
+      turnOrder: ["P1", "P2"],
+    });
+
+    // Case 1: 2 Timber + 1 Scrap, no other resource in quantity 2
+    s.players.P1.resources = { T: 2, O: 1, F: 0, Rel: 0, S: 1 };
+    s.players.P1.buildings = [];
+    expect(computeBuildCost(s, "P1", "watchtower")).toEqual({ T: 2, S: 1 });
+
+    // Case 2 (regression): only Scrap available. Pre-fix the dict
+    // literal { [k]: 2, S: 1 } when k === "S" collapsed to { S: 1 }
+    // and let a Scrap-only player buy a watchtower for 1 Scrap.
+    // Correct behaviour is 3 Scrap total (2 + 1).
+    s.players.P1.resources = { T: 0, O: 0, F: 0, Rel: 0, S: 1 };
+    expect(computeBuildCost(s, "P1", "watchtower")).toBeNull();
+
+    s.players.P1.resources = { T: 0, O: 0, F: 0, Rel: 0, S: 3 };
+    expect(computeBuildCost(s, "P1", "watchtower")).toEqual({ S: 3 });
+  });
 });
 
 describe("trade beads 2/round cap and conversion", () => {
