@@ -1,0 +1,510 @@
+# ROGUE RIVALS ù Simulation Output Schema (v1.0)
+
+> **Status:** Normative. Every simulation run MUST conform to this schema. Runs that do not conform will be discarded from analysis.
+>
+> **Rules version:** Pairs with `RULES.md v0.7.1`.
+>
+> **Format:** JSON. One object per match. Multiple matches may be concatenated as JSON Lines (`.jsonl`, one object per line).
+
+---
+
+## 1. Why this schema
+
+The goal of simulation is to answer design questions empirically:
+
+- Does any tribe have an unfair advantage? (win-rate by tribe)
+- Is the trailing bonus enough to generate comebacks? (comeback-win rate)
+- Does the Scout/Ambush mini-game see meaningful use? (usage and hit rate)
+- What is the typical match length and end trigger? (distribution)
+- Does trade diversity matter, or do duopolies still dominate? (trade-network analysis)
+- What's the tempo of Bead conversions? (convert-round distribution)
+- Are there unreachable states or dead-end economies? (failure mode detection)
+
+All of these questions are answerable from well-structured match logs. Freeform logs are not.
+
+---
+
+## 2. Top-level object
+
+Every match produces a single JSON object with these top-level fields:
+
+```json
+{
+  "schema_version": "1.0",
+  "rules_version": "v0.7.1",
+  "match_id": "string, globally unique",
+  "seed": 42,
+  "run_metadata": { ... },
+  "config": { ... },
+  "players": [ ... ],
+  "rounds": [ ... ],
+  "outcome": { ... },
+  "aggregates": { ... }
+}
+```
+
+### Required top-level fields
+
+| Field | Type | Description |
+|---|---|---|
+| `schema_version` | string | Must be `"1.0"` for this spec |
+| `rules_version` | string | Must match the rules doc used (e.g. `"v0.7.1"`) |
+| `match_id` | string | Unique; recommend `uuid4` or a deterministic hash of config+seed |
+| `seed` | integer | Random seed used |
+| `run_metadata` | object | See ù2.1 |
+| `config` | object | See ù2.2 |
+| `players` | array | See ù3 |
+| `rounds` | array | See ù4 |
+| `outcome` | object | See ù5 |
+| `aggregates` | object | See ù6 |
+
+### 2.1 `run_metadata`
+
+```json
+{
+  "run_metadata": {
+    "runner": "human | ai-agent-name | script-version",
+    "runner_model": "e.g. claude-opus-4 | gpt-5 | human",
+    "started_at": "ISO 8601 timestamp",
+    "completed_at": "ISO 8601 timestamp",
+    "duration_ms": 12345,
+    "notes": "optional freeform"
+  }
+}
+```
+
+### 2.2 `config`
+
+```json
+{
+  "config": {
+    "num_players": 4,
+    "tribes_in_play": ["orange", "grey", "brown", "red"],
+    "max_rounds": 15,
+    "vp_win_threshold": 10,
+    "scrap_pool_initial": 20,
+    "turn_order": ["P1", "P2", "P3", "P4"]
+  }
+}
+```
+
+---
+
+## 3. `players` array
+
+Each player entry:
+
+```json
+{
+  "id": "P1",
+  "tribe": "orange",
+  "agent": "greedy_builder",
+  "agent_params": { "aggression": 0.3, "trade_willingness": 0.7 }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Used throughout the log (e.g. `P1`, `P2`) |
+| `tribe` | string | One of `orange | grey | brown | red` |
+| `agent` | string | Decision strategy tag; see ù3.1 |
+| `agent_params` | object (optional) | Any agent-specific tuning, included for reproducibility |
+
+### 3.1 Canonical agent tags
+
+Use these tags consistently so cross-match aggregation works:
+
+| Tag | Description |
+|---|---|
+| `human` | A human player |
+| `random` | Picks a legal action uniformly at random |
+| `greedy_builder` | Always prioritizes Build > Gather the missing resource |
+| `aggressive_raider` | Prioritizes Ambush; attacks leader |
+| `diversified_trader` | Prioritizes trading with every other player once |
+| `alliance_duopoly` | Trades exclusively with one designated partner |
+| `banker` | Hoards scarce home resource, trades with everyone for Beads |
+| `scout_paranoid` | Scouts aggressively, uses ambushes sparingly |
+| `optimal_mcts` | Monte-Carlo-tree-search based reference agent (if available) |
+
+New agent types may be added but should be documented in this file or a sibling `AGENTS.md`.
+
+---
+
+## 4. `rounds` array
+
+One entry per round played. Each round contains an ordered list of events.
+
+```json
+{
+  "round": 1,
+  "events": [ ... ],
+  "standings_after": { ... },
+  "scrap_pool_after": 18,
+  "trailing_bonus_recipients": ["P3", "P4"],
+  "vp_gap_after": 2
+}
+```
+
+### 4.1 Events
+
+Events are ordered chronologically within the round. Every event has a `type` field discriminating the variant.
+
+#### 4.1.1 `turn` event (one per player per round)
+
+```json
+{
+  "type": "turn",
+  "round": 1,
+  "turn_index_in_round": 0,
+  "player_id": "P1",
+  "state_before": { ... },
+  "offers_seen": [ { "offer_id": "o1", "from": "P2", "offered": {"O": 1}, "requested": {"T": 1} } ],
+  "offers_accepted": ["o1"],
+  "offers_rejected": [],
+  "offers_countered": [],
+  "offers_made": [ { "offer_id": "o4", "to": "P3", "offered": {"T": 1}, "requested": {"F": 1} } ],
+  "action": { ... },
+  "rationale": "optional short string describing the agent's reasoning",
+  "state_after": { ... }
+}
+```
+
+##### `action` sub-object
+
+Shape depends on `type`:
+
+```json
+// Gather
+{ "type": "gather", "region": "plains", "yield": {"T": 3}, "intercepted_by": null }
+
+// Build
+{ "type": "build", "building": "shack", "cost_paid": {"T": 1, "S": 1}, "vp_gained": 1 }
+
+// Ambush
+{ "type": "ambush", "region": "mountains", "cost_paid": {"S": 1} }
+
+// Scout
+{ "type": "scout", "region": "desert", "revealed_ambushers": [], "yield": {"Rel": 1} }
+
+// Pass
+{ "type": "pass" }
+```
+
+Notes:
+- For `gather`, if intercepted, `yield` is `{}` and `intercepted_by` is the ambushing player id.
+- For `scout`, if ambush revealed, `yield` is `{}` and `revealed_ambushers` is non-empty.
+
+##### `state_before` / `state_after` shape
+
+Represents the acting player's private state at that moment:
+
+```json
+{
+  "vp": 3,
+  "resources": {"T": 2, "O": 1, "F": 0, "Rel": 0, "S": 1},
+  "beads": 1,
+  "partners_traded": ["P2"],
+  "bead_conversion_used": false,
+  "buildings": ["shack", "watchtower"],
+  "active_ambush_region": null,
+  "trailing_bonus_active": false,
+  "tribute_route": null
+}
+```
+
+`tribute_route` shape when active:
+```json
+{
+  "as": "requester | target",
+  "partner_id": "P2",
+  "rounds_remaining": 1
+}
+```
+
+#### 4.1.2 `trade_resolved` event
+
+Emitted immediately after any accepted trade during the free phase.
+
+```json
+{
+  "type": "trade_resolved",
+  "round": 1,
+  "offer_id": "o1",
+  "offerer_id": "P2",
+  "acceptor_id": "P1",
+  "offered": {"O": 1},
+  "requested": {"T": 1},
+  "beads_awarded": {"P1": 1, "P2": 1},
+  "first_trade_between_pair": true
+}
+```
+
+#### 4.1.3 `ambush_triggered` event
+
+Emitted when an ambush intercepts a Gather.
+
+```json
+{
+  "type": "ambush_triggered",
+  "round": 3,
+  "ambusher_id": "P1",
+  "victim_id": "P3",
+  "region": "mountains",
+  "stolen": {"O": 4},
+  "watchtower_absorbed": false
+}
+```
+
+#### 4.1.4 `ambush_scouted` event
+
+```json
+{
+  "type": "ambush_scouted",
+  "round": 4,
+  "scout_id": "P2",
+  "ambusher_ids": ["P1"],
+  "region": "ruins"
+}
+```
+
+#### 4.1.5 `ambush_expired` event
+
+Emitted at round end for unused ambushes.
+
+```json
+{
+  "type": "ambush_expired",
+  "round": 3,
+  "ambusher_id": "P1",
+  "region": "desert"
+}
+```
+
+#### 4.1.6 `bead_converted` event
+
+```json
+{
+  "type": "bead_converted",
+  "round": 6,
+  "player_id": "P3",
+  "vp_gained": 1
+}
+```
+
+#### 4.1.7 `tribute_route_payment` event
+
+```json
+{
+  "type": "tribute_route_payment",
+  "round": 8,
+  "from_id": "P1",
+  "to_id": "P4",
+  "resource": "T",
+  "amount": 1,
+  "route_rounds_remaining": 1
+}
+```
+
+### 4.2 `standings_after`
+
+```json
+{
+  "standings_after": {
+    "P1": { "vp": 3, "rank": 1, "beads": 1 },
+    "P2": { "vp": 3, "rank": 1, "beads": 1 },
+    "P3": { "vp": 1, "rank": 3, "beads": 0 },
+    "P4": { "vp": 1, "rank": 3, "beads": 0 }
+  }
+}
+```
+
+Use **competition ranking** (1, 2, 2, 4).
+
+---
+
+## 5. `outcome`
+
+```json
+{
+  "outcome": {
+    "winner_ids": ["P3"],
+    "end_trigger": "great_hall | vp_threshold | round_limit",
+    "final_round": 12,
+    "final_scores": {"P1": 6, "P2": 7, "P3": 10, "P4": 5},
+    "tiebreaker_used": null,
+    "shared_victory": false
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `winner_ids` | array of strings | One id for solo wins; multiple only for shared victory after tiebreakers |
+| `end_trigger` | string | Why the match ended (ù7 of RULES.md) |
+| `final_round` | int | Round number when match ended |
+| `final_scores` | object | player_id ? final VP |
+| `tiebreaker_used` | string or null | `"buildings" | "trade_partners" | null` |
+| `shared_victory` | bool | True if tiebreakers exhausted and multiple winners |
+
+---
+
+## 6. `aggregates`
+
+Pre-computed roll-ups so analysis scripts don't need to replay the log. MUST be derivable from the `rounds` array (include for convenience, not truth).
+
+```json
+{
+  "aggregates": {
+    "trades_completed_total": 14,
+    "trades_by_pair": {
+      "P1-P2": 3, "P1-P3": 2, "P1-P4": 1,
+      "P2-P3": 4, "P2-P4": 2,
+      "P3-P4": 2
+    },
+    "first_trade_round_by_pair": {
+      "P1-P2": 1, "P1-P3": 3, "P1-P4": 6,
+      "P2-P3": 1, "P2-P4": 4,
+      "P3-P4": 2
+    },
+    "buildings_by_player": {
+      "P1": ["shack", "watchtower"],
+      "P2": ["shack", "den"],
+      "P3": ["shack", "watchtower", "forge", "great_hall"],
+      "P4": ["shack"]
+    },
+    "build_rounds_by_player": {
+      "P1": {"shack": 2, "watchtower": 5},
+      "P3": {"shack": 2, "watchtower": 5, "forge": 8, "great_hall": 12}
+    },
+    "ambushes_attempted": 3,
+    "ambushes_hit": 1,
+    "ambushes_scouted": 1,
+    "ambushes_expired": 1,
+    "scouts_attempted": 2,
+    "scouts_ambush_revealed": 1,
+    "scouts_yielded_resource": 1,
+    "scrap_pool_depleted_round": null,
+    "bead_conversions_by_player": {"P1": 1, "P2": 0, "P3": 1, "P4": 0},
+    "trailing_bonus_active_rounds_by_player": {"P1": 0, "P2": 0, "P3": 0, "P4": 3},
+    "tribute_routes_initiated": 1,
+    "trailing_player_won": false,
+    "leader_at_round_3": "P3",
+    "leader_at_round_6": "P3",
+    "leader_changed_count": 2,
+    "vp_curve": {
+      "P1": [0, 0, 1, 1, 3, 3, 3, 3, 4, 4, 4, 5, 6],
+      "P2": [0, 0, 1, 1, 3, 3, 3, 3, 4, 4, 5, 6, 7],
+      "P3": [0, 0, 1, 1, 3, 3, 5, 7, 7, 7, 7, 7, 10],
+      "P4": [0, 0, 1, 1, 3, 3, 3, 3, 3, 3, 3, 4, 5]
+    },
+    "resources_held_at_end": {
+      "P1": {"T": 2, "O": 0, "F": 0, "Rel": 0, "S": 0},
+      "P3": {"T": 0, "O": 1, "F": 0, "Rel": 0, "S": 0}
+    }
+  }
+}
+```
+
+### 6.1 Required aggregates
+
+These MUST be present. Others are optional.
+
+- `trades_completed_total`
+- `trades_by_pair`
+- `buildings_by_player`
+- `ambushes_attempted`, `ambushes_hit`, `ambushes_scouted`, `ambushes_expired`
+- `scouts_attempted`
+- `vp_curve` (array of VP per round-end, including round 0 baseline of 0)
+- `trailing_player_won` (bool ù was the winner the most-rounds-trailing player?)
+- `leader_changed_count` (int ù how many times did 1st place change hands)
+
+---
+
+## 7. File naming and aggregation
+
+### 7.1 Single-match files
+
+One match per file. Filename pattern:
+
+```
+simulations/sim_{rules_version}_{seed}_{match_id}.json
+```
+
+Example: `simulations/sim_v0.7.1_42_f7a12c.json`
+
+### 7.2 Batch files
+
+When running many matches, concatenate as JSON Lines:
+
+```
+simulations/batch_{rules_version}_{descriptor}.jsonl
+```
+
+Example: `simulations/batch_v0.7.1_4P-balance-sweep.jsonl`
+
+Each line is one complete match object. Analysis tools MUST support both single-match JSON and batched JSONL.
+
+---
+
+## 8. Validator reference (pseudocode)
+
+```python
+def validate_match(match):
+    assert match["schema_version"] == "1.0"
+    assert match["rules_version"] == "v0.7.1"
+    assert 2 <= match["config"]["num_players"] <= 4
+    assert len(match["players"]) == match["config"]["num_players"]
+    assert len(match["config"]["turn_order"]) == match["config"]["num_players"]
+
+    vp = {p["id"]: 0 for p in match["players"]}
+    for rnd in match["rounds"]:
+        for event in rnd["events"]:
+            if event["type"] == "turn":
+                assert event["player_id"] in vp
+                # verify state_after ~ state_before + action effects
+                ...
+            elif event["type"] == "trade_resolved":
+                # verify both players had the resources at this point
+                ...
+
+    final = match["outcome"]["final_scores"]
+    for pid, v in final.items():
+        assert v == vp[pid], f"final score mismatch for {pid}"
+
+    # cross-check aggregates
+    assert match["aggregates"]["trades_completed_total"] == \
+           sum(match["aggregates"]["trades_by_pair"].values())
+```
+
+A reference Python validator MAY live at `tools/validate_sim.py`.
+
+---
+
+## 9. Versioning
+
+- **Schema changes** (breaking) bump `schema_version` (1.0 ? 2.0).
+- **Schema additions** (non-breaking, new optional fields) bump minor (1.0 ? 1.1).
+- **Rule changes** bump `rules_version` (e.g. v0.7 ? v0.7.1).
+
+Analysis tools MUST segregate runs by both `schema_version` AND `rules_version` ù aggregating across different rule versions is invalid.
+
+---
+
+## 10. Quick checklist for simulation runners
+
+Before emitting a match log, confirm:
+
+- [ ] `schema_version` is `"1.0"` and `rules_version` matches the rules you followed
+- [ ] `match_id` is unique (UUID recommended)
+- [ ] `seed` is recorded and deterministic
+- [ ] Every turn has a `turn` event with `state_before` and `state_after`
+- [ ] Every trade has a `trade_resolved` event
+- [ ] Every ambush has corresponding `ambush_set` ? (`ambush_triggered` | `ambush_scouted` | `ambush_expired`)
+- [ ] `standings_after` populated for every round
+- [ ] `outcome` has a valid `end_trigger`
+- [ ] Required aggregates (ù6.1) are populated
+- [ ] File is valid JSON (or JSONL if batched)
+
+---
+
+*End of SIMULATION_SCHEMA.md ù v1.0*
