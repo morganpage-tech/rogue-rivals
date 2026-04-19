@@ -156,43 +156,6 @@ export function V2Map({ view, selectedRegionId, onSelectRegion }: V2MapProps) {
     [],
   );
 
-  useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const b = boundsRef.current;
-      const pt = clientToContent(e.clientX, e.clientY);
-      if (!pt) return;
-
-      const factor = e.deltaY > 0 ? WHEEL_FACTOR : 1 / WHEEL_FACTOR;
-      let newZoom = zoomRef.current * factor;
-      newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newZoom));
-
-      const oldVw = b.w / zoomRef.current;
-      const oldVh = b.h / zoomRef.current;
-      const oldVx = centerRef.current.cx - oldVw / 2;
-      const oldVy = centerRef.current.cy - oldVh / 2;
-
-      const newVw = b.w / newZoom;
-      const newVh = b.h / newZoom;
-      const newVx = pt.x - (pt.x - oldVx) * (newVw / oldVw);
-      const newVy = pt.y - (pt.y - oldVy) * (newVh / oldVh);
-      let ncx = newVx + newVw / 2;
-      let ncy = newVy + newVh / 2;
-      const c = clampCenter(ncx, ncy, newZoom, b.ox, b.oy, b.w, b.h);
-      ncx = c.cx;
-      ncy = c.cy;
-
-      setZoom(newZoom);
-      setCenter({ cx: ncx, cy: ncy });
-    };
-
-    svg.addEventListener("wheel", onWheel, { passive: false });
-    return () => svg.removeEventListener("wheel", onWheel);
-  }, [clientToContent]);
-
   const zoomAtScreenCenter = useCallback(
     (factor: number) => {
       const b = boundsRef.current;
@@ -322,7 +285,7 @@ export function V2Map({ view, selectedRegionId, onSelectRegion }: V2MapProps) {
           Fit
         </button>
         <span className="v2-map-hint" aria-hidden="true">
-          Wheel zoom · drag background to pan
+          +/− zoom · drag background to pan
         </span>
       </div>
       <div
@@ -335,7 +298,7 @@ export function V2Map({ view, selectedRegionId, onSelectRegion }: V2MapProps) {
           viewBox={viewBoxStr}
           preserveAspectRatio="xMidYMid meet"
           role="img"
-          aria-label="Territory map (fog of war). Use toolbar or wheel to zoom; drag the map background to pan."
+          aria-label="Territory map (fog of war). Use the toolbar +/− buttons to zoom; drag the map background to pan."
         >
           <rect
             x={ox}
