@@ -1,5 +1,5 @@
 """
-LLM backends for Rogue Rivals LLM agents (Anthropic + OpenAI).
+LLM backends for Rogue Rivals LLM agents (Anthropic, OpenAI, Z.AI, Groq).
 """
 
 from __future__ import annotations
@@ -63,6 +63,13 @@ def _validate_schema(data: Any, schema: Optional[dict]) -> None:
 ZAI_BASE_URL = "https://api.z.ai/api/paas/v4/"
 ZAI_DEFAULT_MODEL = "glm-4.6"
 
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
+
+
+def _groq_key() -> str:
+    return os.environ.get("GROQ_API_KEY", "").strip()
+
 
 def _zai_key() -> str:
     """Z.AI key may be provided under either ZAI_API_KEY or ZAI_KEY."""
@@ -78,16 +85,17 @@ def _pick_provider_model(
     """Returns (provider, model, used_anthropic_preference).
 
     Provider selection priority when no explicit `provider` arg is passed:
-      1. `LLM_PROVIDER` env var (anthropic | openai | zai)
-      2. First available key in this order: anthropic, zai, openai
+      1. `LLM_PROVIDER` env var (anthropic | openai | zai | groq)
+      2. First available key in this order: anthropic, zai, openai, groq
     """
     has_a = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
     has_o = bool(os.environ.get("OPENAI_API_KEY", "").strip())
     has_z = bool(_zai_key())
-    if not (has_a or has_o or has_z):
+    has_g = bool(_groq_key())
+    if not (has_a or has_o or has_z or has_g):
         raise LLMError(
             "No LLM API key configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, "
-            "or ZAI_API_KEY (alias: ZAI_KEY) in the environment."
+            "ZAI_API_KEY (alias: ZAI_KEY), or GROQ_API_KEY in the environment."
         )
 
     effective = provider or os.environ.get("LLM_PROVIDER", "").strip() or None
@@ -99,7 +107,9 @@ def _pick_provider_model(
             raise LLMError("OPENAI_API_KEY is not set.")
         if p == "zai" and not has_z:
             raise LLMError("ZAI_API_KEY / ZAI_KEY is not set.")
-        if p not in ("anthropic", "openai", "zai"):
+        if p == "groq" and not has_g:
+            raise LLMError("GROQ_API_KEY is not set.")
+        if p not in ("anthropic", "openai", "zai", "groq"):
             raise LLMError(f"Unknown provider: {effective}")
         if p == "anthropic":
             m = model or os.environ.get(
@@ -107,6 +117,8 @@ def _pick_provider_model(
             )
         elif p == "zai":
             m = model or os.environ.get("ZAI_MODEL", ZAI_DEFAULT_MODEL)
+        elif p == "groq":
+            m = model or os.environ.get("GROQ_MODEL", GROQ_DEFAULT_MODEL)
         else:
             m = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
         return p, m, p == "anthropic"
@@ -123,11 +135,21 @@ def _pick_provider_model(
             model or os.environ.get("ZAI_MODEL", ZAI_DEFAULT_MODEL),
             False,
         )
-    return "openai", model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini"), False
+    if has_o:
+        return (
+            "openai",
+            model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            False,
+        )
+    return (
+        "groq",
+        model or os.environ.get("GROQ_MODEL", GROQ_DEFAULT_MODEL),
+        False,
+    )
 
 
 class LLMClient:
-    """Anthropic or OpenAI client; returns parsed JSON dict."""
+    """LLM client (Anthropic, OpenAI-compatible, or Z.AI); returns parsed JSON dict."""
 
     def __init__(
         self,
@@ -160,6 +182,16 @@ class LLMClient:
             if not zai_key:
                 raise LLMError("ZAI_API_KEY / ZAI_KEY is not set.")
             self._openai = OpenAI(api_key=zai_key, base_url=ZAI_BASE_URL)
+            self._anthropic = None
+        elif self.provider == "groq":
+            try:
+                from openai import OpenAI  # type: ignore
+            except ImportError as e:
+                raise LLMError("Install openai package: pip install openai") from e
+            gk = _groq_key()
+            if not gk:
+                raise LLMError("GROQ_API_KEY is not set.")
+            self._openai = OpenAI(api_key=gk, base_url=GROQ_BASE_URL)
             self._anthropic = None
         else:
             try:
@@ -214,7 +246,7 @@ class LLMClient:
                         {"role": "user", "content": usr_b},
                     ],
                 )
-                if self.provider == "openai":
+                if self.provider in ("openai", "groq"):
                     kwargs["response_format"] = {"type": "json_object"}
                 elif self.provider == "zai":
                     # GLM-4.x reasoning models default to `thinking.enabled`,

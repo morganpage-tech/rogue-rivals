@@ -15,7 +15,7 @@ from typing import Dict, List, Tuple
 
 from .mapgen import (
     CONTINENT_6P_DEFAULT_TRIBES,
-    CONTINENT_6P_REGION_LAYOUT,
+    CONTINENT_6P_SCHEMATIC_LAYOUT,
     MINIMAL_REGION_LAYOUT,
     EXPANDED_REGION_LAYOUT,
     build_continent_map_6p,
@@ -55,7 +55,7 @@ def render_svg(state: GameState, layout: Dict[str, Tuple[int, int]]) -> str:
     """Render regions + trails to an SVG string."""
     xs = [p[0] for p in layout.values()]
     ys = [p[1] for p in layout.values()]
-    pad = 80
+    pad = 200
     w = max(xs) - min(xs) + 2 * pad
     h = max(ys) - min(ys) + 2 * pad
 
@@ -67,20 +67,27 @@ def render_svg(state: GameState, layout: Dict[str, Tuple[int, int]]) -> str:
 
     parts: List[str] = []
     parts.append(
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" '
+        f'<svg id="staticMapSvg" xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="0 0 {w} {h}" preserveAspectRatio="xMidYMid meet" '
         f'style="background:#1a1a1a; font-family: \'SF Mono\', Menlo, monospace;">'
     )
 
-    # Trails (behind regions)
+    # Trails (behind regions); offset tick labels perpendicular to the edge
     for trail in state.trails:
         if trail.a not in layout or trail.b not in layout:
             continue
         x1, y1 = layout[trail.a]
         x2, y2 = layout[trail.b]
-        mx = (tx(x1) + tx(x2)) // 2
-        my = (ty(y1) + ty(y2)) // 2
+        sx1, sy1 = tx(x1), ty(y1)
+        sx2, sy2 = tx(x2), ty(y2)
+        dx, dy = sx2 - sx1, sy2 - sy1
+        length = (dx * dx + dy * dy) ** 0.5 or 1.0
+        ox = int(-dy / length * 20)
+        oy = int(dx / length * 20)
+        mx = (sx1 + sx2) // 2 + ox
+        my = (sy1 + sy2) // 2 + oy
         parts.append(
-            f'<line x1="{tx(x1)}" y1="{ty(y1)}" x2="{tx(x2)}" y2="{ty(y2)}" '
+            f'<line x1="{sx1}" y1="{sy1}" x2="{sx2}" y2="{sy2}" '
             f'stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>'
         )
         parts.append(
@@ -167,7 +174,23 @@ def render_html(state: GameState, layout: Dict[str, Tuple[int, int]], title: str
   p.meta {{ color:#999; margin: 0 0 24px 0; }}
   .wrap {{ display: flex; gap: 24px; align-items: flex-start; }}
   .map {{ flex: 1 1 auto; background: #111; border: 1px solid #333;
-          border-radius: 6px; padding: 8px; overflow:auto; }}
+          border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }}
+  .mapToolbar {{
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; border-bottom: 1px solid #333; background: #161616;
+    font-size: 12px; color: #999;
+  }}
+  .mapToolbar button {{
+    border: 1px solid #444; border-radius: 8px; padding: 6px 12px;
+    background: #1f1f1f; color: #e0e0e0; font-size: 12px; cursor: pointer;
+  }}
+  .mapToolbar button:hover {{ background: #2a2a2a; }}
+  #mapViewport {{
+    flex: 1; min-height: 560px; touch-action: none; cursor: grab;
+    background: #0d0d0d;
+  }}
+  #mapViewport:active {{ cursor: grabbing; }}
+  #mapViewport svg {{ width: 100%; height: 100%; display: block; }}
   .legend {{ flex: 0 0 200px; background: #222; border: 1px solid #333;
              border-radius: 6px; padding: 12px 18px; }}
   .legend h3 {{ margin-top: 12px; margin-bottom: 6px; font-size: 13px;
@@ -181,7 +204,13 @@ def render_html(state: GameState, layout: Dict[str, Tuple[int, int]], title: str
   <p class="meta">{region_count} regions &bull; {trail_count} trails &bull;
      number on trail = base travel ticks</p>
   <div class="wrap">
-    <div class="map">{svg}</div>
+    <div class="map">
+      <div class="mapToolbar">
+        <span>Scroll: zoom · Drag: pan · Double-click: reset</span>
+        <button type="button" id="staticMapResetBtn">Reset view</button>
+      </div>
+      <div id="mapViewport">{svg}</div>
+    </div>
     <div class="legend">
       <h3>Terrain</h3>
       <ul>{legend_rows}</ul>
@@ -194,6 +223,90 @@ def render_html(state: GameState, layout: Dict[str, Tuple[int, int]], title: str
       </p>
     </div>
   </div>
+<script>
+(function () {{
+  const svg = document.getElementById("staticMapSvg");
+  const viewport = document.getElementById("mapViewport");
+  if (!svg || !viewport) return;
+
+  const vb0 = svg.viewBox.baseVal;
+  const mapContentSize = {{ w: vb0.width, h: vb0.height }};
+  let mapViewBox = {{ x: 0, y: 0, w: mapContentSize.w, h: mapContentSize.h }};
+  const ratio = () => mapContentSize.h / mapContentSize.w;
+
+  function sync() {{
+    const v = mapViewBox;
+    svg.setAttribute("viewBox", `${{v.x}} ${{v.y}} ${{v.w}} ${{v.h}}`);
+  }}
+
+  function resetFull() {{
+    mapViewBox = {{ x: 0, y: 0, w: mapContentSize.w, h: mapContentSize.h }};
+    sync();
+  }}
+
+  let dragging = false;
+  let last = {{ x: 0, y: 0 }};
+
+  viewport.addEventListener(
+    "wheel",
+    (e) => {{
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const vb = mapViewBox;
+      const mx = ((e.clientX - rect.left) / rect.width) * vb.w + vb.x;
+      const my = ((e.clientY - rect.top) / rect.height) * vb.h + vb.y;
+      const zoom = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      let nw = vb.w / zoom;
+      const minW = mapContentSize.w / 24;
+      nw = Math.min(Math.max(nw, minW), mapContentSize.w);
+      let nh = nw * ratio();
+      let nx = mx - ((mx - vb.x) * nw) / vb.w;
+      let ny = my - ((my - vb.y) * nh) / vb.h;
+      nx = Math.max(0, Math.min(nx, mapContentSize.w - nw));
+      ny = Math.max(0, Math.min(ny, mapContentSize.h - nh));
+      mapViewBox = {{ x: nx, y: ny, w: nw, h: nh }};
+      sync();
+    }},
+    {{ passive: false }},
+  );
+
+  viewport.addEventListener("mousedown", (e) => {{
+    if (e.button !== 0) return;
+    dragging = true;
+    last = {{ x: e.clientX, y: e.clientY }};
+    viewport.style.cursor = "grabbing";
+  }});
+
+  window.addEventListener("mousemove", (e) => {{
+    if (!dragging) return;
+    const rect = svg.getBoundingClientRect();
+    const vb = mapViewBox;
+    const dx = ((e.clientX - last.x) / rect.width) * vb.w;
+    const dy = ((e.clientY - last.y) / rect.height) * vb.h;
+    last = {{ x: e.clientX, y: e.clientY }};
+    let nx = vb.x - dx;
+    let ny = vb.y - dy;
+    nx = Math.max(0, Math.min(nx, mapContentSize.w - vb.w));
+    ny = Math.max(0, Math.min(ny, mapContentSize.h - vb.h));
+    mapViewBox = {{ ...vb, x: nx, y: ny }};
+    sync();
+  }});
+
+  window.addEventListener("mouseup", () => {{
+    if (dragging) {{
+      dragging = false;
+      viewport.style.cursor = "grab";
+    }}
+  }});
+
+  viewport.addEventListener("dblclick", (e) => {{
+    if (!svg.contains(e.target)) return;
+    resetFull();
+  }});
+
+  document.getElementById("staticMapResetBtn").addEventListener("click", resetFull);
+}})();
+</script>
 </body>
 </html>
 """
@@ -212,7 +325,7 @@ def build_state(which: str) -> Tuple[GameState, Dict[str, Tuple[int, int]]]:
     if which == "6p-continent":
         build_continent_map_6p(state)
         place_tribes_continent_6p(state, CONTINENT_6P_DEFAULT_TRIBES)
-        return state, CONTINENT_6P_REGION_LAYOUT
+        return state, CONTINENT_6P_SCHEMATIC_LAYOUT
     raise ValueError(f"unknown map {which!r}")
 
 

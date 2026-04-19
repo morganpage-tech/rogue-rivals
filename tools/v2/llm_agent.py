@@ -36,9 +36,26 @@ from .state import Order
 
 ORDER_PACKET_SCHEMA: Dict[str, Any] = {
     "type": "object",
-    "required": ["orders"],
     "additionalProperties": True,
     "properties": {
+        "choose": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {"type": "string"},
+        },
+        "messages": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "required": ["to", "text"],
+                "additionalProperties": True,
+                "properties": {
+                    "to": {"type": "string"},
+                    "text": {"type": "string"},
+                },
+            },
+        },
         "orders": {
             "type": "array",
             "maxItems": 12,
@@ -231,7 +248,119 @@ def _compact_view(view: Dict[str, Any]) -> str:
                 f"  id={p['id']} {p['kind']} from {p['from_tribe']}{extras}"
             )
 
+    legal_options = view.get("legal_order_options", []) or []
+    if legal_options:
+        lines.append("")
+        lines.append("Legal order options (choose by id):")
+        for opt in legal_options:
+            lines.append(f"  {opt['id']}: {opt['summary']}")
+
     return "\n".join(lines)
+
+
+def _mistaken_message_from_choose_id(raw_id: str, view: Dict[str, Any]) -> Optional[Order]:
+    """Models sometimes put a message line in `choose` as message:to:text."""
+    if not raw_id.startswith("message:"):
+        return None
+    rest = raw_id[len("message:") :]
+    colon = rest.find(":")
+    if colon < 1:
+        return None
+    to = rest[:colon]
+    text = rest[colon + 1 :]
+    if to not in (view.get("tribes_alive") or []) or to == view.get("for_tribe"):
+        return None
+    if not text.strip():
+        return None
+    return Order(kind="message", payload={"to": to, "text": text[:400]})
+
+
+def _option_id_lookup_keys(raw_id: str) -> List[str]:
+    """Return candidate ids to try, exact first, then common LLM corruptions.
+
+    Legal NAP ids look like `propose:nap:orange` but models often append the
+    pact length (`...:8`). Shared vision is similar. Trade offers keep
+    `propose:trade_offer:tribe:5` — the trailing :5 is part of the real id.
+    """
+    s = raw_id.strip()
+    if not s:
+        return []
+    keys = [s]
+    parts = s.split(":")
+    if len(parts) >= 4 and parts[-1].isdigit():
+        if parts[0] == "propose" and parts[1] == "nap":
+            keys.append(":".join(parts[:-1]))
+        elif parts[0] == "propose" and parts[1] == "shared_vision":
+            keys.append(":".join(parts[:-1]))
+    # Trade offers are `propose:trade_offer:<tribe>:5`; models sometimes drop `:5`.
+    if (
+        s.startswith("propose:trade_offer:")
+        and s.count(":") == 2
+    ):
+        keys.append(f"{s}:5")
+    return keys
+
+
+def _orders_from_option_ids(
+    chosen_ids: List[Any],
+    view: Dict[str, Any],
+    diagnostics: Optional[List[str]] = None,
+) -> List[Order]:
+    option_map = {
+        opt["id"]: opt for opt in (view.get("legal_order_options", []) or []) if "id" in opt
+    }
+    orders: List[Order] = []
+    seen_raw: set[str] = set()
+    seen_legal_id: set[str] = set()
+
+    for raw_id in chosen_ids:
+        if not isinstance(raw_id, str):
+            continue
+        if raw_id in seen_raw:
+            continue
+        seen_raw.add(raw_id)
+
+        msg = _mistaken_message_from_choose_id(raw_id, view)
+        if msg is not None:
+            orders.append(msg)
+            continue
+
+        opt = None
+        for key in _option_id_lookup_keys(raw_id):
+            opt = option_map.get(key)
+            if opt is not None:
+                break
+        if opt is None:
+            # Invalid or stale id: drop silently (do not inflate batch llm_errors).
+            continue
+        cid = opt.get("id")
+        if not isinstance(cid, str) or cid in seen_legal_id:
+            continue
+        seen_legal_id.add(cid)
+        kind = opt.get("kind")
+        payload = opt.get("payload")
+        if not isinstance(kind, str) or not isinstance(payload, dict):
+            continue
+        orders.append(Order(kind=kind, payload=payload))
+
+    return orders
+
+
+def _coerce_messages(raw_messages: List[Any], view: Dict[str, Any]) -> List[Order]:
+    my_tribe = view["for_tribe"]
+    tribes_alive = set(view.get("tribes_alive", []))
+    orders: List[Order] = []
+    for entry in raw_messages:
+        if not isinstance(entry, dict):
+            continue
+        to = entry.get("to")
+        text = entry.get("text", "")
+        if to not in tribes_alive or to == my_tribe:
+            continue
+        if not isinstance(text, str) or not text.strip():
+            continue
+        orders.append(Order(kind="message", payload={"to": to, "text": text[:400]}))
+    return orders
 
 
 def _coerce_orders(
@@ -244,7 +373,6 @@ def _coerce_orders(
     """
     orders: List[Order] = []
     my_force_ids = {f["id"] for f in view.get("my_forces", [])}
-    visible_region_ids = set(view.get("visible_regions", {}).keys())
     my_tribe = view["for_tribe"]
     tribes_alive = set(view.get("tribes_alive", []))
     outstanding = {
@@ -382,17 +510,21 @@ def decide_orders(
 
     system_prompt = (
         f"{persona['system_prompt']}\n\n{COMPACT_RULES_V2}\n\n"
-        "Respond with a SINGLE JSON object: {\"orders\": [...]}. "
-        "Include any mix of move/recruit/build/scout/propose/respond/message orders. "
-        "Empty orders array means pass. "
-        "Do not invent region_ids, force_ids, or proposal_ids; only use ones visible to you. "
+        "Respond with a SINGLE JSON object. Prefer choosing from the LEGAL order options by id: "
+        "{\"choose\": [\"option-id-1\", \"option-id-2\"]}. "
+        "Copy option ids exactly from the list (full strings including colons). "
+        "Do not append tick counts or other numbers to an id unless that exact string appears in the list. "
+        "Put all conversational diplomacy in \"messages\", never inside \"choose\". "
+        "You may also include "
+        "{\"messages\": [{\"to\": \"tribe\", \"text\": \"...\"}]}. "
+        "If you cannot find a good action, return {\"choose\": []}. "
         "Keep messages under 200 characters."
     )
 
     user_prompt = (
         "CURRENT VIEW:\n"
         f"{_compact_view(view)}\n\n"
-        "Return your orders as JSON now."
+        "Return JSON: choose[] uses only ids from Legal order options above; messages[] for any prose."
     )
 
     try:
@@ -404,10 +536,18 @@ def decide_orders(
             diagnostics.append(f"LLM call failed: {e}")
         return []
 
-    raw_orders = data.get("orders", [])
-    if not isinstance(raw_orders, list):
-        if diagnostics is not None:
-            diagnostics.append(f"orders not a list: {type(raw_orders).__name__}")
-        return []
+    orders: List[Order] = []
 
-    return _coerce_orders(raw_orders, view)
+    chosen = data.get("choose", [])
+    if isinstance(chosen, list):
+        orders.extend(_orders_from_option_ids(chosen, view, diagnostics=diagnostics))
+
+    raw_messages = data.get("messages", [])
+    if isinstance(raw_messages, list):
+        orders.extend(_coerce_messages(raw_messages, view))
+
+    # Backward-compatible fallback for older prompts / models.
+    if not orders and isinstance(data.get("orders"), list):
+        orders.extend(_coerce_orders(data["orders"], view))
+
+    return orders

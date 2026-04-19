@@ -43,6 +43,9 @@ COST_IN_PER_M = {
     "openai_out": 0.6,
     "zai": 0.60,
     "zai_out": 2.20,
+    # Groq: rough list-price ballpark; verify against current console pricing.
+    "groq": 0.05,
+    "groq_out": 0.08,
     "mock": 0.0,
 }
 
@@ -64,18 +67,23 @@ def _runner_model_name() -> str:
         or os.environ.get("ZAI_KEY", "").strip()
     )
     has_o = bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    has_g = bool(os.environ.get("GROQ_API_KEY", "").strip())
     if override == "anthropic" and has_a:
         return os.environ.get("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
     if override == "zai" and has_z:
         return os.environ.get("ZAI_MODEL", "glm-4.6")
     if override == "openai" and has_o:
         return os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    if override == "groq" and has_g:
+        return os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
     if has_a:
         return os.environ.get("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
     if has_z:
         return os.environ.get("ZAI_MODEL", "glm-4.6")
     if has_o:
         return os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    if has_g:
+        return os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
     return "mock-llm-client"
 
 
@@ -99,6 +107,8 @@ def _estimate_cost_usd(trace_path: Path) -> tuple[float, int, int, str]:
         cost = (total_in / 1e6) * COST_IN_PER_M["openai"] + (total_out / 1e6) * COST_IN_PER_M["openai_out"]
     elif prov == "zai":
         cost = (total_in / 1e6) * COST_IN_PER_M["zai"] + (total_out / 1e6) * COST_IN_PER_M["zai_out"]
+    elif prov == "groq":
+        cost = (total_in / 1e6) * COST_IN_PER_M["groq"] + (total_out / 1e6) * COST_IN_PER_M["groq_out"]
     else:
         cost = 0.0
     return cost, total_in, total_out, prov

@@ -13,10 +13,12 @@ Three hand-built maps:
   central region in 2-3 ticks through trails that cross each other's
   natural expansion paths.
 
-- `build_continent_map_6p` + `CONTINENT_6P_REGION_LAYOUT`: a 27-region
+- `build_continent_map_6p` + `CONTINENT_6P_SCHEMATIC_LAYOUT`: a 27-region
   authored continent for the first real 6-player async format. Six active
   tribes each get a 3-region homeland wedge, six border regions, and three
-  interior prize regions that pull overlapping groups inward.
+  interior prize regions that pull overlapping groups inward. Pixel
+  positions for `CONTINENT_6P_SCHEMATIC_LAYOUT` follow the schematic wedge /
+  border ring / core triangle (visualization only; trail graph is unchanged).
 
 Procedural map generation per RULES_v2.md \u00a711 is still deferred; both
 maps below are hand-authored.
@@ -340,35 +342,50 @@ _CONTINENT_6P_SECOND_REGION: Dict[str, str] = {
     "grey": "r_gr_upper_high_mountains",
 }
 
-CONTINENT_6P_REGION_LAYOUT: Dict[str, Tuple[int, int]] = {
-    "r_arc_frosthold": (500, 0),
-    "r_arc_ice_shelf": (400, 85),
-    "r_arc_white_wastes": (600, 85),
-    "r_tri_hidden_grove": (890, 150),
-    "r_tri_tricky_woods": (770, 145),
-    "r_tri_whisper_thicket": (900, 280),
-    "r_red_mirage_camp": (940, 420),
-    "r_red_vast_dunes": (840, 350),
-    "r_red_rare_veins": (735, 470),
-    "r_br_root_cities": (500, 660),
-    "r_br_reeky_canopy": (400, 565),
-    "r_br_mire_channels": (600, 565),
-    "r_or_vulpgard": (60, 420),
-    "r_or_windy_plains": (165, 350),
-    "r_or_rocky_hills": (265, 470),
-    "r_gr_middle_high_mountains": (10, 150),
-    "r_gr_upper_high_mountains": (120, 145),
-    "r_gr_lower_high_mountains": (0, 280),
-    "r_border_snowpine_reach": (690, 110),
-    "r_border_glasswood_verge": (820, 285),
-    "r_border_saltfen_crossing": (705, 520),
-    "r_border_hillmire_gate": (290, 520),
-    "r_border_howling_pass": (145, 285),
-    "r_border_frostpass": (300, 110),
-    "r_core_foxfire_ruins": (500, 235),
-    "r_core_three_trails_market": (360, 335),
-    "r_core_moon_ford": (640, 335),
+# Schematic layout: six outer wedges (3 regions each), six border nodes on the
+# inner ring, three core regions in a triangle. Coordinates are for SVG/HTML
+# only; gameplay adjacency is defined by `_CONTINENT_6P_TRAILS`.
+# Positions are scaled ~1.68x from (500, 360) so homeland wedges have enough
+# gap between node centers for trails and tick labels (disc r=42 in SVG).
+CONTINENT_6P_SCHEMATIC_LAYOUT: Dict[str, Tuple[int, int]] = {
+    # Core triangle (center prize)
+    "r_core_foxfire_ruins": (382, 259),
+    "r_core_three_trails_market": (618, 259),
+    "r_core_moon_ford": (500, 427),
+    # Border ring (between wedges and core)
+    "r_border_snowpine_reach": (702, 91),
+    "r_border_glasswood_verge": (870, 360),
+    "r_border_saltfen_crossing": (702, 629),
+    "r_border_hillmire_gate": (298, 629),
+    "r_border_howling_pass": (130, 360),
+    "r_border_frostpass": (298, 91),
+    # Arctic (top)
+    "r_arc_frosthold": (500, -178),
+    "r_arc_ice_shelf": (399, -77),
+    "r_arc_white_wastes": (601, -77),
+    # Tricoloured (top-right)
+    "r_tri_hidden_grove": (1071, -144),
+    "r_tri_tricky_woods": (1004, -43),
+    "r_tri_whisper_thicket": (1138, -43),
+    # Red (bottom-right)
+    "r_red_mirage_camp": (1071, 864),
+    "r_red_vast_dunes": (1004, 763),
+    "r_red_rare_veins": (1138, 763),
+    # Brown (bottom)
+    "r_br_root_cities": (500, 898),
+    "r_br_reeky_canopy": (399, 797),
+    "r_br_mire_channels": (601, 797),
+    # Orange (bottom-left)
+    "r_or_vulpgard": (-71, 864),
+    "r_or_windy_plains": (-4, 763),
+    "r_or_rocky_hills": (-138, 763),
+    # Grey (top-left)
+    "r_gr_middle_high_mountains": (-71, -144),
+    "r_gr_upper_high_mountains": (-4, -43),
+    "r_gr_lower_high_mountains": (-138, -43),
 }
+
+CONTINENT_6P_REGION_LAYOUT: Dict[str, Tuple[int, int]] = CONTINENT_6P_SCHEMATIC_LAYOUT
 
 
 def build_continent_map_6p(state: GameState) -> None:

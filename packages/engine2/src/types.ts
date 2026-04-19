@@ -385,6 +385,14 @@ export interface VisibleScout {
   readonly owner: Tribe;
 }
 
+/** A precomputed, currently legal structured action option for the player. */
+export interface LegalOrderOption {
+  readonly id: string;
+  readonly kind: Order["kind"];
+  readonly summary: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+}
+
 /**
  * Per-player, per-tick projection. The ONLY object an LLM or human player
  * should ever see. Contains no field that leaks information outside their
@@ -404,6 +412,7 @@ export interface ProjectedView {
   readonly inboxNew: readonly InboxMessage[];
   readonly announcementsNew: readonly Announcement[];
   readonly pactsInvolvingMe: readonly Pact[];
+  readonly legalOrderOptions: readonly LegalOrderOption[];
   readonly tribesAlive: readonly Tribe[];
   readonly tickLimit: number;
 }

@@ -25,7 +25,7 @@ from .engine import tick as engine_tick
 from .fog import project_for_player
 from .mapgen import (
     CONTINENT_6P_DEFAULT_TRIBES,
-    CONTINENT_6P_REGION_LAYOUT,
+    CONTINENT_6P_SCHEMATIC_LAYOUT,
     EXPANDED_REGION_LAYOUT,
     MINIMAL_REGION_LAYOUT,
     build_continent_map_6p,
@@ -67,7 +67,7 @@ def _build_match_state(
         roster = _roster_for_map(map_kind)
         build_continent_map_6p(state)
         place_tribes_continent_6p(state, roster)
-        return state, CONTINENT_6P_REGION_LAYOUT, roster
+        return state, CONTINENT_6P_SCHEMATIC_LAYOUT, roster
     raise ValueError(f"unknown map kind: {map_kind!r}")
 
 
@@ -294,6 +294,16 @@ def render_html(payload: Dict[str, Any]) -> str:
   input[type="range"] {{
     flex: 1 1 320px;
   }}
+  label.toggle {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    font-size: 13px;
+  }}
   .meta {{
     color: var(--muted);
     font-size: 13px;
@@ -332,15 +342,51 @@ def render_html(payload: Dict[str, Any]) -> str:
   }}
   #mapPanel {{
     min-height: 720px;
+    display: flex;
+    flex-direction: column;
+    /* .panel sets overflow:hidden; that breaks nested flex+percent-height SVG when the sidebar grows */
+    overflow: visible;
+  }}
+  .mapToolbar {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+    font-size: 12px;
+    color: var(--muted);
+  }}
+  .mapToolbar button {{
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    background: #191919;
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+  }}
+  .mapToolbar button:hover {{
+    background: #222;
   }}
   #mapWrap {{
-    padding: 10px;
-    overflow: auto;
+    /* Fixed height avoids flex collapse to 0px when sibling columns reflow (e.g. more orders on tick N). */
+    height: clamp(420px, 58vh, 720px);
+    min-height: 420px;
+    flex-shrink: 0;
+    padding: 0;
+    overflow: hidden;
+    touch-action: none;
+    cursor: grab;
+    background: #0d0d0d;
+  }}
+  #mapWrap:active {{
+    cursor: grabbing;
   }}
   #mapWrap svg {{
     width: 100%;
-    height: auto;
-    min-width: 880px;
+    height: 100%;
     display: block;
   }}
   .sidebar {{
@@ -426,6 +472,7 @@ def render_html(payload: Dict[str, Any]) -> str:
       <button id="nextBtn">Next</button>
       <input id="tickSlider" type="range" min="0" step="1">
       <select id="perspectiveSelect"></select>
+      <label class="toggle"><input id="showOverlayToggle" type="checkbox" checked> Map overlays</label>
       <select id="speedSelect">
         <option value="1400">0.7x</option>
         <option value="900" selected>1x</option>
@@ -438,6 +485,10 @@ def render_html(payload: Dict[str, Any]) -> str:
   <div class="content">
     <div class="panel" id="mapPanel">
       <h2>Map Replay</h2>
+      <div class="mapToolbar">
+        <span>Scroll: zoom · Drag: pan · Double-click: reset</span>
+        <button type="button" id="mapResetViewBtn">Reset view</button>
+      </div>
       <div id="mapWrap"></div>
     </div>
     <div class="sidebar">
@@ -485,6 +536,181 @@ let frameIdx = 0;
 let timer = null;
 let selectedPerspective = "all";
 
+let mapContentSize = {{ w: 0, h: 0 }};
+let mapViewBox = {{ x: 0, y: 0, w: 0, h: 0 }};
+let mapPanZoomBound = false;
+let mapDragging = false;
+let mapDragLast = {{ x: 0, y: 0 }};
+
+function resetMapViewToFull() {{
+  const w = mapContentSize.w;
+  const h = mapContentSize.h;
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return;
+  mapViewBox = {{ x: 0, y: 0, w, h }};
+}}
+
+function ensureMapContentSize(w, h) {{
+  const rw = Math.round(w);
+  const rh = Math.round(h);
+  if (!Number.isFinite(rw) || !Number.isFinite(rh) || rw <= 0 || rh <= 0) return;
+  if (mapContentSize.w !== rw || mapContentSize.h !== rh) {{
+    mapContentSize = {{ w: rw, h: rh }};
+    resetMapViewToFull();
+  }}
+}}
+
+function syncMapView(svgEl) {{
+  if (!svgEl) return;
+  const cw = mapContentSize.w;
+  const ch = mapContentSize.h;
+  if (!Number.isFinite(cw) || !Number.isFinite(ch) || cw <= 0 || ch <= 0) return;
+  let vb = mapViewBox;
+  if (
+    !vb ||
+    !Number.isFinite(vb.w) ||
+    !Number.isFinite(vb.h) ||
+    !Number.isFinite(vb.x) ||
+    !Number.isFinite(vb.y) ||
+    vb.w <= 0 ||
+    vb.h <= 0
+  ) {{
+    resetMapViewToFull();
+    vb = mapViewBox;
+  }}
+  // resetMapViewToFull can no-op if mapContentSize was stale; avoid 0×0 → clamped 1×1 "pinhole" view
+  if (!vb || vb.w <= 0 || vb.h <= 0 || !Number.isFinite(vb.w) || !Number.isFinite(vb.h)) {{
+    vb = {{ x: 0, y: 0, w: cw, h: ch }};
+  }}
+  vb.w = Math.min(Math.max(vb.w, 1), cw);
+  vb.h = Math.min(Math.max(vb.h, 1), ch);
+  vb.x = Math.max(0, Math.min(vb.x, cw - vb.w));
+  vb.y = Math.max(0, Math.min(vb.y, ch - vb.h));
+  mapViewBox = vb;
+  svgEl.setAttribute("viewBox", `${{vb.x}} ${{vb.y}} ${{vb.w}} ${{vb.h}}`);
+}}
+
+function bindMapPanZoomOnce() {{
+  if (mapPanZoomBound) return;
+  mapPanZoomBound = true;
+  const wrap = document.getElementById("mapWrap");
+  const ratio = () => mapContentSize.h / mapContentSize.w;
+
+  wrap.addEventListener(
+    "wheel",
+    (e) => {{
+      const svg = wrap.querySelector("svg");
+      if (!svg || !mapContentSize.w) return;
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const vb = mapViewBox;
+      const mx = ((e.clientX - rect.left) / rect.width) * vb.w + vb.x;
+      const my = ((e.clientY - rect.top) / rect.height) * vb.h + vb.y;
+      const zoom = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      let nw = vb.w / zoom;
+      const minW = mapContentSize.w / 24;
+      nw = Math.min(Math.max(nw, minW), mapContentSize.w);
+      let nh = nw * ratio();
+      let nx = mx - ((mx - vb.x) * nw) / vb.w;
+      let ny = my - ((my - vb.y) * nh) / vb.h;
+      nx = Math.max(0, Math.min(nx, mapContentSize.w - nw));
+      ny = Math.max(0, Math.min(ny, mapContentSize.h - nh));
+      mapViewBox = {{ x: nx, y: ny, w: nw, h: nh }};
+      syncMapView(svg);
+    }},
+    {{ passive: false }},
+  );
+
+  wrap.addEventListener("mousedown", (e) => {{
+    if (e.button !== 0) return;
+    const svg = wrap.querySelector("svg");
+    if (!svg || !svg.contains(e.target)) return;
+    mapDragging = true;
+    mapDragLast = {{ x: e.clientX, y: e.clientY }};
+    wrap.style.cursor = "grabbing";
+  }});
+
+  window.addEventListener("mousemove", (e) => {{
+    if (!mapDragging) return;
+    const svg = wrap.querySelector("svg");
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const vb = mapViewBox;
+    const dx = ((e.clientX - mapDragLast.x) / rect.width) * vb.w;
+    const dy = ((e.clientY - mapDragLast.y) / rect.height) * vb.h;
+    mapDragLast = {{ x: e.clientX, y: e.clientY }};
+    let nx = vb.x - dx;
+    let ny = vb.y - dy;
+    nx = Math.max(0, Math.min(nx, mapContentSize.w - vb.w));
+    ny = Math.max(0, Math.min(ny, mapContentSize.h - vb.h));
+    mapViewBox = {{ ...vb, x: nx, y: ny }};
+    syncMapView(svg);
+  }});
+
+  window.addEventListener("mouseup", () => {{
+    if (mapDragging) {{
+      mapDragging = false;
+      wrap.style.cursor = "grab";
+    }}
+  }});
+
+  let touchId = null;
+  wrap.addEventListener("touchstart", (e) => {{
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const svg = wrap.querySelector("svg");
+    if (!svg) return;
+    const target = document.elementFromPoint(t.clientX, t.clientY);
+    if (!svg.contains(target)) return;
+    touchId = t.identifier;
+    mapDragging = true;
+    mapDragLast = {{ x: t.clientX, y: t.clientY }};
+  }}, {{ passive: true }});
+
+  wrap.addEventListener("touchmove", (e) => {{
+    if (touchId === null || !mapDragging) return;
+    const t = Array.from(e.touches).find((x) => x.identifier === touchId);
+    if (!t) return;
+    e.preventDefault();
+    const svg = wrap.querySelector("svg");
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const vb = mapViewBox;
+    const dx = ((t.clientX - mapDragLast.x) / rect.width) * vb.w;
+    const dy = ((t.clientY - mapDragLast.y) / rect.height) * vb.h;
+    mapDragLast = {{ x: t.clientX, y: t.clientY }};
+    let nx = vb.x - dx;
+    let ny = vb.y - dy;
+    nx = Math.max(0, Math.min(nx, mapContentSize.w - vb.w));
+    ny = Math.max(0, Math.min(ny, mapContentSize.h - vb.h));
+    mapViewBox = {{ ...vb, x: nx, y: ny }};
+    syncMapView(svg);
+  }}, {{ passive: false }});
+
+  wrap.addEventListener("touchend", (e) => {{
+    if (touchId === null) return;
+    if (!Array.from(e.touches).some((x) => x.identifier === touchId)) {{
+      touchId = null;
+      mapDragging = false;
+    }}
+  }});
+
+  wrap.addEventListener("dblclick", (e) => {{
+    const svg = wrap.querySelector("svg");
+    if (!svg || !svg.contains(e.target)) return;
+    resetMapViewToFull();
+    syncMapView(svg);
+  }});
+
+  const resetBtn = document.getElementById("mapResetViewBtn");
+  if (resetBtn) {{
+    resetBtn.addEventListener("click", () => {{
+      resetMapViewToFull();
+      const svg = wrap.querySelector("svg");
+      syncMapView(svg);
+    }});
+  }}
+}}
+
 const slider = document.getElementById("tickSlider");
 slider.max = String(frames.length - 1);
 const perspectiveSelect = document.getElementById("perspectiveSelect");
@@ -506,6 +732,10 @@ function escapeHtml(text) {{
 
 function shortRegionId(rid) {{
   return rid.startsWith("r_") ? rid.slice(2) : rid;
+}}
+
+function tribeAbbr(tribe) {{
+  return tribe.split("_").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }}
 
 function regionCounts(state) {{
@@ -546,36 +776,102 @@ function renderMap(frame) {{
   const perspective = getPerspectiveView(frame);
   const visibleRegions = new Set(Object.keys(perspective?.visible_regions || {{}}));
   const visibleForceLookup = fuzzyForceByRegion(perspective);
+  const showOverlays = document.getElementById("showOverlayToggle").checked;
   const coords = Object.values(layout);
   const xs = coords.map(([x]) => x);
   const ys = coords.map(([, y]) => y);
-  const pad = 90;
+  const pad = 200;
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
-  const width = maxX - minX + pad * 2;
-  const height = maxY - minY + pad * 2;
+  const mapCanvasW = Math.round(maxX - minX + pad * 2);
+  const mapCanvasH = Math.round(maxY - minY + pad * 2);
   const tx = (x) => x - minX + pad;
   const ty = (y) => y - minY + pad;
 
   const svg = [];
-  svg.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${{width}} ${{height}}" style="background:#121212">`);
+  svg.push(`<svg id="replayMapSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${{mapCanvasW}} ${{mapCanvasH}}" preserveAspectRatio="xMidYMid meet" style="background:#121212">`);
+  svg.push(`
+    <defs>
+      <marker id="overlayArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ffffff" />
+      </marker>
+    </defs>
+  `);
+
+  const regionBadgeCount = {{}};
+  function regionVisibleForOverlay(rid, ownerTribe) {{
+    return !perspective || visibleRegions.has(rid) || ownerTribe === selectedPerspective;
+  }}
+  function addRegionBadge(rid, text, fill, ownerTribe = null) {{
+    if (!layout[rid] || !regionVisibleForOverlay(rid, ownerTribe)) return;
+    const [x, y] = layout[rid];
+    const n = regionBadgeCount[rid] || 0;
+    regionBadgeCount[rid] = n + 1;
+    const bx = tx(x) - 50;
+    const by = ty(y) + 38 + n * 18;
+    const width = Math.max(42, 8 * text.length + 10);
+    svg.push(`<rect x="${{bx}}" y="${{by}}" width="${{width}}" height="16" rx="8" fill="${{fill}}" stroke="#111" opacity="0.95" />`);
+    svg.push(`<text x="${{bx + width / 2}}" y="${{by + 11}}" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">${{escapeHtml(text)}}</text>`);
+  }}
+  function addStructureBadges(rid, structures) {{
+    if (!layout[rid] || !structures || !structures.length) return;
+    const [x, y] = layout[rid];
+    const totalWidth = structures.reduce((sum, structure) => sum + Math.max(28, 7 * structure.length + 14), 0) + Math.max(0, structures.length - 1) * 6;
+    let cursor = tx(x) - totalWidth / 2;
+    const by = ty(y) - 48;
+    for (const structure of structures) {{
+      const width = Math.max(28, 7 * structure.length + 14);
+      svg.push(`<rect x="${{cursor}}" y="${{by}}" width="${{width}}" height="16" rx="8" fill="#e4c36a" stroke="#111" opacity="0.98" />`);
+      svg.push(`<text x="${{cursor + width / 2}}" y="${{by + 11}}" fill="#111" font-size="9" font-weight="bold" text-anchor="middle">${{escapeHtml(structure)}}</text>`);
+      cursor += width + 6;
+    }}
+  }}
+  function addRegionPulse(rid, stroke, widthPx = 5) {{
+    if (!layout[rid] || !regionVisibleForOverlay(rid, null)) return;
+    const [x, y] = layout[rid];
+    svg.push(`<circle cx="${{tx(x)}}" cy="${{ty(y)}}" r="48" fill="none" stroke="${{stroke}}" stroke-width="${{widthPx}}" opacity="0.95" />`);
+  }}
+  function addPathOverlay(fromRid, toRid, tribe, text, colorOverride = null, dashed = false) {{
+    if (!layout[fromRid] || !layout[toRid]) return;
+    const fromVisible = regionVisibleForOverlay(fromRid, tribe);
+    const toVisible = regionVisibleForOverlay(toRid, tribe);
+    if (perspective && !(fromVisible || toVisible || tribe === selectedPerspective)) return;
+    const color = colorOverride || tribeColor(tribe);
+    const [x1, y1] = layout[fromRid];
+    const [x2, y2] = layout[toRid];
+    const sx = tx(x1);
+    const sy = ty(y1);
+    const ex = tx(x2);
+    const ey = ty(y2);
+    const mx = (sx + ex) / 2;
+    const my = (sy + ey) / 2;
+    svg.push(`<line x1="${{sx}}" y1="${{sy}}" x2="${{ex}}" y2="${{ey}}" stroke="${{color}}" stroke-width="4" opacity="0.9" marker-end="url(#overlayArrow)"${{dashed ? ' stroke-dasharray="8,5"' : ""}} />`);
+    const labelWidth = Math.max(54, 8 * text.length + 10);
+    svg.push(`<rect x="${{mx - labelWidth / 2}}" y="${{my - 28}}" width="${{labelWidth}}" height="18" rx="8" fill="${{color}}" stroke="#111" opacity="0.95" />`);
+    svg.push(`<text x="${{mx}}" y="${{my - 15}}" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">${{escapeHtml(text)}}</text>`);
+  }}
 
   for (const trail of state.trails) {{
     const a = layout[trail.a];
     const b = layout[trail.b];
-    const mx = (tx(a[0]) + tx(b[0])) / 2;
-    const my = (ty(a[1]) + ty(b[1])) / 2;
-    svg.push(`<line x1="${{tx(a[0])}}" y1="${{ty(a[1])}}" x2="${{tx(b[0])}}" y2="${{ty(b[1])}}" stroke="#565656" stroke-width="3" stroke-dasharray="7,4" />`);
+    const x1 = tx(a[0]), y1 = ty(a[1]), x2 = tx(b[0]), y2 = ty(b[1]);
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1;
+    const ox = (-dy / len) * 20, oy = (dx / len) * 20;
+    const mx = (x1 + x2) / 2 + ox;
+    const my = (y1 + y2) / 2 + oy;
+    svg.push(`<line x1="${{x1}}" y1="${{y1}}" x2="${{x2}}" y2="${{y2}}" stroke="#565656" stroke-width="3" stroke-dasharray="7,4" />`);
     svg.push(`<rect x="${{mx - 12}}" y="${{my - 10}}" width="24" height="18" rx="4" fill="#111" stroke="#777" />`);
     svg.push(`<text x="${{mx}}" y="${{my + 3}}" fill="#ddd" font-size="11" text-anchor="middle">${{trail.base_length_ticks}}t</text>`);
   }}
 
   for (const [rid, region] of Object.entries(state.regions)) {{
+    if (!layout[rid]) continue;
     const regionVisible = !perspective || visibleRegions.has(rid);
     const shownRegion = regionVisible
-      ? (perspective ? perspective.visible_regions[rid] : region)
+      ? (perspective ? (perspective.visible_regions[rid] ?? region) : region)
       : null;
     const [x, y] = layout[rid];
     const cx = tx(x);
@@ -584,16 +880,16 @@ function renderMap(frame) {{
     const stroke = owner ? tribeColor(owner) : "#222";
     const strokeWidth = owner ? 4 : 1.5;
     const fill = regionVisible
-      ? (terrainFill[shownRegion.type] || "#444")
+      ? (terrainFill[shownRegion?.type] || "#444")
       : "#0e0e0e";
     svg.push(`<circle cx="${{cx}}" cy="${{cy}}" r="42" fill="${{fill}}" stroke="${{stroke}}" stroke-width="${{strokeWidth}}" opacity="${{regionVisible ? "1" : "0.55"}}" />`);
     svg.push(`<text x="${{cx}}" y="${{cy - 4}}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">${{escapeHtml(regionVisible ? shortRegionId(rid) : "?")}}</text>`);
-    svg.push(`<text x="${{cx}}" y="${{cy + 10}}" fill="#eaeaea" font-size="9" text-anchor="middle">${{escapeHtml(regionVisible ? shownRegion.type : "hidden")}}</text>`);
+    svg.push(`<text x="${{cx}}" y="${{cy + 10}}" fill="#eaeaea" font-size="9" text-anchor="middle">${{escapeHtml(regionVisible ? (shownRegion?.type || "?") : "hidden")}}</text>`);
     if (owner) {{
       svg.push(`<text x="${{cx}}" y="${{cy + 26}}" fill="${{tribeColor(owner)}}" font-size="10" font-weight="bold" text-anchor="middle">${{escapeHtml(owner.toUpperCase())}}</text>`);
     }}
-    if (regionVisible && shownRegion.structures.length) {{
-      svg.push(`<text x="${{cx}}" y="${{cy - 28}}" fill="#ffe7aa" font-size="9" text-anchor="middle">[${{escapeHtml(shownRegion.structures.join(","))}}]</text>`);
+    if (regionVisible && shownRegion?.structures?.length) {{
+      addStructureBadges(rid, shownRegion.structures);
     }}
     if (!regionVisible) continue;
     const garrisonId = shownRegion.garrison_force_id;
@@ -666,8 +962,89 @@ function renderMap(frame) {{
     svg.push(`<text x="${{cx}}" y="${{cy + 4}}" fill="#111" font-size="9" font-weight="bold" text-anchor="middle">C${{caravan.amount_influence}}</text>`);
   }}
 
+  if (showOverlays) {{
+    const prevState = frameIdx > 0 ? frames[frameIdx - 1].state : null;
+    const events = frame.resolution_events || [];
+    const builtKeys = new Set(events.filter((e) => e.kind === "built").map((e) => `${{e.tribe}}|${{e.region_id}}|${{e.structure}}`));
+    const recruitedKeys = new Set(events.filter((e) => e.kind === "recruited").map((e) => `${{e.tribe}}|${{e.region_id}}|${{e.tier}}`));
+    const moveKeys = new Set(events.filter((e) => e.kind === "dispatch_move").map((e) => `${{e.tribe}}|${{e.force_id}}|${{e.to}}`));
+    const scoutKeys = new Set(events.filter((e) => e.kind === "dispatch_scout").map((e) => `${{e.tribe}}|${{e.from}}|${{e.to}}`));
+    const buildFailReasons = {{}};
+    for (const event of events) {{
+      if (event.kind === "build_failed" && event.tribe) {{
+        buildFailReasons[event.tribe] ||= [];
+        buildFailReasons[event.tribe].push(event.reason || "failed");
+      }}
+    }}
+    for (const [tribe, pkt] of Object.entries(frame.orders_by_tribe || {{}})) {{
+      for (const order of (pkt.orders || [])) {{
+        const payload = order.payload || {{}};
+        if (order.kind === "build" && payload.region_id) {{
+          const label = `${{tribeAbbr(tribe)}} build ${{payload.structure || ""}}`.trim();
+          addRegionBadge(payload.region_id, label, tribeColor(tribe), tribe);
+          const ok = builtKeys.has(`${{tribe}}|${{payload.region_id}}|${{payload.structure}}`);
+          if (!ok) {{
+            const reason = (buildFailReasons[tribe] || []).shift();
+            addRegionBadge(
+              payload.region_id,
+              reason ? `fail ${{reason}}` : "build failed",
+              "#a12b2b",
+              tribe,
+            );
+          }}
+        }} else if (order.kind === "recruit" && payload.region_id) {{
+          addRegionBadge(payload.region_id, `${{tribeAbbr(tribe)}} rec T${{payload.tier ?? "?"}}`, tribeColor(tribe), tribe);
+          const ok = recruitedKeys.has(`${{tribe}}|${{payload.region_id}}|${{payload.tier ?? "?"}}`);
+          if (!ok) {{
+            addRegionBadge(payload.region_id, "recruit failed", "#a12b2b", tribe);
+          }}
+        }} else if (order.kind === "move" && payload.force_id && payload.destination_region_id && prevState) {{
+          const ok = moveKeys.has(`${{tribe}}|${{payload.force_id}}|${{payload.destination_region_id}}`);
+          if (!ok) {{
+            const prevForce = prevState.forces[payload.force_id];
+            const fromRid = prevForce && prevForce.location_kind === "garrison" ? prevForce.location_region_id : null;
+            if (fromRid) {{
+              addPathOverlay(fromRid, payload.destination_region_id, tribe, `${{tribeAbbr(tribe)}} move fail`, "#a12b2b", true);
+            }}
+          }}
+        }} else if (order.kind === "scout" && payload.from_region_id && payload.target_region_id) {{
+          const ok = scoutKeys.has(`${{tribe}}|${{payload.from_region_id}}|${{payload.target_region_id}}`);
+          if (!ok) {{
+            addPathOverlay(payload.from_region_id, payload.target_region_id, tribe, `${{tribeAbbr(tribe)}} scout fail`, "#a12b2b", true);
+          }}
+        }}
+      }}
+    }}
+    for (const event of events) {{
+      if (event.kind === "dispatch_move") {{
+        addPathOverlay(event.from, event.to, event.tribe, `${{tribeAbbr(event.tribe)}} move`);
+      }} else if (event.kind === "dispatch_scout") {{
+        addPathOverlay(event.from, event.to, event.tribe, `${{tribeAbbr(event.tribe)}} scout`);
+      }} else if (event.kind === "built") {{
+        addRegionBadge(event.region_id, `built ${{event.structure}}`, "#4d7c3a", event.tribe);
+      }} else if (event.kind === "recruited") {{
+        addRegionBadge(event.region_id, `recruit T${{event.tier}}`, "#2d6fb0", event.tribe);
+      }} else if (event.kind === "force_arrived") {{
+        addRegionPulse(event.region_id, "#5ee173", 4);
+      }} else if (event.kind === "scout_arrived") {{
+        addRegionPulse(event.region_id, "#72d5ff", 4);
+      }} else if (event.kind === "combat") {{
+        const rid = event.region || event.region_id;
+        addRegionPulse(rid, "#ff5d5d", 6);
+        addRegionBadge(rid, "COMBAT", "#8f2222");
+      }} else if (event.kind === "region_transferred" || event.kind === "region_captured" || event.kind === "region_claimed") {{
+        addRegionBadge(event.region_id, "capture", "#8a5a17", event.to || event.tribe || null);
+      }}
+    }}
+  }}
+
   svg.push(`</svg>`);
   document.getElementById("mapWrap").innerHTML = svg.join("");
+  const svgEl =
+    document.getElementById("replayMapSvg") || document.querySelector("#mapWrap svg");
+  ensureMapContentSize(mapCanvasW, mapCanvasH);
+  syncMapView(svgEl);
+  bindMapPanZoomOnce();
 }}
 
 function renderScoreboard(frame) {{
@@ -883,6 +1260,9 @@ document.getElementById("speedSelect").addEventListener("change", () => {{
 }});
 document.getElementById("perspectiveSelect").addEventListener("change", (e) => {{
   selectedPerspective = e.target.value;
+  renderFrame(frameIdx);
+}});
+document.getElementById("showOverlayToggle").addEventListener("change", () => {{
   renderFrame(frameIdx);
 }});
 slider.addEventListener("input", (e) => {{

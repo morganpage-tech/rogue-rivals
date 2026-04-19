@@ -8,7 +8,9 @@ Usage:
     python -m tools.v2.run_batch --matches 10 --ticks 30 --workers 4 --out-dir simulations/v2_batch_001
 
 Requires an LLM API key. In priority: ANTHROPIC_API_KEY, ZAI_API_KEY/ZAI_KEY,
-OPENAI_API_KEY. Set LLM_PROVIDER=zai to force Z.AI (glm-4.6).
+OPENAI_API_KEY, GROQ_API_KEY. Set LLM_PROVIDER=zai or LLM_PROVIDER=groq to
+force a provider, or pass --llm-provider groq (Groq is typically much lower
+latency than Z.AI for batch sims).
 """
 
 from __future__ import annotations
@@ -92,6 +94,8 @@ def run_match(
     trace_path: Path,
     verbose: bool = False,
     map_kind: str = "expanded",
+    llm_provider: str = "",
+    llm_model: str = "",
 ) -> Dict[str, Any]:
     """Run one match end-to-end. Returns a match-summary dict."""
     state = _build_match_state(seed, map_kind=map_kind)
@@ -105,11 +109,16 @@ def run_match(
     for tribe, pid in persona_assignment.items():
         persona = PERSONA_BY_ID[pid]
         try:
-            clients[tribe] = LLMClient(
-                temperature=persona.get("temperature", 0.2),
-                max_input_tokens=4000,
-                max_output_tokens=700,
-            )
+            client_kw: Dict[str, Any] = {
+                "temperature": persona.get("temperature", 0.2),
+                "max_input_tokens": 4000,
+                "max_output_tokens": 700,
+            }
+            if llm_provider:
+                client_kw["provider"] = llm_provider
+            if llm_model:
+                client_kw["model"] = llm_model
+            clients[tribe] = LLMClient(**client_kw)
         except LLMError as e:
             diagnostics.append(f"client init failed for {tribe} ({pid}): {e}")
             return {
@@ -207,6 +216,8 @@ def _worker_run_match(args: Dict[str, Any]) -> Dict[str, Any]:
         trace_path=Path(args["trace_path"]),
         verbose=args["verbose"],
         map_kind=args.get("map_kind", "expanded"),
+        llm_provider=args.get("llm_provider") or "",
+        llm_model=args.get("llm_model") or "",
     )
 
 
@@ -219,6 +230,8 @@ def run_batch(
     workers: int = 1,
     verbose: bool = False,
     map_kind: str = "expanded",
+    llm_provider: str = "",
+    llm_model: str = "",
 ) -> Dict[str, Any]:
     """Run `num_matches` matches in parallel; merge traces to out_dir."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -234,6 +247,8 @@ def run_batch(
                 "trace_path": str(out_dir / f"match_{i:03d}.jsonl"),
                 "verbose": verbose,
                 "map_kind": map_kind,
+                "llm_provider": llm_provider,
+                "llm_model": llm_model,
             }
         )
 
@@ -258,6 +273,8 @@ def run_batch(
         "base_seed": base_seed,
         "max_ticks": max_ticks,
         "map_kind": map_kind,
+        "llm_provider": llm_provider or None,
+        "llm_model": llm_model or None,
         "persona_assignment": persona_assignment,
         "elapsed_s": round(elapsed_s, 2),
         "matches": summaries,
@@ -290,6 +307,18 @@ def main() -> int:
         default=[],
         help="Override persona assignment, e.g. orange=warlord",
     )
+    p.add_argument(
+        "--llm-provider",
+        choices=["anthropic", "openai", "zai", "groq"],
+        default=None,
+        help="Force LLM backend (default: env LLM_PROVIDER or auto from keys). "
+        "Use groq for fast local batch sims if GROQ_API_KEY is set.",
+    )
+    p.add_argument(
+        "--llm-model",
+        default="",
+        help="Override model id for the chosen provider (e.g. GROQ_MODEL).",
+    )
     args = p.parse_args()
 
     tribes_for_map = _tribes_for_map(args.map_kind)
@@ -313,6 +342,12 @@ def main() -> int:
         file=sys.stderr,
     )
     print(f"Persona assignment: {persona_assignment}", file=sys.stderr)
+    llm_provider = args.llm_provider or ""
+    llm_model = (args.llm_model or "").strip()
+    if llm_provider:
+        print(f"LLM provider (forced): {llm_provider}", file=sys.stderr)
+    if llm_model:
+        print(f"LLM model (forced): {llm_model}", file=sys.stderr)
 
     summary = run_batch(
         num_matches=args.matches,
@@ -323,6 +358,8 @@ def main() -> int:
         workers=args.workers,
         verbose=args.verbose,
         map_kind=args.map_kind,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
     )
 
     # Print compact summary to stdout

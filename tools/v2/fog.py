@@ -9,7 +9,16 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Set
 
-from .constants import FUZZY_TIER
+from .constants import (
+    DEFAULT_NAP_LENGTH,
+    DEFAULT_SHARED_VISION_LENGTH,
+    FORCE_RECRUIT_COST,
+    FORGE_REQUIRED_FOR_TIER,
+    FUZZY_TIER,
+    MAX_STRUCTURES_PER_REGION,
+    SCOUT_COST,
+    STRUCTURE_COST,
+)
 from .state import (
     Announcement,
     Caravan,
@@ -23,6 +32,7 @@ from .state import (
     Scout,
     Tribe,
     adjacent_regions,
+    trail_between,
 )
 
 
@@ -62,6 +72,189 @@ def _visible_region_set(state: GameState, tribe: Tribe) -> Set[RegionId]:
                 visible.add(adj)
 
     return visible
+
+
+def _has_pact(state: GameState, kind: str, a: Tribe, b: Tribe) -> bool:
+    parties = {a, b}
+    for pact in state.pacts:
+        if pact.kind == kind and set(pact.parties) == parties:
+            return True
+    return False
+
+
+def _legal_order_options(state: GameState, tribe: Tribe) -> List[Dict[str, Any]]:
+    ps = state.players.get(tribe)
+    if ps is None:
+        return []
+
+    options: List[Dict[str, Any]] = []
+
+    def add_option(
+        option_id: str,
+        kind: str,
+        summary: str,
+        payload: Dict[str, Any],
+    ) -> None:
+        options.append(
+            {
+                "id": option_id,
+                "kind": kind,
+                "summary": summary,
+                "payload": payload,
+            }
+        )
+
+    # Moves from currently garrisoned owned forces.
+    for force in sorted(
+        (f for f in state.forces.values() if f.owner == tribe and f.location_kind == "garrison"),
+        key=lambda f: f.id,
+    ):
+        origin = force.location_region_id
+        if origin is None:
+            continue
+        for dest in adjacent_regions(state, origin):
+            add_option(
+                f"move:{force.id}:{dest}",
+                "move",
+                f"Move {force.id} (Tier {force.tier}) from {origin} to {dest}",
+                {"force_id": force.id, "destination_region_id": dest},
+            )
+
+    # Region-local actions on owned regions.
+    for region_id in sorted(rid for rid, r in state.regions.items() if r.owner == tribe):
+        region = state.regions[region_id]
+
+        # Recruit options.
+        if region.garrison_force_id is None:
+            for tier in sorted(FORCE_RECRUIT_COST.keys()):
+                if tier == FORGE_REQUIRED_FOR_TIER and "forge" not in region.structures:
+                    continue
+                cost = FORCE_RECRUIT_COST[tier]
+                if ps.influence < cost:
+                    continue
+                add_option(
+                    f"recruit:{region_id}:t{tier}",
+                    "recruit",
+                    f"Recruit Tier {tier} at {region_id} (cost {cost})",
+                    {"region_id": region_id, "tier": tier},
+                )
+
+        # Build options.
+        if len(region.structures) < MAX_STRUCTURES_PER_REGION:
+            for structure in sorted(STRUCTURE_COST.keys()):
+                if structure in region.structures:
+                    continue
+                cost = STRUCTURE_COST[structure]
+                if ps.influence < cost:
+                    continue
+                if structure == "road":
+                    for road_target in adjacent_regions(state, region_id):
+                        add_option(
+                            f"build:{region_id}:road:{road_target}",
+                            "build",
+                            f"Build road at {region_id} toward {road_target} (cost {cost})",
+                            {
+                                "region_id": region_id,
+                                "structure": "road",
+                                "road_target": road_target,
+                            },
+                        )
+                else:
+                    add_option(
+                        f"build:{region_id}:{structure}",
+                        "build",
+                        f"Build {structure} at {region_id} (cost {cost})",
+                        {"region_id": region_id, "structure": structure},
+                    )
+
+        # Scout options.
+        if ps.influence >= SCOUT_COST:
+            for target in adjacent_regions(state, region_id):
+                if trail_between(state, region_id, target) is None:
+                    continue
+                add_option(
+                    f"scout:{region_id}:{target}",
+                    "scout",
+                    f"Scout from {region_id} to {target} (cost {SCOUT_COST})",
+                    {"from_region_id": region_id, "target_region_id": target},
+                )
+
+    # Respond options.
+    for proposal in sorted(ps.outstanding_proposals, key=lambda p: p.id):
+        add_option(
+            f"respond:{proposal.id}:accept",
+            "respond",
+            f"Accept {proposal.kind} proposal {proposal.id} from {proposal.from_tribe}",
+            {"proposal_id": proposal.id, "response": "accept"},
+        )
+        add_option(
+            f"respond:{proposal.id}:decline",
+            "respond",
+            f"Decline {proposal.kind} proposal {proposal.id} from {proposal.from_tribe}",
+            {"proposal_id": proposal.id, "response": "decline"},
+        )
+
+    # Proposal options.
+    for other in sorted(t for t in state.tribes_alive if t != tribe):
+        has_nap = _has_pact(state, "nap", tribe, other)
+        has_shared_vision = _has_pact(state, "shared_vision", tribe, other)
+        has_war = _has_pact(state, "war", tribe, other)
+
+        if not has_nap and not has_war:
+            add_option(
+                f"propose:nap:{other}",
+                "propose",
+                f"Propose NAP to {other} ({DEFAULT_NAP_LENGTH} ticks)",
+                {
+                    "proposal": {
+                        "kind": "nap",
+                        "to": other,
+                        "length_ticks": DEFAULT_NAP_LENGTH,
+                    }
+                },
+            )
+        if not has_shared_vision and not has_war:
+            add_option(
+                f"propose:shared_vision:{other}",
+                "propose",
+                f"Propose Shared Vision to {other} ({DEFAULT_SHARED_VISION_LENGTH} ticks)",
+                {
+                    "proposal": {
+                        "kind": "shared_vision",
+                        "to": other,
+                        "length_ticks": DEFAULT_SHARED_VISION_LENGTH,
+                    }
+                },
+            )
+        if ps.influence >= 6:
+            add_option(
+                f"propose:trade_offer:{other}:5",
+                "propose",
+                f"Propose 5-Influence trade caravan to {other}",
+                {
+                    "proposal": {
+                        "kind": "trade_offer",
+                        "to": other,
+                        "amount_influence": 5,
+                    }
+                },
+            )
+        if has_nap:
+            add_option(
+                f"propose:break_pact:{other}",
+                "propose",
+                f"Break NAP with {other}",
+                {"proposal": {"kind": "break_pact", "to": other}},
+            )
+        if not has_war:
+            add_option(
+                f"propose:declare_war:{other}",
+                "propose",
+                f"Declare war on {other}",
+                {"proposal": {"kind": "declare_war", "to": other}},
+            )
+
+    return options
 
 
 def project_for_player(state: GameState, tribe: Tribe) -> Dict[str, Any]:
@@ -144,6 +337,7 @@ def project_for_player(state: GameState, tribe: Tribe) -> Dict[str, Any]:
 
     announcements_new = [asdict(a) for a in state.announcements if a.tick == state.tick]
     pacts_involving_me = [asdict(p) for p in state.pacts if tribe in p.parties]
+    legal_order_options = _legal_order_options(state, tribe)
 
     return {
         "tick": state.tick,
@@ -159,5 +353,6 @@ def project_for_player(state: GameState, tribe: Tribe) -> Dict[str, Any]:
         "inbox_new": inbox_new,
         "announcements_new": announcements_new,
         "pacts_involving_me": pacts_involving_me,
+        "legal_order_options": legal_order_options,
         "tribes_alive": list(state.tribes_alive),
     }
