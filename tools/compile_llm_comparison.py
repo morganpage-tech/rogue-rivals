@@ -113,6 +113,8 @@ def _trace_metrics(trace_path: Path) -> Dict[str, Any]:
         cost = (sum(tin) / 1e6) * 0.60 + (sum(tout) / 1e6) * 2.20
     elif prov == "groq":
         cost = (sum(tin) / 1e6) * 0.05 + (sum(tout) / 1e6) * 0.08
+    elif prov == "openrouter":
+        cost = 0.0
 
     return {
         "avg_retries": statistics.mean(retries) if retries else 0,
@@ -153,12 +155,13 @@ def main() -> int:
         or bool(os.environ.get("ZAI_API_KEY", "").strip())
         or bool(os.environ.get("ZAI_KEY", "").strip())
         or bool(os.environ.get("GROQ_API_KEY", "").strip())
+        or bool(os.environ.get("OPENROUTER_API_KEY", "").strip())
     )
     # Also treat trace-derived provider as authoritative: if the trace shows a
     # real provider (`anthropic`, `openai`, `zai`), the batch was not mocked
     # regardless of current env state when the *report* is generated.
     trace_prov = (_trace_metrics(t_path).get("provider") or "").lower()
-    if trace_prov in ("anthropic", "openai", "zai", "groq"):
+    if trace_prov in ("anthropic", "openai", "zai", "groq", "openrouter"):
         has_key = True
 
     def dist(ms: List[Dict[str, Any]], key: str) -> Counter:
@@ -207,7 +210,7 @@ def main() -> int:
         os.environ.get("ZAI_API_KEY", "").strip()
         or os.environ.get("ZAI_KEY", "").strip()
     ):
-        model_note = os.environ.get("ZAI_MODEL", "glm-4.6")
+        model_note = os.environ.get("ZAI_MODEL", "glm-4.5-air")
     elif os.environ.get("OPENAI_API_KEY", "").strip():
         model_note = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
     else:

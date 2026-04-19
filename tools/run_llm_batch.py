@@ -46,6 +46,9 @@ COST_IN_PER_M = {
     # Groq: rough list-price ballpark; verify against current console pricing.
     "groq": 0.05,
     "groq_out": 0.08,
+    # OpenRouter: use model-specific pricing in console; free models = 0
+    "openrouter": 0.0,
+    "openrouter_out": 0.0,
     "mock": 0.0,
 }
 
@@ -68,20 +71,29 @@ def _runner_model_name() -> str:
     )
     has_o = bool(os.environ.get("OPENAI_API_KEY", "").strip())
     has_g = bool(os.environ.get("GROQ_API_KEY", "").strip())
+    has_or = bool(os.environ.get("OPENROUTER_API_KEY", "").strip())
     if override == "anthropic" and has_a:
         return os.environ.get("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
     if override == "zai" and has_z:
-        return os.environ.get("ZAI_MODEL", "glm-4.6")
+        return os.environ.get("ZAI_MODEL", "glm-4.5-air")
     if override == "openai" and has_o:
         return os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
     if override == "groq" and has_g:
         return os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    if override == "openrouter" and has_or:
+        return os.environ.get(
+            "OPENROUTER_MODEL", "nvidia/nemotron-3-super-120b-a12b:free"
+        )
     if has_a:
         return os.environ.get("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
     if has_z:
-        return os.environ.get("ZAI_MODEL", "glm-4.6")
+        return os.environ.get("ZAI_MODEL", "glm-4.5-air")
     if has_o:
         return os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    if has_or:
+        return os.environ.get(
+            "OPENROUTER_MODEL", "nvidia/nemotron-3-super-120b-a12b:free"
+        )
     if has_g:
         return os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
     return "mock-llm-client"
@@ -109,6 +121,8 @@ def _estimate_cost_usd(trace_path: Path) -> tuple[float, int, int, str]:
         cost = (total_in / 1e6) * COST_IN_PER_M["zai"] + (total_out / 1e6) * COST_IN_PER_M["zai_out"]
     elif prov == "groq":
         cost = (total_in / 1e6) * COST_IN_PER_M["groq"] + (total_out / 1e6) * COST_IN_PER_M["groq_out"]
+    elif prov == "openrouter":
+        cost = (total_in / 1e6) * COST_IN_PER_M["openrouter"] + (total_out / 1e6) * COST_IN_PER_M["openrouter_out"]
     else:
         cost = 0.0
     return cost, total_in, total_out, prov

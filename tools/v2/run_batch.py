@@ -8,9 +8,9 @@ Usage:
     python -m tools.v2.run_batch --matches 10 --ticks 30 --workers 4 --out-dir simulations/v2_batch_001
 
 Requires an LLM API key. In priority: ANTHROPIC_API_KEY, ZAI_API_KEY/ZAI_KEY,
-OPENAI_API_KEY, GROQ_API_KEY. Set LLM_PROVIDER=zai or LLM_PROVIDER=groq to
-force a provider, or pass --llm-provider groq (Groq is typically much lower
-latency than Z.AI for batch sims).
+OPENAI_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY. Default Z.AI model is
+``glm-4.5-air`` (override with ``ZAI_MODEL`` or ``--llm-model``). Use
+``--llm-provider openrouter`` for OpenRouter, or ``--llm-provider groq`` for Groq.
 """
 
 from __future__ import annotations
@@ -309,15 +309,15 @@ def main() -> int:
     )
     p.add_argument(
         "--llm-provider",
-        choices=["anthropic", "openai", "zai", "groq"],
+        choices=["anthropic", "openai", "zai", "groq", "openrouter"],
         default=None,
         help="Force LLM backend (default: env LLM_PROVIDER or auto from keys). "
-        "Use groq for fast local batch sims if GROQ_API_KEY is set.",
+        "openrouter uses OPENROUTER_MODEL (default Nemotron free on OpenRouter).",
     )
     p.add_argument(
         "--llm-model",
         default="",
-        help="Override model id for the chosen provider (e.g. GROQ_MODEL).",
+        help="Override model id (e.g. OPENROUTER_MODEL, GROQ_MODEL).",
     )
     args = p.parse_args()
 

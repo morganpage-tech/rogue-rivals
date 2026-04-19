@@ -1,5 +1,5 @@
 """
-LLM backends for Rogue Rivals LLM agents (Anthropic, OpenAI, Z.AI, Groq).
+LLM backends for Rogue Rivals LLM agents (Anthropic, OpenAI, Z.AI, Groq, OpenRouter).
 """
 
 from __future__ import annotations
@@ -61,14 +61,21 @@ def _validate_schema(data: Any, schema: Optional[dict]) -> None:
 
 
 ZAI_BASE_URL = "https://api.z.ai/api/paas/v4/"
-ZAI_DEFAULT_MODEL = "glm-4.6"
+ZAI_DEFAULT_MODEL = "glm-4.5-air"
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+
 
 def _groq_key() -> str:
     return os.environ.get("GROQ_API_KEY", "").strip()
+
+
+def _openrouter_key() -> str:
+    return os.environ.get("OPENROUTER_API_KEY", "").strip()
 
 
 def _zai_key() -> str:
@@ -85,17 +92,18 @@ def _pick_provider_model(
     """Returns (provider, model, used_anthropic_preference).
 
     Provider selection priority when no explicit `provider` arg is passed:
-      1. `LLM_PROVIDER` env var (anthropic | openai | zai | groq)
-      2. First available key in this order: anthropic, zai, openai, groq
+      1. `LLM_PROVIDER` env var (anthropic | openai | zai | groq | openrouter)
+      2. First available key in this order: anthropic, zai, openai, openrouter, groq
     """
     has_a = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
     has_o = bool(os.environ.get("OPENAI_API_KEY", "").strip())
     has_z = bool(_zai_key())
     has_g = bool(_groq_key())
-    if not (has_a or has_o or has_z or has_g):
+    has_or = bool(_openrouter_key())
+    if not (has_a or has_o or has_z or has_g or has_or):
         raise LLMError(
             "No LLM API key configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, "
-            "ZAI_API_KEY (alias: ZAI_KEY), or GROQ_API_KEY in the environment."
+            "ZAI_API_KEY (alias: ZAI_KEY), GROQ_API_KEY, or OPENROUTER_API_KEY."
         )
 
     effective = provider or os.environ.get("LLM_PROVIDER", "").strip() or None
@@ -109,7 +117,9 @@ def _pick_provider_model(
             raise LLMError("ZAI_API_KEY / ZAI_KEY is not set.")
         if p == "groq" and not has_g:
             raise LLMError("GROQ_API_KEY is not set.")
-        if p not in ("anthropic", "openai", "zai", "groq"):
+        if p == "openrouter" and not has_or:
+            raise LLMError("OPENROUTER_API_KEY is not set.")
+        if p not in ("anthropic", "openai", "zai", "groq", "openrouter"):
             raise LLMError(f"Unknown provider: {effective}")
         if p == "anthropic":
             m = model or os.environ.get(
@@ -119,6 +129,8 @@ def _pick_provider_model(
             m = model or os.environ.get("ZAI_MODEL", ZAI_DEFAULT_MODEL)
         elif p == "groq":
             m = model or os.environ.get("GROQ_MODEL", GROQ_DEFAULT_MODEL)
+        elif p == "openrouter":
+            m = model or os.environ.get("OPENROUTER_MODEL", OPENROUTER_DEFAULT_MODEL)
         else:
             m = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
         return p, m, p == "anthropic"
@@ -141,6 +153,12 @@ def _pick_provider_model(
             model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
             False,
         )
+    if has_or:
+        return (
+            "openrouter",
+            model or os.environ.get("OPENROUTER_MODEL", OPENROUTER_DEFAULT_MODEL),
+            False,
+        )
     return (
         "groq",
         model or os.environ.get("GROQ_MODEL", GROQ_DEFAULT_MODEL),
@@ -149,7 +167,7 @@ def _pick_provider_model(
 
 
 class LLMClient:
-    """LLM client (Anthropic, OpenAI-compatible, or Z.AI); returns parsed JSON dict."""
+    """LLM client (Anthropic, OpenAI-compatible, Z.AI, Groq, OpenRouter); returns JSON dict."""
 
     def __init__(
         self,
@@ -192,6 +210,27 @@ class LLMClient:
             if not gk:
                 raise LLMError("GROQ_API_KEY is not set.")
             self._openai = OpenAI(api_key=gk, base_url=GROQ_BASE_URL)
+            self._anthropic = None
+        elif self.provider == "openrouter":
+            try:
+                from openai import OpenAI  # type: ignore
+            except ImportError as e:
+                raise LLMError("Install openai package: pip install openai") from e
+            rk = _openrouter_key()
+            if not rk:
+                raise LLMError("OPENROUTER_API_KEY is not set.")
+            referer = os.environ.get(
+                "OPENROUTER_HTTP_REFERER", "https://localhost"
+            ).strip()
+            title = os.environ.get("OPENROUTER_APP_TITLE", "Rogue Rivals").strip()
+            self._openai = OpenAI(
+                api_key=rk,
+                base_url=OPENROUTER_BASE_URL,
+                default_headers={
+                    "HTTP-Referer": referer,
+                    "X-Title": title,
+                },
+            )
             self._anthropic = None
         else:
             try:
@@ -248,6 +287,11 @@ class LLMClient:
                 )
                 if self.provider in ("openai", "groq"):
                     kwargs["response_format"] = {"type": "json_object"}
+                elif self.provider == "openrouter":
+                    # Some OpenRouter models reject json_object; allow opt-out.
+                    om = os.environ.get("OPENROUTER_JSON_MODE", "true").strip().lower()
+                    if om not in ("0", "false", "no", "off"):
+                        kwargs["response_format"] = {"type": "json_object"}
                 elif self.provider == "zai":
                     # GLM-4.x reasoning models default to `thinking.enabled`,
                     # which consumes the output budget with hidden CoT. For
