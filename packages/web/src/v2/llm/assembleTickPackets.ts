@@ -1,4 +1,4 @@
-import { projectForPlayer } from "@rr/engine2";
+import { filterOrdersByInfluenceBudget, projectForPlayer } from "@rr/engine2";
 import type { GameState, Order, OrderPacket, Tribe } from "@rr/engine2";
 import { buildPassPackets } from "../ordersFromLegal.js";
 import { fetchLlmSlotOrders } from "./fetchLlmSlot.js";
@@ -27,7 +27,12 @@ export async function assembleTickPackets(
   opts: AssembleOptions,
 ): Promise<Record<Tribe, OrderPacket>> {
   if (opts.opponents === "pass") {
-    return buildPassPackets(state, humanTribe, humanOrders);
+    const view = projectForPlayer(state, humanTribe);
+    const clipped = filterOrdersByInfluenceBudget(
+      view.myPlayerState.influence,
+      humanOrders,
+    );
+    return buildPassPackets(state, humanTribe, clipped);
   }
   const url = opts.llmUrl?.trim();
   if (!url) {
@@ -35,7 +40,12 @@ export async function assembleTickPackets(
   }
 
   const out: Record<Tribe, OrderPacket> = {} as Record<Tribe, OrderPacket>;
-  out[humanTribe] = packet(humanTribe, state.tick, humanOrders);
+  const humanView = projectForPlayer(state, humanTribe);
+  out[humanTribe] = packet(
+    humanTribe,
+    state.tick,
+    filterOrdersByInfluenceBudget(humanView.myPlayerState.influence, humanOrders),
+  );
 
   const others = state.tribesAlive.filter((t) => t !== humanTribe);
   const results = await Promise.all(
@@ -50,7 +60,12 @@ export async function assembleTickPackets(
         const choose = json.choose ?? [];
         const a = ordersFromChooseIds(view, choose);
         const b = ordersFromLlmMessageList(view, json.messages ?? []);
-        return { tribe, orders: [...a, ...b] };
+        const merged = [...a, ...b];
+        const inf = view.myPlayerState.influence;
+        return {
+          tribe,
+          orders: filterOrdersByInfluenceBudget(inf, merged),
+        };
       } catch {
         return { tribe, orders: [] as Order[] };
       }

@@ -2,6 +2,7 @@ import {
   CONTINENT_6P_DEFAULT_TRIBES,
   DEFAULT_MATCH_CONFIG,
   initMatch,
+  ordersExceedInfluenceBudget,
   projectForPlayer,
   tick,
   type GameState,
@@ -53,11 +54,49 @@ export function V2Shell() {
     [state, playTribe, bump],
   );
 
+  const ps = view.myPlayerState;
+
+  const ordersForIds = useCallback(
+    (ids: readonly string[]): Order[] => {
+      const orders: Order[] = [];
+      for (const id of ids) {
+        const opt = view.legalOrderOptions.find((o) => o.id === id);
+        if (opt) {
+          orders.push(orderFromLegalOption(opt));
+        }
+      }
+      if (messageText.trim()) {
+        orders.push({
+          kind: "message",
+          to: messageTo,
+          text: messageText.trim(),
+        });
+      }
+      return orders;
+    },
+    [view.legalOrderOptions, messageText, messageTo],
+  );
+
+  const canAddLegalId = useCallback(
+    (id: string) => {
+      if (chosenIds.includes(id)) return true;
+      return !ordersExceedInfluenceBudget(ps.influence, ordersForIds([...chosenIds, id]));
+    },
+    [chosenIds, ordersForIds, ps.influence],
+  );
+
   const toggle = useCallback((id: string) => {
-    setChosenIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }, []);
+    setChosenIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((x) => x !== id);
+      }
+      const next = [...prev, id];
+      if (ordersExceedInfluenceBudget(ps.influence, ordersForIds(next))) {
+        return prev;
+      }
+      return next;
+    });
+  }, [ordersForIds, ps.influence]);
 
   const resetMatch = useCallback(() => {
     stateRef.current = createMatch();
@@ -69,25 +108,7 @@ export function V2Shell() {
 
   const submitTick = useCallback(async () => {
     setTickError(null);
-    const orders: Order[] = [];
-    for (const id of chosenIds) {
-      const opt = view.legalOrderOptions.find((o) => o.id === id);
-      if (opt) {
-        try {
-          orders.push(orderFromLegalOption(opt));
-        } catch (e) {
-          setTickError(`Invalid order ${id}: ${e instanceof Error ? e.message : String(e)}`);
-          return;
-        }
-      }
-    }
-    if (messageText.trim()) {
-      orders.push({
-        kind: "message",
-        to: messageTo,
-        text: messageText.trim(),
-      });
-    }
+    const orders = ordersForIds(chosenIds);
     setBusy(true);
     try {
       const packets = await assembleTickPackets(state, playTribe, orders, {
@@ -106,17 +127,14 @@ export function V2Shell() {
     }
   }, [
     chosenIds,
-    messageText,
-    messageTo,
     opponentMode,
     llmUrl,
     llmToken,
     playTribe,
     state,
-    view.legalOrderOptions,
+    ordersForIds,
   ]);
 
-  const ps = view.myPlayerState;
   const winner = state.winner;
 
   return (
@@ -241,7 +259,7 @@ export function V2Shell() {
             <h3>Map</h3>
             <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
               Fog of war: only your visible regions are drawn. Select a region for context (orders
-              use the legal list below). Wheel to zoom; drag the dark map background to pan; Fit
+              use the legal list below). Use +/− to zoom; drag the dark map background to pan; Fit
               resets the view.
             </p>
             <V2Map
@@ -260,6 +278,7 @@ export function V2Shell() {
             <OrderQueue
               view={view}
               chosenIds={chosenIds}
+              canAdd={canAddLegalId}
               onToggle={toggle}
               onClear={() => setChosenIds([])}
             />

@@ -30,6 +30,7 @@ if str(_REPO_ROOT) not in sys.path:
 from tools.llm_client import LLMClient, LLMError  # reuse v1 infrastructure
 
 from .compact_rules import COMPACT_RULES_V2
+from .influence_budget import filter_orders_by_influence_budget
 from .personas import PERSONA_BY_ID
 from .state import Order
 
@@ -576,5 +577,16 @@ def decide_orders(
     # Backward-compatible fallback for older prompts / models.
     if not orders and isinstance(data.get("orders"), list):
         orders.extend(_coerce_orders(data["orders"], view))
+
+    # Same influence constraints as the human web UI (engine2 influenceBudget).
+    start_inf = int((view.get("my_player_state") or {}).get("influence") or 0)
+    if orders:
+        before = len(orders)
+        orders = filter_orders_by_influence_budget(start_inf, orders)
+        if diagnostics is not None and len(orders) < before:
+            diagnostics.append(
+                f"dropped {before - len(orders)} order(s) over influence budget "
+                f"(parity with human queue)"
+            )
 
     return orders

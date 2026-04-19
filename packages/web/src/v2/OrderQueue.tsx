@@ -3,11 +3,13 @@ import type { LegalOrderOption, ProjectedView } from "@rr/engine2";
 interface OrderQueueProps {
   view: ProjectedView;
   chosenIds: string[];
+  /** When false, the option cannot be turned on (removing an already-selected id is always allowed). */
+  canAdd: (id: string) => boolean;
   onToggle: (id: string) => void;
   onClear: () => void;
 }
 
-export function OrderQueue({ view, chosenIds, onToggle, onClear }: OrderQueueProps) {
+export function OrderQueue({ view, chosenIds, canAdd, onToggle, onClear }: OrderQueueProps) {
   const byKind = (k: string) => view.legalOrderOptions.filter((o) => o.kind === k);
   const kinds = ["move", "recruit", "build", "scout", "propose", "respond", "message"] as const;
 
@@ -20,8 +22,9 @@ export function OrderQueue({ view, chosenIds, onToggle, onClear }: OrderQueuePro
         </button>
       </div>
       <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-        Toggle legal actions for this tick. Submit runs <code className="mono">tick()</code> on the
-        local engine (other tribes pass).
+        Toggle legal actions for this tick (build/recruit/diplomacy resolve before moves/scouts;
+        each scout costs 3 Influence from your current total — this tick&apos;s production applies
+        next tick). Submit runs <code className="mono">tick()</code> on the local engine.
       </p>
       {chosenIds.length > 0 && (
         <ol className="v2-queue-list">
@@ -49,13 +52,19 @@ export function OrderQueue({ view, chosenIds, onToggle, onClear }: OrderQueuePro
               <div className="v2-legal-btns">
                 {opts.map((o: LegalOrderOption) => {
                   const on = chosenIds.includes(o.id);
+                  const allowed = on || canAdd(o.id);
                   return (
                     <button
                       key={o.id}
                       type="button"
                       className={on ? "primary" : ""}
+                      disabled={!allowed}
                       onClick={() => onToggle(o.id)}
-                      title={o.id}
+                      title={
+                        allowed
+                          ? o.id
+                          : `${o.id} — not enough Influence with your current queue`
+                      }
                     >
                       {o.summary}
                     </button>

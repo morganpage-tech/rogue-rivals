@@ -13,3 +13,7 @@ export { initMatch } from "./initMatch.js";
 export { hashState, sortKeysDeep } from "./hashState.js";
 export { tick, checkVictory } from "./tick.js";
 export { projectForPlayer } from "./projectForPlayer.js";
+export {
+  filterOrdersByInfluenceBudget,
+  ordersExceedInfluenceBudget,
+} from "./influenceBudget.js";

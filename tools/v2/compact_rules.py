@@ -14,6 +14,9 @@ Every tick you submit an OrderPacket (structured orders). All tribes submit simu
 ### Resource
 Single resource: Influence. Produced per owned region per tick. Spent on recruit / build / scout / trade.
 
+### Spending order (critical)
+Resolution applies **build, recruit, propose, respond, and message** first (in your packet order), then **moves and scouts**. Each cost is paid from **Your Influence** as shown — this tick's new production is credited **after** these orders, so you cannot spend it the same tick. Scouts cost 3 each; if you cannot pay, extra scouts are dropped (same as the human client: you cannot queue spend you do not have).
+
 ### Region production (per tick, owned)
 plains 2, mountains 2, ruins 3, river_crossing 2, swamps 1, desert 1, forest 1. Structures: granary +1, shrine +1. Orange tribe: +1 on plains.
 
