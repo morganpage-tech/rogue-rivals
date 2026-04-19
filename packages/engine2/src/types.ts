@@ -6,10 +6,9 @@
  * `RULES_v2.md` in the repo root — if this file disagrees with RULES_v2.md,
  * RULES_v2.md wins and this file must be patched.
  *
- * No implementation lives in this package yet. The first implementation will
- * be the Python oracle simulator in `tools/v2/`; this TypeScript surface
- * exists so the web client, batch runner, and any later TS port share a
- * single type vocabulary.
+ * The reference simulator is `tools/v2/` (Python). The TypeScript runtime in
+ * this package (`initMatch`, `tick`, `projectForPlayer`, `hashState`) mirrors
+ * that oracle for conformance tests and clients.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -318,6 +317,7 @@ export type VictoryCounters = Record<
 export interface Announcement {
   readonly tick: number;
   readonly kind:
+    | "starting_adjacent_unavailable"
     | "pact_formed"
     | "pact_broken"
     | "war_declared"
@@ -353,6 +353,16 @@ export interface GameState {
 
   /** null until a winning condition fires; a Tribe on solo win, an array on shared. */
   winner: Tribe | Tribe[] | null;
+
+  /**
+   * Monotonic ID counters for runtime-generated entities (mirrors Python
+   * `GameState.next_*`). Omitted from {@link hashState} (parity JSON matches
+   * Python subset only).
+   */
+  nextForceIdx: number;
+  nextScoutIdx: number;
+  nextCaravanIdx: number;
+  nextProposalIdx: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -421,11 +431,18 @@ export interface ProjectedView {
 // Match config
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Procedural §11 generation is not implemented yet; use hand-built presets. */
+export type MapPreset =
+  | "procedural"
+  | "hand_minimal"
+  | "expanded"
+  | "continent6p";
+
 export interface MatchConfig {
   readonly seed: number;
   readonly rulesVersion: "v2.0";
   readonly tribes: readonly Tribe[];
-  readonly mapPreset: "procedural";
+  readonly mapPreset: MapPreset;
   readonly regionCount: number;
   readonly tickLimit: number;
   readonly victorySustainTicks: number;
@@ -438,7 +455,7 @@ export interface MatchConfig {
 export const DEFAULT_MATCH_CONFIG: Omit<MatchConfig, "seed"> = {
   rulesVersion: "v2.0",
   tribes: ["orange", "grey", "brown", "red"],
-  mapPreset: "procedural",
+  mapPreset: "hand_minimal",
   regionCount: 20,
   tickLimit: 60,
   victorySustainTicks: 3,
@@ -470,4 +487,14 @@ export interface MatchSummaryRecord {
   readonly winner: Tribe | Tribe[] | null;
   readonly tickFinal: number;
   readonly tribesAliveAtEnd: readonly Tribe[];
+}
+
+/** Result of resolving one tick (§5.1–§5.10). */
+export interface TickResult {
+  /** Mutated-in-place GameState (same reference as input). */
+  readonly state: GameState;
+  readonly events: readonly ResolutionEvent[];
+  readonly projectedViews: Readonly<Record<Tribe, ProjectedView>>;
+  /** Stable hash of `state` post-resolution, for conformance tests. */
+  readonly stateHash: string;
 }

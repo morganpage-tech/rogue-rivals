@@ -7,10 +7,17 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "lint": "tsc -p tsconfig.json --noEmit"
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "batch:llm": "tsx src/cli/runLlmBatch.ts"
   },
   "devDependencies": {
     "@types/node": "^20.17.14",
-    "typescript": "^5.7.3"
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  },
+  "dependencies": {
+    "@noble/hashes": "^2.2.0"
   }
 }

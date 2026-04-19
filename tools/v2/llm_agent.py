@@ -56,30 +56,9 @@ ORDER_PACKET_SCHEMA: Dict[str, Any] = {
                 },
             },
         },
-        "orders": {
-            "type": "array",
-            "maxItems": 12,
-            "items": {
-                "type": "object",
-                "required": ["kind"],
-                "additionalProperties": True,
-                "properties": {
-                    "kind": {
-                        "type": "string",
-                        "enum": [
-                            "move",
-                            "recruit",
-                            "build",
-                            "scout",
-                            "propose",
-                            "respond",
-                            "message",
-                            "pass",
-                        ],
-                    },
-                },
-            },
-        },
+        # Legacy fallback only; do not validate items strictly — some models (e.g.
+        # OpenRouter) put option-id strings here or emit partial objects.
+        "orders": {"type": "array", "maxItems": 12},
     },
 }
 
@@ -479,22 +458,18 @@ def _coerce_orders(
     return orders
 
 
-def decide_orders(
+def _call_llm_order_packet(
     view: Dict[str, Any],
     persona_id: str,
     client: Optional[LLMClient] = None,
     diagnostics: Optional[List[str]] = None,
-) -> List[Order]:
-    """Main entry: given a fog-of-war view + persona, return orders for this tick.
-
-    On any failure returns []. `diagnostics` (if provided) collects human-readable
-    error strings for post-batch inspection.
-    """
+) -> Optional[Dict[str, Any]]:
+    """Run the same LLM call as :func:`decide_orders`; return parsed JSON or None."""
     persona = PERSONA_BY_ID.get(persona_id)
     if persona is None:
         if diagnostics is not None:
             diagnostics.append(f"unknown persona_id {persona_id!r}")
-        return []
+        return None
 
     if client is None:
         try:
@@ -506,7 +481,7 @@ def decide_orders(
         except LLMError as e:
             if diagnostics is not None:
                 diagnostics.append(f"client init failed: {e}")
-            return []
+            return None
 
     system_prompt = (
         f"{persona['system_prompt']}\n\n{COMPACT_RULES_V2}\n\n"
@@ -528,12 +503,64 @@ def decide_orders(
     )
 
     try:
-        data = client.complete(
+        return client.complete(
             system=system_prompt, user=user_prompt, schema=ORDER_PACKET_SCHEMA
         )
     except LLMError as e:
         if diagnostics is not None:
             diagnostics.append(f"LLM call failed: {e}")
+        return None
+
+
+def decide_orders_packet_json(
+    view: Dict[str, Any],
+    persona_id: str,
+    client: Optional[LLMClient] = None,
+    diagnostics: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """JSON-safe ``{choose, messages}`` for browsers and CORS proxies.
+
+    Uses the same prompt and model path as :func:`decide_orders`. The web client
+    applies :func:`ordersFromChooseIds`-style logic again on its side.
+    """
+    data = _call_llm_order_packet(view, persona_id, client, diagnostics)
+    if data is None:
+        return {"choose": [], "messages": []}
+
+    choose: List[str] = []
+    raw_choose = data.get("choose", [])
+    if isinstance(raw_choose, list):
+        for x in raw_choose:
+            if isinstance(x, str) and x.strip():
+                choose.append(x)
+
+    messages: List[Dict[str, str]] = []
+    raw_messages = data.get("messages", [])
+    if isinstance(raw_messages, list):
+        for m in raw_messages:
+            if not isinstance(m, dict):
+                continue
+            to = m.get("to")
+            text = m.get("text", "")
+            if isinstance(to, str) and isinstance(text, str) and text.strip():
+                messages.append({"to": to, "text": text[:400]})
+
+    return {"choose": choose, "messages": messages}
+
+
+def decide_orders(
+    view: Dict[str, Any],
+    persona_id: str,
+    client: Optional[LLMClient] = None,
+    diagnostics: Optional[List[str]] = None,
+) -> List[Order]:
+    """Main entry: given a fog-of-war view + persona, return orders for this tick.
+
+    On any failure returns []. `diagnostics` (if provided) collects human-readable
+    error strings for post-batch inspection.
+    """
+    data = _call_llm_order_packet(view, persona_id, client, diagnostics)
+    if data is None:
         return []
 
     orders: List[Order] = []

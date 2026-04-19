@@ -1,0 +1,106 @@
+{
+  "kind": "batch_summary",
+  "num_matches": 3,
+  "base_seed": 202604191,
+  "max_ticks": 20,
+  "map_kind": "6p-continent",
+  "persona_assignment": {
+    "arctic": "frostmarshal",
+    "tricoloured": "veilweaver",
+    "red": "opportunist",
+    "brown": "merchant_prince",
+    "orange": "warlord",
+    "grey": "paranoid_isolationist"
+  },
+  "elapsed_s": 1847.0,
+  "matches": [
+    {
+      "kind": "match_summary",
+      "match_idx": 0,
+      "seed": 202604191,
+      "persona_assignment": {
+        "arctic": "frostmarshal",
+        "tricoloured": "veilweaver",
+        "red": "opportunist",
+        "brown": "merchant_prince",
+        "orange": "warlord",
+        "grey": "paranoid_isolationist"
+      },
+      "winner": null,
+      "tick_final": 20,
+      "tribes_alive_at_end": [
+        "arctic",
+        "tricoloured",
+        "red",
+        "brown",
+        "orange",
+        "grey"
+      ],
+      "elapsed_s": 682.16,
+      "llm_calls": 120,
+      "llm_errors": 2,
+      "diagnostics_sample": [
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 1,
+      "seed": 202604192,
+      "persona_assignment": {
+        "arctic": "frostmarshal",
+        "tricoloured": "veilweaver",
+        "red": "opportunist",
+        "brown": "merchant_prince",
+        "orange": "warlord",
+        "grey": "paranoid_isolationist"
+      },
+      "winner": null,
+      "tick_final": 20,
+      "tribes_alive_at_end": [
+        "arctic",
+        "tricoloured",
+        "red",
+        "brown",
+        "orange",
+        "grey"
+      ],
+      "elapsed_s": 602.18,
+      "llm_calls": 120,
+      "llm_errors": 3,
+      "diagnostics_sample": [
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 2,
+      "seed": 202604193,
+      "persona_assignment": {
+        "arctic": "frostmarshal",
+        "tricoloured": "veilweaver",
+        "red": "opportunist",
+        "brown": "merchant_prince",
+        "orange": "warlord",
+        "grey": "paranoid_isolationist"
+      },
+      "winner": null,
+      "tick_final": 20,
+      "tribes_alive_at_end": [
+        "arctic",
+        "tricoloured",
+        "red",
+        "brown",
+        "orange",
+        "grey"
+      ],
+      "elapsed_s": 562.65,
+      "llm_calls": 120,
+      "llm_errors": 0,
+      "diagnostics_sample": []
+    }
+  ]
+}

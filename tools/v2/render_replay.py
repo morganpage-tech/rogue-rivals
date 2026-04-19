@@ -89,11 +89,26 @@ def _read_trace(trace_path: Path) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]
     return tick_records, summary
 
 
+def _normalize_order_payload(kind: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Trace rows from TS may use to_tribe; Python engine expects proposal[\"to\"]."""
+    if kind != "propose":
+        return payload
+    p = dict(payload)
+    prop = dict(p.get("proposal") or {})
+    if prop.get("to") is None and prop.get("to_tribe") is not None:
+        prop["to"] = prop["to_tribe"]
+    p["proposal"] = prop
+    return p
+
+
 def _packets_from_record(record: Dict[str, Any]) -> Dict[str, OrderPacket]:
     packets: Dict[str, OrderPacket] = {}
     for tribe, pkt in record.get("orders_by_tribe", {}).items():
         orders = [
-            Order(kind=o["kind"], payload=o.get("payload", {}))
+            Order(
+                kind=o["kind"],
+                payload=_normalize_order_payload(o["kind"], o.get("payload", {}) or {}),
+            )
             for o in pkt.get("orders", [])
         ]
         packets[tribe] = OrderPacket(tribe=tribe, tick=pkt["tick"], orders=orders)
@@ -137,7 +152,7 @@ def _tick_summary_from_record(record: Dict[str, Any]) -> Dict[str, Any]:
                     {
                         "kind": "proposal_order",
                         "from": tribe,
-                        "to": proposal.get("to"),
+                        "to": proposal.get("to") or proposal.get("to_tribe"),
                         "proposal_kind": proposal.get("kind"),
                         "length_ticks": proposal.get("length_ticks"),
                         "amount_influence": proposal.get("amount_influence"),
@@ -204,6 +219,8 @@ def build_replay_payload(
                 f"{record.get('tick')}: expected {record.get('state_hash')}, "
                 f"got {result['state_hash']}"
             )
+        # Always derive projections from replayed state (matches traces from TS or Python).
+        alive = sorted(state.tribes_alive)
         frames.append(
             {
                 "tick": state.tick,
@@ -212,7 +229,7 @@ def build_replay_payload(
                 "orders_by_tribe": record.get("orders_by_tribe", {}),
                 "resolution_events": record.get("resolution_events", []),
                 "tick_summary": _tick_summary_from_record(record),
-                "projected_views": record.get("projected_views", {}),
+                "projected_views": {t: project_for_player(state, t) for t in alive},
                 "state": _state_snapshot(state),
             }
         )
@@ -993,9 +1010,10 @@ function renderMap(frame) {{
             );
           }}
         }} else if (order.kind === "recruit" && payload.region_id) {{
-          addRegionBadge(payload.region_id, `${{tribeAbbr(tribe)}} rec T${{payload.tier ?? "?"}}`, tribeColor(tribe), tribe);
           const ok = recruitedKeys.has(`${{tribe}}|${{payload.region_id}}|${{payload.tier ?? "?"}}`);
+          /* Order + recruited event both describe the same success — show only the resolution badge below. */
           if (!ok) {{
+            addRegionBadge(payload.region_id, `${{tribeAbbr(tribe)}} rec T${{payload.tier ?? "?"}}`, tribeColor(tribe), tribe);
             addRegionBadge(payload.region_id, "recruit failed", "#a12b2b", tribe);
           }}
         }} else if (order.kind === "move" && payload.force_id && payload.destination_region_id && prevState) {{

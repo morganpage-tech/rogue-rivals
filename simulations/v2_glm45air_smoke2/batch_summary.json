@@ -1,0 +1,47 @@
+{
+  "kind": "batch_summary",
+  "num_matches": 1,
+  "base_seed": 2026100,
+  "max_ticks": 5,
+  "map_kind": "6p-continent",
+  "llm_provider": "zai",
+  "llm_model": "glm-4.5-air",
+  "persona_assignment": {
+    "arctic": "frostmarshal",
+    "tricoloured": "veilweaver",
+    "red": "opportunist",
+    "brown": "merchant_prince",
+    "orange": "warlord",
+    "grey": "paranoid_isolationist"
+  },
+  "elapsed_s": 120.62,
+  "matches": [
+    {
+      "kind": "match_summary",
+      "match_idx": 0,
+      "seed": 2026100,
+      "persona_assignment": {
+        "arctic": "frostmarshal",
+        "tricoloured": "veilweaver",
+        "red": "opportunist",
+        "brown": "merchant_prince",
+        "orange": "warlord",
+        "grey": "paranoid_isolationist"
+      },
+      "winner": null,
+      "tick_final": 5,
+      "tribes_alive_at_end": [
+        "arctic",
+        "tricoloured",
+        "red",
+        "brown",
+        "orange",
+        "grey"
+      ],
+      "elapsed_s": 120.62,
+      "llm_calls": 30,
+      "llm_errors": 0,
+      "diagnostics_sample": []
+    }
+  ]
+}

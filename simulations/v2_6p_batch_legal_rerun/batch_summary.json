@@ -1,0 +1,131 @@
+{
+  "kind": "batch_summary",
+  "num_matches": 3,
+  "base_seed": 202604191,
+  "max_ticks": 20,
+  "map_kind": "6p-continent",
+  "persona_assignment": {
+    "arctic": "frostmarshal",
+    "tricoloured": "veilweaver",
+    "red": "opportunist",
+    "brown": "merchant_prince",
+    "orange": "warlord",
+    "grey": "paranoid_isolationist"
+  },
+  "elapsed_s": 1625.5,
+  "matches": [
+    {
+      "kind": "match_summary",
+      "match_idx": 0,
+      "seed": 202604191,
+      "persona_assignment": {
+        "arctic": "frostmarshal",
+        "tricoloured": "veilweaver",
+        "red": "opportunist",
+        "brown": "merchant_prince",
+        "orange": "warlord",
+        "grey": "paranoid_isolationist"
+      },
+      "winner": null,
+      "tick_final": 20,
+      "tribes_alive_at_end": [
+        "arctic",
+        "red",
+        "brown",
+        "orange",
+        "grey"
+      ],
+      "elapsed_s": 901.08,
+      "llm_calls": 120,
+      "llm_errors": 13,
+      "diagnostics_sample": [
+        "unknown legal option id: propose:nap:orange:8",
+        "unknown legal option id: build:r_red_rare_veins:shrine",
+        "unknown legal option id: propose:nap:orange:8",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "unknown legal option id: propose:nap:arctic:8",
+        "unknown legal option id: propose:shared_vision:red:5",
+        "unknown legal option id: propose:nap:arctic:8",
+        "unknown legal option id: propose:nap:arctic:8",
+        "unknown legal option id: propose:nap:orange:8",
+        "unknown legal option id: propose:shared_vision:grey:5"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 1,
+      "seed": 202604192,
+      "persona_assignment": {
+        "arctic": "frostmarshal",
+        "tricoloured": "veilweaver",
+        "red": "opportunist",
+        "brown": "merchant_prince",
+        "orange": "warlord",
+        "grey": "paranoid_isolationist"
+      },
+      "winner": null,
+      "tick_final": 20,
+      "tribes_alive_at_end": [
+        "arctic",
+        "tricoloured",
+        "red",
+        "brown",
+        "orange",
+        "grey"
+      ],
+      "elapsed_s": 882.85,
+      "llm_calls": 120,
+      "llm_errors": 21,
+      "diagnostics_sample": [
+        "unknown legal option id: build:r_or_rocky_hills:fort",
+        "unknown legal option id: propose:nap:orange:8",
+        "unknown legal option id: propose:nap:orange:8",
+        "unknown legal option id: message:tricoloured:Glad we see eye to eye. Our forests and deserts can prosper in peace.",
+        "unknown legal option id: propose:nap:orange:8",
+        "unknown legal option id: propose:nap:orange:8",
+        "unknown legal option id: propose:nap:arctic",
+        "unknown legal option id: propose:nap:orange:8",
+        "unknown legal option id: propose:shared_vision:red:5",
+        "unknown legal option id: propose:shared_vision:grey:5"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 2,
+      "seed": 202604193,
+      "persona_assignment": {
+        "arctic": "frostmarshal",
+        "tricoloured": "veilweaver",
+        "red": "opportunist",
+        "brown": "merchant_prince",
+        "orange": "warlord",
+        "grey": "paranoid_isolationist"
+      },
+      "winner": null,
+      "tick_final": 20,
+      "tribes_alive_at_end": [
+        "arctic",
+        "tricoloured",
+        "red",
+        "brown",
+        "orange",
+        "grey"
+      ],
+      "elapsed_s": 742.37,
+      "llm_calls": 120,
+      "llm_errors": 25,
+      "diagnostics_sample": [
+        "unknown legal option id: scout:r_red_mirage_camp:r_border_saltfen_crossing",
+        "unknown legal option id: scout:r_or_vulpgard:r_core_moon_ford",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "LLM call failed: Invalid JSON from model: Expecting ',' delimiter: line 8 column 15 (char 204)",
+        "unknown legal option id: propose:nap:orange:8",
+        "unknown legal option id: propose:nap:orange:8",
+        "unknown legal option id: build:r_red_rare_veins:shrine",
+        "unknown legal option id: message:orange:Greetings! Our lands touch, and we both value prosperity. Let us agree not to disturb one another's growth.",
+        "unknown legal option id: message:tricoloured:Friend, let us share our sights. Knowledge is the true currency of this world.",
+        "unknown legal option id: propose:nap:grey:8"
+      ]
+    }
+  ]
+}

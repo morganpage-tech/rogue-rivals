@@ -10,7 +10,7 @@
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@rr/engine": "workspace:*",
+    "@rr/engine2": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

@@ -13,7 +13,23 @@
   p.meta { color:#999; margin: 0 0 24px 0; }
   .wrap { display: flex; gap: 24px; align-items: flex-start; }
   .map { flex: 1 1 auto; background: #111; border: 1px solid #333;
-          border-radius: 6px; padding: 8px; overflow:auto; }
+          border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
+  .mapToolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; border-bottom: 1px solid #333; background: #161616;
+    font-size: 12px; color: #999;
+  }
+  .mapToolbar button {
+    border: 1px solid #444; border-radius: 8px; padding: 6px 12px;
+    background: #1f1f1f; color: #e0e0e0; font-size: 12px; cursor: pointer;
+  }
+  .mapToolbar button:hover { background: #2a2a2a; }
+  #mapViewport {
+    flex: 1; min-height: 560px; touch-action: none; cursor: grab;
+    background: #0d0d0d;
+  }
+  #mapViewport:active { cursor: grabbing; }
+  #mapViewport svg { width: 100%; height: 100%; display: block; }
   .legend { flex: 0 0 200px; background: #222; border: 1px solid #333;
              border-radius: 6px; padding: 12px 18px; }
   .legend h3 { margin-top: 12px; margin-bottom: 6px; font-size: 13px;
@@ -27,229 +43,235 @@
   <p class="meta">27 regions &bull; 42 trails &bull;
      number on trail = base travel ticks</p>
   <div class="wrap">
-    <div class="map"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 820" style="background:#1a1a1a; font-family: 'SF Mono', Menlo, monospace;">
-<line x1="580" y1="80" x2="480" y2="165" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="518" y="112" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="530" y="125" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="580" y1="80" x2="680" y2="165" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="618" y="112" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="630" y="125" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
-<line x1="480" y1="165" x2="680" y2="165" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="568" y="155" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="580" y="168" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="970" y1="230" x2="850" y2="225" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="898" y="217" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="910" y="230" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="970" y1="230" x2="980" y2="360" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="963" y="285" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="975" y="298" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="850" y1="225" x2="980" y2="360" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="903" y="282" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="915" y="295" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="1020" y1="500" x2="920" y2="430" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="958" y="455" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="970" y="468" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="1020" y1="500" x2="815" y2="550" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="905" y="515" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="917" y="528" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="920" y1="430" x2="815" y2="550" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="855" y="480" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="867" y="493" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="580" y1="740" x2="480" y2="645" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="518" y="682" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="530" y="695" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
-<line x1="580" y1="740" x2="680" y2="645" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="618" y="682" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="630" y="695" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
-<line x1="480" y1="645" x2="680" y2="645" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="568" y="635" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="580" y="648" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
-<line x1="140" y1="500" x2="245" y2="430" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="180" y="455" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="192" y="468" fill="#ddd" font-size="11" text-anchor="middle">1t</text>
-<line x1="140" y1="500" x2="345" y2="550" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="230" y="515" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="242" y="528" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="245" y1="430" x2="345" y2="550" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="283" y="480" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="295" y="493" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="90" y1="230" x2="200" y2="225" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="133" y="217" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="145" y="230" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
-<line x1="90" y1="230" x2="80" y2="360" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="73" y="285" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="85" y="298" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
-<line x1="200" y1="225" x2="80" y2="360" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="128" y="282" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="140" y="295" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
-<line x1="480" y1="165" x2="770" y2="190" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="613" y="167" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="625" y="180" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="980" y1="360" x2="770" y2="190" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="863" y="265" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="875" y="278" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="850" y1="225" x2="900" y2="365" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="863" y="285" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="875" y="298" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="815" y1="550" x2="900" y2="365" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="845" y="447" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="857" y="460" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="920" y1="430" x2="785" y2="600" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="840" y="505" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="852" y="518" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="680" y1="645" x2="785" y2="600" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="720" y="612" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="732" y="625" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="480" y1="645" x2="370" y2="600" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="413" y="612" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="425" y="625" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="345" y1="550" x2="370" y2="600" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="345" y="565" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="357" y="578" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="245" y1="430" x2="225" y2="365" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="223" y="387" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="235" y="400" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="80" y1="360" x2="225" y2="365" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="140" y="352" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="152" y="365" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
-<line x1="200" y1="225" x2="380" y2="190" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="278" y="197" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="290" y="210" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
-<line x1="680" y1="165" x2="380" y2="190" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="518" y="167" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="530" y="180" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
-<line x1="680" y1="165" x2="580" y2="315" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="618" y="230" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="630" y="243" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="815" y1="550" x2="580" y2="315" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="685" y="422" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="697" y="435" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="680" y1="645" x2="580" y2="315" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="618" y="470" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="630" y="483" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="200" y1="225" x2="580" y2="315" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="378" y="260" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="390" y="273" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="850" y1="225" x2="440" y2="415" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="633" y="310" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="645" y="323" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="920" y1="430" x2="440" y2="415" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="668" y="412" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="680" y="425" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="345" y1="550" x2="440" y2="415" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="380" y="472" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="392" y="485" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="80" y1="360" x2="440" y2="415" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="248" y="377" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="260" y="390" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="480" y1="165" x2="720" y2="415" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="588" y="280" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="600" y="293" fill="#ddd" font-size="11" text-anchor="middle">1t</text>
-<line x1="980" y1="360" x2="720" y2="415" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="838" y="377" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="850" y="390" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="480" y1="645" x2="720" y2="415" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="588" y="520" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="600" y="533" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
-<line x1="245" y1="430" x2="720" y2="415" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
-<rect x="470" y="412" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
-<text x="482" y="425" fill="#ddd" font-size="11" text-anchor="middle">1t</text>
-<circle cx="580" cy="80" r="42" fill="#8a8a8a" stroke="#8fd3ff" stroke-width="4"/>
-<text x="580" y="76" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">arc_frosthold</text>
-<text x="580" y="90" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
-<text x="580" y="106" fill="#8fd3ff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ARCTIC</text>
-<circle cx="480" cy="165" r="42" fill="#d7c87a" stroke="#8fd3ff" stroke-width="4"/>
-<text x="480" y="161" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">arc_ice_shelf</text>
-<text x="480" y="175" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
-<text x="480" y="191" fill="#8fd3ff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ARCTIC</text>
-<circle cx="680" cy="165" r="42" fill="#8a8a8a" stroke="#222" stroke-width="1.5"/>
-<text x="680" y="161" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">arc_white_wastes</text>
-<text x="680" y="175" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
-<circle cx="970" cy="230" r="42" fill="#2e6b3b" stroke="#c9c9c9" stroke-width="4"/>
-<text x="970" y="226" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">tri_hidden_grove</text>
-<text x="970" y="240" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">forest</text>
-<text x="970" y="256" fill="#c9c9c9" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">TRICOLOURED</text>
-<circle cx="850" cy="225" r="42" fill="#2e6b3b" stroke="#c9c9c9" stroke-width="4"/>
-<text x="850" y="221" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">tri_tricky_woods</text>
-<text x="850" y="235" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">forest</text>
-<text x="850" y="251" fill="#c9c9c9" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">TRICOLOURED</text>
-<circle cx="980" cy="360" r="42" fill="#2e6b3b" stroke="#222" stroke-width="1.5"/>
-<text x="980" y="356" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">tri_whisper_thicket</text>
-<text x="980" y="370" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">forest</text>
-<circle cx="1020" cy="500" r="42" fill="#d8a864" stroke="#c13030" stroke-width="4"/>
-<text x="1020" y="496" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">red_mirage_camp</text>
-<text x="1020" y="510" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">desert</text>
-<text x="1020" y="526" fill="#c13030" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">RED</text>
-<circle cx="920" cy="430" r="42" fill="#d8a864" stroke="#c13030" stroke-width="4"/>
-<text x="920" y="426" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">red_vast_dunes</text>
-<text x="920" y="440" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">desert</text>
-<text x="920" y="456" fill="#c13030" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">RED</text>
-<circle cx="815" cy="550" r="42" fill="#6a4a8a" stroke="#222" stroke-width="1.5"/>
-<text x="815" y="546" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">red_rare_veins</text>
-<text x="815" y="560" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ruins</text>
-<circle cx="580" cy="740" r="42" fill="#5a7a4a" stroke="#6b3f1f" stroke-width="4"/>
-<text x="580" y="736" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">br_root_cities</text>
-<text x="580" y="750" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">swamps</text>
-<text x="580" y="766" fill="#6b3f1f" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">BROWN</text>
-<text x="580" y="712" fill="#ffd" font-size="9" text-anchor="middle">[road]</text>
-<circle cx="480" cy="645" r="42" fill="#5a7a4a" stroke="#6b3f1f" stroke-width="4"/>
-<text x="480" y="641" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">br_reeky_canopy</text>
-<text x="480" y="655" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">swamps</text>
-<text x="480" y="671" fill="#6b3f1f" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">BROWN</text>
-<circle cx="680" cy="645" r="42" fill="#5a7a4a" stroke="#222" stroke-width="1.5"/>
-<text x="680" y="641" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">br_mire_channels</text>
-<text x="680" y="655" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">swamps</text>
-<circle cx="140" cy="500" r="42" fill="#d7c87a" stroke="#ff8800" stroke-width="4"/>
-<text x="140" y="496" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">or_vulpgard</text>
-<text x="140" y="510" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
-<text x="140" y="526" fill="#ff8800" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ORANGE</text>
-<circle cx="245" cy="430" r="42" fill="#d7c87a" stroke="#ff8800" stroke-width="4"/>
-<text x="245" y="426" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">or_windy_plains</text>
-<text x="245" y="440" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
-<text x="245" y="456" fill="#ff8800" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ORANGE</text>
-<circle cx="345" cy="550" r="42" fill="#8a8a8a" stroke="#222" stroke-width="1.5"/>
-<text x="345" y="546" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">or_rocky_hills</text>
-<text x="345" y="560" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
-<circle cx="90" cy="230" r="42" fill="#8a8a8a" stroke="#6c6c6c" stroke-width="4"/>
-<text x="90" y="226" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">gr_middle_high_mountains</text>
-<text x="90" y="240" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
-<text x="90" y="256" fill="#6c6c6c" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">GREY</text>
-<text x="90" y="202" fill="#ffd" font-size="9" text-anchor="middle">[fort]</text>
-<circle cx="200" cy="225" r="42" fill="#8a8a8a" stroke="#6c6c6c" stroke-width="4"/>
-<text x="200" y="221" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">gr_upper_high_mountains</text>
-<text x="200" y="235" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
-<text x="200" y="251" fill="#6c6c6c" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">GREY</text>
-<circle cx="80" cy="360" r="42" fill="#8a8a8a" stroke="#222" stroke-width="1.5"/>
-<text x="80" y="356" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">gr_lower_high_mountains</text>
-<text x="80" y="370" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
-<circle cx="770" cy="190" r="42" fill="#2e6b3b" stroke="#222" stroke-width="1.5"/>
-<text x="770" y="186" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_snowpine_reach</text>
-<text x="770" y="200" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">forest</text>
-<circle cx="900" cy="365" r="42" fill="#d7c87a" stroke="#222" stroke-width="1.5"/>
-<text x="900" y="361" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_glasswood_verge</text>
-<text x="900" y="375" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
-<circle cx="785" cy="600" r="42" fill="#4a8ad7" stroke="#222" stroke-width="1.5"/>
-<text x="785" y="596" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_saltfen_crossing</text>
-<text x="785" y="610" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">river_crossing</text>
-<circle cx="370" cy="600" r="42" fill="#d7c87a" stroke="#222" stroke-width="1.5"/>
-<text x="370" y="596" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_hillmire_gate</text>
-<text x="370" y="610" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
-<circle cx="225" cy="365" r="42" fill="#8a8a8a" stroke="#222" stroke-width="1.5"/>
-<text x="225" y="361" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_howling_pass</text>
-<text x="225" y="375" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
-<circle cx="380" cy="190" r="42" fill="#8a8a8a" stroke="#222" stroke-width="1.5"/>
-<text x="380" y="186" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_frostpass</text>
-<text x="380" y="200" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
-<circle cx="580" cy="315" r="42" fill="#6a4a8a" stroke="#222" stroke-width="1.5"/>
-<text x="580" y="311" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">core_foxfire_ruins</text>
-<text x="580" y="325" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ruins</text>
-<circle cx="440" cy="415" r="42" fill="#d7c87a" stroke="#222" stroke-width="1.5"/>
-<text x="440" y="411" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">core_three_trails_market</text>
-<text x="440" y="425" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
-<circle cx="720" cy="415" r="42" fill="#4a8ad7" stroke="#222" stroke-width="1.5"/>
-<text x="720" y="411" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">core_moon_ford</text>
-<text x="720" y="425" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">river_crossing</text>
+    <div class="map">
+      <div class="mapToolbar">
+        <span>Scroll: zoom · Drag: pan · Double-click: reset</span>
+        <button type="button" id="staticMapResetBtn">Reset view</button>
+      </div>
+      <div id="mapViewport"><svg id="staticMapSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1676 1476" preserveAspectRatio="xMidYMid meet" style="background:#1a1a1a; font-family: 'SF Mono', Menlo, monospace;">
+<line x1="838" y1="200" x2="737" y2="301" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="761" y="226" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="773" y="239" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="838" y1="200" x2="939" y2="301" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="862" y="254" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="874" y="267" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
+<line x1="737" y1="301" x2="939" y2="301" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="826" y="311" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="838" y="324" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1409" y1="234" x2="1342" y2="335" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1347" y="263" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1359" y="276" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1409" y1="234" x2="1476" y2="335" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1414" y="285" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1426" y="298" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1342" y1="335" x2="1476" y2="335" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1397" y="345" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1409" y="358" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1409" y1="1242" x2="1342" y2="1141" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1379" y="1170" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1391" y="1183" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1409" y1="1242" x2="1476" y2="1141" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1446" y="1192" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1458" y="1205" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1342" y1="1141" x2="1476" y2="1141" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1397" y="1151" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1409" y="1164" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="838" y1="1276" x2="737" y2="1175" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="789" y="1201" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="801" y="1214" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
+<line x1="838" y1="1276" x2="939" y2="1175" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="890" y="1229" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="902" y="1242" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
+<line x1="737" y1="1175" x2="939" y2="1175" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="826" y="1185" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="838" y="1198" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
+<line x1="267" y1="1242" x2="334" y2="1141" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="304" y="1192" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="316" y="1205" fill="#ddd" font-size="11" text-anchor="middle">1t</text>
+<line x1="267" y1="1242" x2="200" y2="1141" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="237" y="1170" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="249" y="1183" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="334" y1="1141" x2="200" y2="1141" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="255" y="1111" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="267" y="1124" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="267" y1="234" x2="334" y2="335" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="272" y="285" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="284" y="298" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
+<line x1="267" y1="234" x2="200" y2="335" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="205" y="263" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="217" y="276" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
+<line x1="334" y1="335" x2="200" y2="335" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="255" y="305" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="267" y="318" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
+<line x1="737" y1="301" x2="1040" y2="469" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="867" y="392" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="879" y="405" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1476" y1="335" x2="1040" y2="469" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1241" y="373" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1253" y="386" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1342" y1="335" x2="1208" y2="738" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1245" y="520" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1257" y="533" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1476" y1="1141" x2="1208" y2="738" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1346" y="918" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1358" y="931" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1342" y1="1141" x2="1040" y2="1007" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1187" y="1046" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1199" y="1059" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="939" y1="1175" x2="1040" y2="1007" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="994" y="1091" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1006" y="1104" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="737" y1="1175" x2="636" y2="1007" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="691" y="1071" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="703" y="1084" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="200" y1="1141" x2="636" y2="1007" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="411" y="1083" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="423" y="1096" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="334" y1="1141" x2="468" y2="738" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="407" y="935" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="419" y="948" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="200" y1="335" x2="468" y2="738" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="306" y="537" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="318" y="550" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
+<line x1="334" y1="335" x2="636" y2="469" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="465" y="410" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="477" y="423" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
+<line x1="939" y1="301" x2="636" y2="469" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="766" y="358" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="778" y="371" fill="#ddd" font-size="11" text-anchor="middle">3t</text>
+<line x1="939" y1="301" x2="720" y2="637" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="801" y="449" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="813" y="462" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1476" y1="1141" x2="720" y2="637" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1097" y="863" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1109" y="876" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="939" y1="1175" x2="720" y2="637" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="835" y="889" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="847" y="902" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="334" y1="335" x2="720" y2="637" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="503" y="491" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="515" y="504" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1342" y1="335" x2="956" y2="637" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1125" y="461" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1137" y="474" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="1342" y1="1141" x2="956" y2="637" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1152" y="867" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1164" y="880" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="200" y1="1141" x2="956" y2="637" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="577" y="895" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="589" y="908" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="200" y1="335" x2="956" y2="637" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="559" y="494" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="571" y="507" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="737" y1="301" x2="838" y2="805" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="756" y="546" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="768" y="559" fill="#ddd" font-size="11" text-anchor="middle">1t</text>
+<line x1="1476" y1="335" x2="838" y2="805" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="1134" y="544" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="1146" y="557" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="737" y1="1175" x2="838" y2="805" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="794" y="985" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="806" y="998" fill="#ddd" font-size="11" text-anchor="middle">2t</text>
+<line x1="334" y1="1141" x2="838" y2="805" stroke="#555" stroke-width="3" stroke-dasharray="6,4"/>
+<rect x="585" y="979" width="24" height="18" rx="4" fill="#1a1a1a" stroke="#777"/>
+<text x="597" y="992" fill="#ddd" font-size="11" text-anchor="middle">1t</text>
+<circle cx="720" cy="637" r="42" fill="#6a4a8a" stroke="#222" stroke-width="1.5"/>
+<text x="720" y="633" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">core_foxfire_ruins</text>
+<text x="720" y="647" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ruins</text>
+<circle cx="956" cy="637" r="42" fill="#d7c87a" stroke="#222" stroke-width="1.5"/>
+<text x="956" y="633" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">core_three_trails_market</text>
+<text x="956" y="647" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
+<circle cx="838" cy="805" r="42" fill="#4a8ad7" stroke="#222" stroke-width="1.5"/>
+<text x="838" y="801" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">core_moon_ford</text>
+<text x="838" y="815" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">river_crossing</text>
+<circle cx="1040" cy="469" r="42" fill="#2e6b3b" stroke="#222" stroke-width="1.5"/>
+<text x="1040" y="465" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_snowpine_reach</text>
+<text x="1040" y="479" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">forest</text>
+<circle cx="1208" cy="738" r="42" fill="#d7c87a" stroke="#222" stroke-width="1.5"/>
+<text x="1208" y="734" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_glasswood_verge</text>
+<text x="1208" y="748" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
+<circle cx="1040" cy="1007" r="42" fill="#4a8ad7" stroke="#222" stroke-width="1.5"/>
+<text x="1040" y="1003" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_saltfen_crossing</text>
+<text x="1040" y="1017" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">river_crossing</text>
+<circle cx="636" cy="1007" r="42" fill="#d7c87a" stroke="#222" stroke-width="1.5"/>
+<text x="636" y="1003" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_hillmire_gate</text>
+<text x="636" y="1017" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
+<circle cx="468" cy="738" r="42" fill="#8a8a8a" stroke="#222" stroke-width="1.5"/>
+<text x="468" y="734" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_howling_pass</text>
+<text x="468" y="748" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
+<circle cx="636" cy="469" r="42" fill="#8a8a8a" stroke="#222" stroke-width="1.5"/>
+<text x="636" y="465" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">border_frostpass</text>
+<text x="636" y="479" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
+<circle cx="838" cy="200" r="42" fill="#8a8a8a" stroke="#8fd3ff" stroke-width="4"/>
+<text x="838" y="196" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">arc_frosthold</text>
+<text x="838" y="210" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
+<text x="838" y="226" fill="#8fd3ff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ARCTIC</text>
+<circle cx="737" cy="301" r="42" fill="#d7c87a" stroke="#8fd3ff" stroke-width="4"/>
+<text x="737" y="297" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">arc_ice_shelf</text>
+<text x="737" y="311" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
+<text x="737" y="327" fill="#8fd3ff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ARCTIC</text>
+<circle cx="939" cy="301" r="42" fill="#8a8a8a" stroke="#222" stroke-width="1.5"/>
+<text x="939" y="297" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">arc_white_wastes</text>
+<text x="939" y="311" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
+<circle cx="1409" cy="234" r="42" fill="#2e6b3b" stroke="#c9c9c9" stroke-width="4"/>
+<text x="1409" y="230" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">tri_hidden_grove</text>
+<text x="1409" y="244" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">forest</text>
+<text x="1409" y="260" fill="#c9c9c9" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">TRICOLOURED</text>
+<circle cx="1342" cy="335" r="42" fill="#2e6b3b" stroke="#c9c9c9" stroke-width="4"/>
+<text x="1342" y="331" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">tri_tricky_woods</text>
+<text x="1342" y="345" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">forest</text>
+<text x="1342" y="361" fill="#c9c9c9" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">TRICOLOURED</text>
+<circle cx="1476" cy="335" r="42" fill="#2e6b3b" stroke="#222" stroke-width="1.5"/>
+<text x="1476" y="331" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">tri_whisper_thicket</text>
+<text x="1476" y="345" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">forest</text>
+<circle cx="1409" cy="1242" r="42" fill="#d8a864" stroke="#c13030" stroke-width="4"/>
+<text x="1409" y="1238" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">red_mirage_camp</text>
+<text x="1409" y="1252" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">desert</text>
+<text x="1409" y="1268" fill="#c13030" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">RED</text>
+<circle cx="1342" cy="1141" r="42" fill="#d8a864" stroke="#c13030" stroke-width="4"/>
+<text x="1342" y="1137" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">red_vast_dunes</text>
+<text x="1342" y="1151" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">desert</text>
+<text x="1342" y="1167" fill="#c13030" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">RED</text>
+<circle cx="1476" cy="1141" r="42" fill="#6a4a8a" stroke="#222" stroke-width="1.5"/>
+<text x="1476" y="1137" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">red_rare_veins</text>
+<text x="1476" y="1151" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ruins</text>
+<circle cx="838" cy="1276" r="42" fill="#5a7a4a" stroke="#6b3f1f" stroke-width="4"/>
+<text x="838" y="1272" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">br_root_cities</text>
+<text x="838" y="1286" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">swamps</text>
+<text x="838" y="1302" fill="#6b3f1f" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">BROWN</text>
+<text x="838" y="1248" fill="#ffd" font-size="9" text-anchor="middle">[road]</text>
+<circle cx="737" cy="1175" r="42" fill="#5a7a4a" stroke="#6b3f1f" stroke-width="4"/>
+<text x="737" y="1171" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">br_reeky_canopy</text>
+<text x="737" y="1185" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">swamps</text>
+<text x="737" y="1201" fill="#6b3f1f" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">BROWN</text>
+<circle cx="939" cy="1175" r="42" fill="#5a7a4a" stroke="#222" stroke-width="1.5"/>
+<text x="939" y="1171" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">br_mire_channels</text>
+<text x="939" y="1185" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">swamps</text>
+<circle cx="267" cy="1242" r="42" fill="#d7c87a" stroke="#ff8800" stroke-width="4"/>
+<text x="267" y="1238" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">or_vulpgard</text>
+<text x="267" y="1252" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
+<text x="267" y="1268" fill="#ff8800" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ORANGE</text>
+<circle cx="334" cy="1141" r="42" fill="#d7c87a" stroke="#ff8800" stroke-width="4"/>
+<text x="334" y="1137" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">or_windy_plains</text>
+<text x="334" y="1151" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">plains</text>
+<text x="334" y="1167" fill="#ff8800" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">ORANGE</text>
+<circle cx="200" cy="1141" r="42" fill="#8a8a8a" stroke="#222" stroke-width="1.5"/>
+<text x="200" y="1137" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">or_rocky_hills</text>
+<text x="200" y="1151" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
+<circle cx="267" cy="234" r="42" fill="#8a8a8a" stroke="#6c6c6c" stroke-width="4"/>
+<text x="267" y="230" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">gr_middle_high_mountains</text>
+<text x="267" y="244" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
+<text x="267" y="260" fill="#6c6c6c" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">GREY</text>
+<text x="267" y="206" fill="#ffd" font-size="9" text-anchor="middle">[fort]</text>
+<circle cx="334" cy="335" r="42" fill="#8a8a8a" stroke="#6c6c6c" stroke-width="4"/>
+<text x="334" y="331" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">gr_upper_high_mountains</text>
+<text x="334" y="345" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
+<text x="334" y="361" fill="#6c6c6c" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">GREY</text>
+<circle cx="200" cy="335" r="42" fill="#8a8a8a" stroke="#222" stroke-width="1.5"/>
+<text x="200" y="331" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">gr_lower_high_mountains</text>
+<text x="200" y="345" fill="#eee" font-size="9" text-anchor="middle" style="text-shadow: 0 1px 2px #000;">mountains</text>
 </svg></div>
+    </div>
     <div class="legend">
       <h3>Terrain</h3>
       <ul><li><span style="display:inline-block;width:14px;height:14px;background:#d7c87a;border:1px solid #333;margin-right:6px;vertical-align:middle;"></span>plains</li>
@@ -273,5 +295,89 @@
       </p>
     </div>
   </div>
+<script>
+(function () {
+  const svg = document.getElementById("staticMapSvg");
+  const viewport = document.getElementById("mapViewport");
+  if (!svg || !viewport) return;
+
+  const vb0 = svg.viewBox.baseVal;
+  const mapContentSize = { w: vb0.width, h: vb0.height };
+  let mapViewBox = { x: 0, y: 0, w: mapContentSize.w, h: mapContentSize.h };
+  const ratio = () => mapContentSize.h / mapContentSize.w;
+
+  function sync() {
+    const v = mapViewBox;
+    svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
+  }
+
+  function resetFull() {
+    mapViewBox = { x: 0, y: 0, w: mapContentSize.w, h: mapContentSize.h };
+    sync();
+  }
+
+  let dragging = false;
+  let last = { x: 0, y: 0 };
+
+  viewport.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const vb = mapViewBox;
+      const mx = ((e.clientX - rect.left) / rect.width) * vb.w + vb.x;
+      const my = ((e.clientY - rect.top) / rect.height) * vb.h + vb.y;
+      const zoom = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      let nw = vb.w / zoom;
+      const minW = mapContentSize.w / 24;
+      nw = Math.min(Math.max(nw, minW), mapContentSize.w);
+      let nh = nw * ratio();
+      let nx = mx - ((mx - vb.x) * nw) / vb.w;
+      let ny = my - ((my - vb.y) * nh) / vb.h;
+      nx = Math.max(0, Math.min(nx, mapContentSize.w - nw));
+      ny = Math.max(0, Math.min(ny, mapContentSize.h - nh));
+      mapViewBox = { x: nx, y: ny, w: nw, h: nh };
+      sync();
+    },
+    { passive: false },
+  );
+
+  viewport.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    dragging = true;
+    last = { x: e.clientX, y: e.clientY };
+    viewport.style.cursor = "grabbing";
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const rect = svg.getBoundingClientRect();
+    const vb = mapViewBox;
+    const dx = ((e.clientX - last.x) / rect.width) * vb.w;
+    const dy = ((e.clientY - last.y) / rect.height) * vb.h;
+    last = { x: e.clientX, y: e.clientY };
+    let nx = vb.x - dx;
+    let ny = vb.y - dy;
+    nx = Math.max(0, Math.min(nx, mapContentSize.w - vb.w));
+    ny = Math.max(0, Math.min(ny, mapContentSize.h - vb.h));
+    mapViewBox = { ...vb, x: nx, y: ny };
+    sync();
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (dragging) {
+      dragging = false;
+      viewport.style.cursor = "grab";
+    }
+  });
+
+  viewport.addEventListener("dblclick", (e) => {
+    if (!svg.contains(e.target)) return;
+    resetFull();
+  });
+
+  document.getElementById("staticMapResetBtn").addEventListener("click", resetFull);
+})();
+</script>
 </body>
 </html>

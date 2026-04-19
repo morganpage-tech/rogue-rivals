@@ -118,6 +118,7 @@ def _has_api_key() -> bool:
         or bool(os.environ.get("ZAI_API_KEY", "").strip())
         or bool(os.environ.get("ZAI_KEY", "").strip())
         or bool(os.environ.get("GROQ_API_KEY", "").strip())
+        or bool(os.environ.get("OPENROUTER_API_KEY", "").strip())
     )
 
 

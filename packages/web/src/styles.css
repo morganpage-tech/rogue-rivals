@@ -15,6 +15,8 @@
   --grey: #b4b8c0;
   --brown: #a67047;
   --red: #d85a5a;
+  --tricoloured: #c9c9c9;
+  --arctic: #8fd3ff;
 
   --plains: #6b9a3e;
   --mountains: #7a7f8a;
@@ -163,6 +165,16 @@ code,
 .tribe-red {
   background: var(--red);
 }
+.tribe-tricoloured {
+  background: var(--tricoloured);
+}
+.tribe-arctic {
+  background: var(--arctic);
+}
+
+.warn {
+  color: var(--warn);
+}
 
 .region-chip {
   display: inline-block;
@@ -186,6 +198,12 @@ code,
 }
 .region-ruins {
   background: var(--ruins);
+}
+.region-forest {
+  background: #4a8a5c;
+}
+.region-river {
+  background: #4a8ad8;
 }
 
 .header {
@@ -515,4 +533,219 @@ code,
 .standings .row.winner {
   border-color: var(--accent);
   background: #28230f;
+}
+
+/* ─── v2 async preview ─── */
+.v2-layout .col {
+  min-width: 0;
+}
+
+.v2-map-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.v2-map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.v2-map-tool {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  min-width: 32px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.v2-map-tool:hover {
+  border-color: var(--accent);
+}
+
+.v2-map-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+/* Fixed height + flex so the SVG scales down uniformly; `width:100%` + `height:auto`
+   alone can exceed max-height and clip the bottom (where labels sit). */
+.v2-map-wrap {
+  width: 100%;
+  height: min(52vh, 520px);
+  max-height: min(52vh, 520px);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #0c0e12;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.v2-map-wrap.v2-map-panning {
+  cursor: grabbing;
+}
+
+.v2-map-svg {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+}
+
+.v2-map-pan-layer {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+}
+
+.v2-trail {
+  stroke: #3a4558;
+  stroke-width: 3;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.v2-node {
+  fill: #1a2230;
+  stroke: #4a5568;
+  stroke-width: 3;
+  cursor: pointer;
+}
+.v2-node:hover {
+  filter: brightness(1.08);
+}
+.v2-node.selected {
+  stroke: var(--accent);
+  stroke-width: 4;
+  filter: brightness(1.12);
+}
+
+.v2-node.terrain-plains {
+  fill: #1e2a18;
+}
+.v2-node.terrain-mountains {
+  fill: #22252e;
+}
+.v2-node.terrain-swamps {
+  fill: #152824;
+}
+.v2-node.terrain-desert {
+  fill: #2a2418;
+}
+.v2-node.terrain-ruins {
+  fill: #261a2a;
+}
+.v2-node.terrain-forest {
+  fill: #142818;
+}
+.v2-node.terrain-river {
+  fill: #152030;
+}
+
+.v2-node.owner-orange {
+  stroke: var(--orange);
+}
+.v2-node.owner-grey {
+  stroke: var(--grey);
+}
+.v2-node.owner-brown {
+  stroke: var(--brown);
+}
+.v2-node.owner-red {
+  stroke: var(--red);
+}
+.v2-node.owner-tricoloured {
+  stroke: var(--tricoloured);
+}
+.v2-node.owner-arctic {
+  stroke: var(--arctic);
+}
+
+.v2-map-label {
+  font-size: 11px;
+  fill: var(--muted);
+  pointer-events: none;
+}
+
+.v2-queue-list {
+  margin: 8px 0 0 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.v2-legal-sections {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.v2-kind-title {
+  margin: 0 0 6px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+
+.v2-legal-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-legal-btns button {
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.v2-inbox-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-inbox-item {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.v2-inbox-block h4 {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.v2-force-list {
+  margin: 8px 0 0 16px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.v2-compose textarea {
+  resize: vertical;
 }
