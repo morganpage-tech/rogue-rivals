@@ -3,6 +3,7 @@
 Usage:
     python -m tools.v2.render_map --which minimal --out maps/minimal.html
     python -m tools.v2.render_map --which expanded --out maps/expanded.html
+    python -m tools.v2.render_map --which 6p-continent --out maps/6p-continent.html
 """
 
 from __future__ import annotations
@@ -13,11 +14,15 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 from .mapgen import (
+    CONTINENT_6P_DEFAULT_TRIBES,
+    CONTINENT_6P_REGION_LAYOUT,
     MINIMAL_REGION_LAYOUT,
     EXPANDED_REGION_LAYOUT,
+    build_continent_map_6p,
     build_expanded_map,
     build_hand_map,
     place_tribes,
+    place_tribes_continent_6p,
     place_tribes_expanded,
 )
 from .state import GameState
@@ -41,6 +46,8 @@ TRIBE_STROKE: Dict[str, str] = {
     "grey":   "#6c6c6c",
     "brown":  "#6b3f1f",
     "red":    "#c13030",
+    "tricoloured": "#c9c9c9",
+    "arctic": "#8fd3ff",
 }
 
 
@@ -202,12 +209,20 @@ def build_state(which: str) -> Tuple[GameState, Dict[str, Tuple[int, int]]]:
         build_expanded_map(state)
         place_tribes_expanded(state, TRIBES_4)
         return state, EXPANDED_REGION_LAYOUT
+    if which == "6p-continent":
+        build_continent_map_6p(state)
+        place_tribes_continent_6p(state, CONTINENT_6P_DEFAULT_TRIBES)
+        return state, CONTINENT_6P_REGION_LAYOUT
     raise ValueError(f"unknown map {which!r}")
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Render a Rogue Rivals v2 map to HTML")
-    p.add_argument("--which", choices=["minimal", "expanded"], default="minimal")
+    p.add_argument(
+        "--which",
+        choices=["minimal", "expanded", "6p-continent"],
+        default="minimal",
+    )
     p.add_argument("--out", type=Path, required=True)
     args = p.parse_args()
 

@@ -1,6 +1,6 @@
 """Map construction.
 
-Two hand-built maps:
+Three hand-built maps:
 
 - `build_hand_map` + `MINIMAL_REGION_LAYOUT`: the original v2.0 6-region
   test map used to validate the tick resolution loop. Too thin to force
@@ -12,6 +12,11 @@ Two hand-built maps:
   dark_forest) are the dispute zone -- any pair of tribes can reach any
   central region in 2-3 ticks through trails that cross each other's
   natural expansion paths.
+
+- `build_continent_map_6p` + `CONTINENT_6P_REGION_LAYOUT`: a 27-region
+  authored continent for the first real 6-player async format. Six active
+  tribes each get a 3-region homeland wedge, six border regions, and three
+  interior prize regions that pull overlapping groups inward.
 
 Procedural map generation per RULES_v2.md \u00a711 is still deferred; both
 maps below are hand-authored.
@@ -230,6 +235,166 @@ def place_tribes_expanded(state: GameState, tribes: List[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Authored 6-player continent map (27 regions)
+# ---------------------------------------------------------------------------
+
+CONTINENT_6P_DEFAULT_TRIBES: List[str] = [
+    "arctic",
+    "tricoloured",
+    "red",
+    "brown",
+    "orange",
+    "grey",
+]
+
+_CONTINENT_6P_SPEC: List[Tuple[str, str]] = [
+    ("r_arc_frosthold", "mountains"),
+    ("r_arc_ice_shelf", "plains"),
+    ("r_arc_white_wastes", "mountains"),
+    ("r_tri_hidden_grove", "forest"),
+    ("r_tri_tricky_woods", "forest"),
+    ("r_tri_whisper_thicket", "forest"),
+    ("r_red_mirage_camp", "desert"),
+    ("r_red_vast_dunes", "desert"),
+    ("r_red_rare_veins", "ruins"),
+    ("r_br_root_cities", "swamps"),
+    ("r_br_reeky_canopy", "swamps"),
+    ("r_br_mire_channels", "swamps"),
+    ("r_or_vulpgard", "plains"),
+    ("r_or_windy_plains", "plains"),
+    ("r_or_rocky_hills", "mountains"),
+    ("r_gr_middle_high_mountains", "mountains"),
+    ("r_gr_upper_high_mountains", "mountains"),
+    ("r_gr_lower_high_mountains", "mountains"),
+    ("r_border_snowpine_reach", "forest"),
+    ("r_border_glasswood_verge", "plains"),
+    ("r_border_saltfen_crossing", "river_crossing"),
+    ("r_border_hillmire_gate", "plains"),
+    ("r_border_howling_pass", "mountains"),
+    ("r_border_frostpass", "mountains"),
+    ("r_core_foxfire_ruins", "ruins"),
+    ("r_core_three_trails_market", "plains"),
+    ("r_core_moon_ford", "river_crossing"),
+]
+
+_CONTINENT_6P_TRAILS: List[Tuple[str, str]] = [
+    ("r_arc_frosthold", "r_arc_ice_shelf"),
+    ("r_arc_frosthold", "r_arc_white_wastes"),
+    ("r_arc_ice_shelf", "r_arc_white_wastes"),
+    ("r_tri_hidden_grove", "r_tri_tricky_woods"),
+    ("r_tri_hidden_grove", "r_tri_whisper_thicket"),
+    ("r_tri_tricky_woods", "r_tri_whisper_thicket"),
+    ("r_red_mirage_camp", "r_red_vast_dunes"),
+    ("r_red_mirage_camp", "r_red_rare_veins"),
+    ("r_red_vast_dunes", "r_red_rare_veins"),
+    ("r_br_root_cities", "r_br_reeky_canopy"),
+    ("r_br_root_cities", "r_br_mire_channels"),
+    ("r_br_reeky_canopy", "r_br_mire_channels"),
+    ("r_or_vulpgard", "r_or_windy_plains"),
+    ("r_or_vulpgard", "r_or_rocky_hills"),
+    ("r_or_windy_plains", "r_or_rocky_hills"),
+    ("r_gr_middle_high_mountains", "r_gr_upper_high_mountains"),
+    ("r_gr_middle_high_mountains", "r_gr_lower_high_mountains"),
+    ("r_gr_upper_high_mountains", "r_gr_lower_high_mountains"),
+    ("r_arc_ice_shelf", "r_border_snowpine_reach"),
+    ("r_tri_whisper_thicket", "r_border_snowpine_reach"),
+    ("r_tri_tricky_woods", "r_border_glasswood_verge"),
+    ("r_red_rare_veins", "r_border_glasswood_verge"),
+    ("r_red_vast_dunes", "r_border_saltfen_crossing"),
+    ("r_br_mire_channels", "r_border_saltfen_crossing"),
+    ("r_br_reeky_canopy", "r_border_hillmire_gate"),
+    ("r_or_rocky_hills", "r_border_hillmire_gate"),
+    ("r_or_windy_plains", "r_border_howling_pass"),
+    ("r_gr_lower_high_mountains", "r_border_howling_pass"),
+    ("r_gr_upper_high_mountains", "r_border_frostpass"),
+    ("r_arc_white_wastes", "r_border_frostpass"),
+    ("r_arc_white_wastes", "r_core_foxfire_ruins"),
+    ("r_red_rare_veins", "r_core_foxfire_ruins"),
+    ("r_br_mire_channels", "r_core_foxfire_ruins"),
+    ("r_gr_upper_high_mountains", "r_core_foxfire_ruins"),
+    ("r_tri_tricky_woods", "r_core_three_trails_market"),
+    ("r_red_vast_dunes", "r_core_three_trails_market"),
+    ("r_or_rocky_hills", "r_core_three_trails_market"),
+    ("r_gr_lower_high_mountains", "r_core_three_trails_market"),
+    ("r_arc_ice_shelf", "r_core_moon_ford"),
+    ("r_tri_whisper_thicket", "r_core_moon_ford"),
+    ("r_br_reeky_canopy", "r_core_moon_ford"),
+    ("r_or_windy_plains", "r_core_moon_ford"),
+]
+
+_CONTINENT_6P_TRIBE_HOME: Dict[str, str] = {
+    "arctic": "r_arc_frosthold",
+    "tricoloured": "r_tri_hidden_grove",
+    "red": "r_red_mirage_camp",
+    "brown": "r_br_root_cities",
+    "orange": "r_or_vulpgard",
+    "grey": "r_gr_middle_high_mountains",
+}
+
+_CONTINENT_6P_SECOND_REGION: Dict[str, str] = {
+    "arctic": "r_arc_ice_shelf",
+    "tricoloured": "r_tri_tricky_woods",
+    "red": "r_red_vast_dunes",
+    "brown": "r_br_reeky_canopy",
+    "orange": "r_or_windy_plains",
+    "grey": "r_gr_upper_high_mountains",
+}
+
+CONTINENT_6P_REGION_LAYOUT: Dict[str, Tuple[int, int]] = {
+    "r_arc_frosthold": (500, 0),
+    "r_arc_ice_shelf": (400, 85),
+    "r_arc_white_wastes": (600, 85),
+    "r_tri_hidden_grove": (890, 150),
+    "r_tri_tricky_woods": (770, 145),
+    "r_tri_whisper_thicket": (900, 280),
+    "r_red_mirage_camp": (940, 420),
+    "r_red_vast_dunes": (840, 350),
+    "r_red_rare_veins": (735, 470),
+    "r_br_root_cities": (500, 660),
+    "r_br_reeky_canopy": (400, 565),
+    "r_br_mire_channels": (600, 565),
+    "r_or_vulpgard": (60, 420),
+    "r_or_windy_plains": (165, 350),
+    "r_or_rocky_hills": (265, 470),
+    "r_gr_middle_high_mountains": (10, 150),
+    "r_gr_upper_high_mountains": (120, 145),
+    "r_gr_lower_high_mountains": (0, 280),
+    "r_border_snowpine_reach": (690, 110),
+    "r_border_glasswood_verge": (820, 285),
+    "r_border_saltfen_crossing": (705, 520),
+    "r_border_hillmire_gate": (290, 520),
+    "r_border_howling_pass": (145, 285),
+    "r_border_frostpass": (300, 110),
+    "r_core_foxfire_ruins": (500, 235),
+    "r_core_three_trails_market": (360, 335),
+    "r_core_moon_ford": (640, 335),
+}
+
+
+def build_continent_map_6p(state: GameState) -> None:
+    """Populate the authored 27-region 6-player continent map."""
+    for region_id, terrain in _CONTINENT_6P_SPEC:
+        state.regions[region_id] = Region(id=region_id, type=terrain)
+    for idx, (a, b) in enumerate(_CONTINENT_6P_TRAILS):
+        ta = state.regions[a].type
+        tb = state.regions[b].type
+        state.trails.append(
+            Trail(index=idx, a=a, b=b, base_length_ticks=base_trail_length(ta, tb))
+        )
+
+
+def place_tribes_continent_6p(state: GameState, tribes: List[str] | None = None) -> None:
+    """Place the default 6 active tribes with authored second-region claims."""
+    roster = list(tribes or CONTINENT_6P_DEFAULT_TRIBES)
+    _place_tribes_core(
+        state,
+        roster,
+        _CONTINENT_6P_TRIBE_HOME,
+        second_region_by_tribe=_CONTINENT_6P_SECOND_REGION,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Shared placement core
 # ---------------------------------------------------------------------------
 
@@ -238,6 +403,7 @@ def _place_tribes_core(
     state: GameState,
     tribes: List[str],
     home_region_by_tribe: Dict[str, str],
+    second_region_by_tribe: Dict[str, str] | None = None,
 ) -> None:
     """Assign home regions, starting influence, starting garrisons, and
     tribe-specific asymmetric bonuses (grey fort, brown road).
@@ -280,28 +446,59 @@ def _place_tribes_core(
 
     # Second-pass adjacent-region claim (\u00a74.9 / \u00a711.3). Iterate tribes in
     # alphabetical order so inter-tribe collisions resolve deterministically.
-    for tribe in sorted(tribes):
-        home_region_id = home_region_by_tribe[tribe]
-        adj = adjacent_regions(state, home_region_id)
-        adjacent_claim: str | None = None
-        for cand in adj:  # adj is already sorted alphabetically
-            cand_region = state.regions[cand]
-            if cand_region.owner is None:
-                adjacent_claim = cand
-                break
-        if adjacent_claim is not None:
-            state.regions[adjacent_claim].owner = tribe
-        else:
-            # Degenerate map case: every neighbour is already another tribe's
-            # home. Record and continue -- do NOT steal a neighbour's home.
-            state.announcements.append(
-                Announcement(
-                    tick=0,
-                    kind="starting_adjacent_unavailable",
-                    parties=[tribe],
-                    detail=home_region_id,
+    if second_region_by_tribe is None:
+        for tribe in sorted(tribes):
+            home_region_id = home_region_by_tribe[tribe]
+            adj = adjacent_regions(state, home_region_id)
+            adjacent_claim: str | None = None
+            for cand in adj:  # adj is already sorted alphabetically
+                cand_region = state.regions[cand]
+                if cand_region.owner is None:
+                    adjacent_claim = cand
+                    break
+            if adjacent_claim is not None:
+                state.regions[adjacent_claim].owner = tribe
+            else:
+                # Degenerate map case: every neighbour is already another tribe's
+                # home. Record and continue -- do NOT steal a neighbour's home.
+                state.announcements.append(
+                    Announcement(
+                        tick=0,
+                        kind="starting_adjacent_unavailable",
+                        parties=[tribe],
+                        detail=home_region_id,
+                    )
                 )
-            )
+    else:
+        for tribe in tribes:
+            home_region_id = home_region_by_tribe[tribe]
+            adjacent_claim = second_region_by_tribe.get(tribe)
+            if adjacent_claim is None:
+                state.announcements.append(
+                    Announcement(
+                        tick=0,
+                        kind="starting_adjacent_unavailable",
+                        parties=[tribe],
+                        detail=home_region_id,
+                    )
+                )
+                continue
+            if adjacent_claim not in state.regions:
+                raise ValueError(
+                    f"unknown authored second region {adjacent_claim!r} for tribe {tribe!r}"
+                )
+            if adjacent_claim not in adjacent_regions(state, home_region_id):
+                raise ValueError(
+                    f"authored second region {adjacent_claim!r} is not adjacent to "
+                    f"home {home_region_id!r} for tribe {tribe!r}"
+                )
+            adjacent_region = state.regions[adjacent_claim]
+            if adjacent_region.owner is not None and adjacent_region.owner != tribe:
+                raise ValueError(
+                    f"authored second region {adjacent_claim!r} for tribe {tribe!r} "
+                    f"is already owned by {adjacent_region.owner!r}"
+                )
+            adjacent_region.owner = tribe
 
     if "grey" in tribes:
         grey_home = state.regions[home_region_by_tribe["grey"]]
@@ -319,5 +516,5 @@ def _place_tribes_core(
 def procedural_map(state: GameState, seed: int) -> None:
     raise NotImplementedError(
         "Procedural map generation (RULES_v2.md \u00a711) deferred to v2.1; "
-        "use build_hand_map or build_expanded_map."
+        "use build_hand_map, build_expanded_map, or build_continent_map_6p."
     )

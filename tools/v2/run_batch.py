@@ -1,6 +1,6 @@
 """Pure-LLM batch runner for Rogue Rivals v2.
 
-Runs N matches in parallel, each with 4 LLM-driven tribes following the
+Runs N matches in parallel with LLM-driven tribes following the
 v2 engine. Writes per-match JSONL traces + a batch summary.
 
 Usage:
@@ -35,24 +35,50 @@ from .llm_agent import decide_orders
 from .mapgen import (
     build_expanded_map,
     build_hand_map,
+    build_continent_map_6p,
+    CONTINENT_6P_DEFAULT_TRIBES,
     place_tribes,
+    place_tribes_continent_6p,
     place_tribes_expanded,
 )
-from .personas import DEFAULT_PERSONA_ASSIGNMENT, PERSONA_BY_ID
+from .personas import (
+    DEFAULT_PERSONA_ASSIGNMENT,
+    DEFAULT_PERSONA_ASSIGNMENT_6P,
+    PERSONA_BY_ID,
+)
 from .state import GameState, Order, OrderPacket
 
 
-TRIBES = ["orange", "grey", "brown", "red"]
+TRIBES_4 = ["orange", "grey", "brown", "red"]
+
+
+def _tribes_for_map(map_kind: str) -> List[str]:
+    if map_kind in ("minimal", "expanded"):
+        return list(TRIBES_4)
+    if map_kind == "6p-continent":
+        return list(CONTINENT_6P_DEFAULT_TRIBES)
+    raise ValueError(f"unknown map_kind {map_kind!r}")
+
+
+def _default_persona_assignment_for_map(map_kind: str) -> Dict[str, str]:
+    if map_kind in ("minimal", "expanded"):
+        return dict(DEFAULT_PERSONA_ASSIGNMENT)
+    if map_kind == "6p-continent":
+        return dict(DEFAULT_PERSONA_ASSIGNMENT_6P)
+    raise ValueError(f"unknown map_kind {map_kind!r}")
 
 
 def _build_match_state(seed: int, map_kind: str = "expanded") -> GameState:
     state = GameState(seed=seed)
     if map_kind == "minimal":
         build_hand_map(state)
-        place_tribes(state, TRIBES)
+        place_tribes(state, TRIBES_4)
     elif map_kind == "expanded":
         build_expanded_map(state)
-        place_tribes_expanded(state, TRIBES)
+        place_tribes_expanded(state, TRIBES_4)
+    elif map_kind == "6p-continent":
+        build_continent_map_6p(state)
+        place_tribes_continent_6p(state)
     else:
         raise ValueError(f"unknown map_kind {map_kind!r}")
     return state
@@ -253,7 +279,7 @@ def main() -> int:
     p.add_argument(
         "--map",
         dest="map_kind",
-        choices=["minimal", "expanded"],
+        choices=["minimal", "expanded", "6p-continent"],
         default="expanded",
         help="Which hand-built map to run on (default: expanded)",
     )
@@ -266,13 +292,14 @@ def main() -> int:
     )
     args = p.parse_args()
 
-    persona_assignment = dict(DEFAULT_PERSONA_ASSIGNMENT)
+    tribes_for_map = _tribes_for_map(args.map_kind)
+    persona_assignment = _default_persona_assignment_for_map(args.map_kind)
     for override in args.persona:
         if "=" not in override:
             print(f"bad --persona override: {override}", file=sys.stderr)
             return 2
         tribe, pid = override.split("=", 1)
-        if tribe not in TRIBES:
+        if tribe not in tribes_for_map:
             print(f"unknown tribe: {tribe}", file=sys.stderr)
             return 2
         if pid not in PERSONA_BY_ID:

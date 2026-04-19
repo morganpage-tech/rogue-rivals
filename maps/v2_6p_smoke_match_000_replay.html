@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rogue Rivals v2 replay - 6p-continent map</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #151515;
+    --panel: #202020;
+    --panel-2: #262626;
+    --border: #383838;
+    --muted: #a5a5a5;
+    --text: #efefef;
+    --accent: #7cc4ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.4 Inter, system-ui, sans-serif;
+  }
+  .page {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-height: 100vh;
+  }
+  .topbar {
+    display: grid;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: #111;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  button, select {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  input[type="range"] {
+    flex: 1 1 320px;
+  }
+  .meta {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .warningBar {
+    display: none;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border: 1px solid #6a4a12;
+    border-radius: 8px;
+    background: #3a2a12;
+    color: #ffdca0;
+    font-size: 13px;
+  }
+  .content {
+    display: grid;
+    grid-template-columns: minmax(520px, 1.5fr) minmax(360px, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .panel h2 {
+    margin: 0;
+    padding: 12px 14px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  #mapPanel {
+    min-height: 720px;
+  }
+  #mapWrap {
+    padding: 10px;
+    overflow: auto;
+  }
+  #mapWrap svg {
+    width: 100%;
+    height: auto;
+    min-width: 880px;
+    display: block;
+  }
+  .sidebar {
+    display: grid;
+    gap: 16px;
+    align-content: start;
+  }
+  .sectionBody {
+    padding: 12px 14px;
+  }
+  .scoreGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .perspectiveGrid {
+    display: grid;
+    gap: 8px;
+  }
+  .pillRow {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .pill {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--muted);
+    background: #191919;
+  }
+  .scoreCard {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: #191919;
+  }
+  .scoreCard .tribe {
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .list {
+    display: grid;
+    gap: 8px;
+  }
+  .item {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: #191919;
+  }
+  .item pre {
+    margin: 8px 0 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <div>
+      <div style="font-size:20px;font-weight:700;">Rogue Rivals v2 replay - 6p-continent map</div>
+      <div class="meta" id="metaLine"></div>
+      <div class="warningBar" id="warningBar"></div>
+    </div>
+    <div class="controls">
+      <button id="playBtn">Play</button>
+      <button id="prevBtn">Prev</button>
+      <button id="nextBtn">Next</button>
+      <input id="tickSlider" type="range" min="0" step="1">
+      <select id="perspectiveSelect"></select>
+      <select id="speedSelect">
+        <option value="1400">0.7x</option>
+        <option value="900" selected>1x</option>
+        <option value="500">2x</option>
+        <option value="250">4x</option>
+      </select>
+      <span id="tickLabel" class="mono"></span>
+    </div>
+  </div>
+  <div class="content">
+    <div class="panel" id="mapPanel">
+      <h2>Map Replay</h2>
+      <div id="mapWrap"></div>
+    </div>
+    <div class="sidebar">
+      <div class="panel">
+        <h2>Scoreboard</h2>
+        <div class="sectionBody">
+          <div id="scoreboard" class="scoreGrid"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Selected Perspective</h2>
+        <div class="sectionBody">
+          <div id="perspectivePanel" class="perspectiveGrid"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Messages And Diplomacy</h2>
+        <div class="sectionBody">
+          <div id="commsList" class="list"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Orders</h2>
+        <div class="sectionBody">
+          <div id="ordersList" class="list"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Resolution Events</h2>
+        <div class="sectionBody">
+          <div id="eventsList" class="list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const DATA = {"meta":{"trace_path":"/Users/morganpage/Documents/VSCODE/CURSOR/rogue-rivals/simulations/v2_6p_smoke/match_000.jsonl","map_kind":"6p-continent","seed":2026100,"match_idx":0,"tick_final":2,"winner":null,"roster":["arctic","tricoloured","red","brown","orange","grey"],"warnings":[]},"layout":{"r_arc_frosthold":[500,0],"r_arc_ice_shelf":[400,85],"r_arc_white_wastes":[600,85],"r_tri_hidden_grove":[890,150],"r_tri_tricky_woods":[770,145],"r_tri_whisper_thicket":[900,280],"r_red_mirage_camp":[940,420],"r_red_vast_dunes":[840,350],"r_red_rare_veins":[735,470],"r_br_root_cities":[500,660],"r_br_reeky_canopy":[400,565],"r_br_mire_channels":[600,565],"r_or_vulpgard":[60,420],"r_or_windy_plains":[165,350],"r_or_rocky_hills":[265,470],"r_gr_middle_high_mountains":[10,150],"r_gr_upper_high_mountains":[120,145],"r_gr_lower_high_mountains":[0,280],"r_border_snowpine_reach":[690,110],"r_border_glasswood_verge":[820,285],"r_border_saltfen_crossing":[705,520],"r_border_hillmire_gate":[290,520],"r_border_howling_pass":[145,285],"r_border_frostpass":[300,110],"r_core_foxfire_ruins":[500,235],"r_core_three_trails_market":[360,335],"r_core_moon_ford":[640,335]},"terrain_fill":{"plains":"#d7c87a","mountains":"#8a8a8a","swamps":"#5a7a4a","desert":"#d8a864","ruins":"#6a4a8a","river_crossing":"#4a8ad7","forest":"#2e6b3b"},"tribe_stroke":{"orange":"#ff8800","grey":"#6c6c6c","brown":"#6b3f1f","red":"#c13030","tricoloured":"#c9c9c9","arctic":"#8fd3ff"},"frames":[{"tick":0,"label":"Initial state","state_hash":null,"orders_by_tribe":{},"resolution_events":[],"tick_summary":{"messages":[],"diplomacy":[]},"projected_views":{"arctic":{"tick":0,"for_tribe":"arctic","visible_regions":{"r_arc_frosthold":{"id":"r_arc_frosthold","type":"mountains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":"f_arctic_000"},"r_arc_ice_shelf":{"id":"r_arc_ice_shelf","type":"plains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":null},"r_arc_white_wastes":{"id":"r_arc_white_wastes","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_snowpine_reach":{"id":"r_border_snowpine_reach","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"arctic","influence":5,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"my_forces":[{"id":"f_arctic_000","owner":"arctic","tier":2,"location_kind":"garrison","location_region_id":"r_arc_frosthold","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"tricoloured":{"tick":0,"for_tribe":"tricoloured","visible_regions":{"r_border_glasswood_verge":{"id":"r_border_glasswood_verge","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_three_trails_market":{"id":"r_core_three_trails_market","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_hidden_grove":{"id":"r_tri_hidden_grove","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":"f_tricoloured_001"},"r_tri_tricky_woods":{"id":"r_tri_tricky_woods","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_whisper_thicket":{"id":"r_tri_whisper_thicket","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"tricoloured","influence":5,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"my_forces":[{"id":"f_tricoloured_001","owner":"tricoloured","tier":2,"location_kind":"garrison","location_region_id":"r_tri_hidden_grove","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"red":{"tick":0,"for_tribe":"red","visible_regions":{"r_border_saltfen_crossing":{"id":"r_border_saltfen_crossing","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_three_trails_market":{"id":"r_core_three_trails_market","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_red_mirage_camp":{"id":"r_red_mirage_camp","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":"f_red_002"},"r_red_rare_veins":{"id":"r_red_rare_veins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_red_vast_dunes":{"id":"r_red_vast_dunes","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"red","influence":10,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"my_forces":[{"id":"f_red_002","owner":"red","tier":2,"location_kind":"garrison","location_region_id":"r_red_mirage_camp","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"brown":{"tick":0,"for_tribe":"brown","visible_regions":{"r_border_hillmire_gate":{"id":"r_border_hillmire_gate","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_mire_channels":{"id":"r_br_mire_channels","type":"swamps","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_reeky_canopy":{"id":"r_br_reeky_canopy","type":"swamps","owner":"brown","structures":[],"road_targets":{},"garrison_force_id":null},"r_br_root_cities":{"id":"r_br_root_cities","type":"swamps","owner":"brown","structures":["road"],"road_targets":{"0":"r_br_mire_channels"},"garrison_force_id":"f_brown_003"},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"brown","influence":5,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"my_forces":[{"id":"f_brown_003","owner":"brown","tier":2,"location_kind":"garrison","location_region_id":"r_br_root_cities","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"orange":{"tick":0,"for_tribe":"orange","visible_regions":{"r_border_howling_pass":{"id":"r_border_howling_pass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_or_rocky_hills":{"id":"r_or_rocky_hills","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_or_vulpgard":{"id":"r_or_vulpgard","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":"f_orange_004"},"r_or_windy_plains":{"id":"r_or_windy_plains","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"orange","influence":5,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"my_forces":[{"id":"f_orange_004","owner":"orange","tier":2,"location_kind":"garrison","location_region_id":"r_or_vulpgard","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"grey":{"tick":0,"for_tribe":"grey","visible_regions":{"r_border_frostpass":{"id":"r_border_frostpass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_foxfire_ruins":{"id":"r_core_foxfire_ruins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_lower_high_mountains":{"id":"r_gr_lower_high_mountains","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_middle_high_mountains":{"id":"r_gr_middle_high_mountains","type":"mountains","owner":"grey","structures":["fort"],"road_targets":{},"garrison_force_id":"f_grey_005"},"r_gr_upper_high_mountains":{"id":"r_gr_upper_high_mountains","type":"mountains","owner":"grey","structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"grey","influence":5,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"my_forces":[{"id":"f_grey_005","owner":"grey","tier":2,"location_kind":"garrison","location_region_id":"r_gr_middle_high_mountains","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]}},"state":{"tick":0,"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"],"winner":null,"regions":{"r_arc_frosthold":{"id":"r_arc_frosthold","type":"mountains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":"f_arctic_000"},"r_arc_ice_shelf":{"id":"r_arc_ice_shelf","type":"plains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":null},"r_arc_white_wastes":{"id":"r_arc_white_wastes","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_frostpass":{"id":"r_border_frostpass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_glasswood_verge":{"id":"r_border_glasswood_verge","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_hillmire_gate":{"id":"r_border_hillmire_gate","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_howling_pass":{"id":"r_border_howling_pass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_saltfen_crossing":{"id":"r_border_saltfen_crossing","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_snowpine_reach":{"id":"r_border_snowpine_reach","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_mire_channels":{"id":"r_br_mire_channels","type":"swamps","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_reeky_canopy":{"id":"r_br_reeky_canopy","type":"swamps","owner":"brown","structures":[],"road_targets":{},"garrison_force_id":null},"r_br_root_cities":{"id":"r_br_root_cities","type":"swamps","owner":"brown","structures":["road"],"road_targets":{"0":"r_br_mire_channels"},"garrison_force_id":"f_brown_003"},"r_core_foxfire_ruins":{"id":"r_core_foxfire_ruins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_three_trails_market":{"id":"r_core_three_trails_market","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_lower_high_mountains":{"id":"r_gr_lower_high_mountains","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_middle_high_mountains":{"id":"r_gr_middle_high_mountains","type":"mountains","owner":"grey","structures":["fort"],"road_targets":{},"garrison_force_id":"f_grey_005"},"r_gr_upper_high_mountains":{"id":"r_gr_upper_high_mountains","type":"mountains","owner":"grey","structures":[],"road_targets":{},"garrison_force_id":null},"r_or_rocky_hills":{"id":"r_or_rocky_hills","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_or_vulpgard":{"id":"r_or_vulpgard","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":"f_orange_004"},"r_or_windy_plains":{"id":"r_or_windy_plains","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":null},"r_red_mirage_camp":{"id":"r_red_mirage_camp","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":"f_red_002"},"r_red_rare_veins":{"id":"r_red_rare_veins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_red_vast_dunes":{"id":"r_red_vast_dunes","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_hidden_grove":{"id":"r_tri_hidden_grove","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":"f_tricoloured_001"},"r_tri_tricky_woods":{"id":"r_tri_tricky_woods","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_whisper_thicket":{"id":"r_tri_whisper_thicket","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"trails":[{"index":0,"a":"r_arc_frosthold","b":"r_arc_ice_shelf","base_length_ticks":2},{"index":1,"a":"r_arc_frosthold","b":"r_arc_white_wastes","base_length_ticks":3},{"index":2,"a":"r_arc_ice_shelf","b":"r_arc_white_wastes","base_length_ticks":2},{"index":3,"a":"r_tri_hidden_grove","b":"r_tri_tricky_woods","base_length_ticks":2},{"index":4,"a":"r_tri_hidden_grove","b":"r_tri_whisper_thicket","base_length_ticks":2},{"index":5,"a":"r_tri_tricky_woods","b":"r_tri_whisper_thicket","base_length_ticks":2},{"index":6,"a":"r_red_mirage_camp","b":"r_red_vast_dunes","base_length_ticks":2},{"index":7,"a":"r_red_mirage_camp","b":"r_red_rare_veins","base_length_ticks":2},{"index":8,"a":"r_red_vast_dunes","b":"r_red_rare_veins","base_length_ticks":2},{"index":9,"a":"r_br_root_cities","b":"r_br_reeky_canopy","base_length_ticks":3},{"index":10,"a":"r_br_root_cities","b":"r_br_mire_channels","base_length_ticks":3},{"index":11,"a":"r_br_reeky_canopy","b":"r_br_mire_channels","base_length_ticks":3},{"index":12,"a":"r_or_vulpgard","b":"r_or_windy_plains","base_length_ticks":1},{"index":13,"a":"r_or_vulpgard","b":"r_or_rocky_hills","base_length_ticks":2},{"index":14,"a":"r_or_windy_plains","b":"r_or_rocky_hills","base_length_ticks":2},{"index":15,"a":"r_gr_middle_high_mountains","b":"r_gr_upper_high_mountains","base_length_ticks":3},{"index":16,"a":"r_gr_middle_high_mountains","b":"r_gr_lower_high_mountains","base_length_ticks":3},{"index":17,"a":"r_gr_upper_high_mountains","b":"r_gr_lower_high_mountains","base_length_ticks":3},{"index":18,"a":"r_arc_ice_shelf","b":"r_border_snowpine_reach","base_length_ticks":2},{"index":19,"a":"r_tri_whisper_thicket","b":"r_border_snowpine_reach","base_length_ticks":2},{"index":20,"a":"r_tri_tricky_woods","b":"r_border_glasswood_verge","base_length_ticks":2},{"index":21,"a":"r_red_rare_veins","b":"r_border_glasswood_verge","base_length_ticks":2},{"index":22,"a":"r_red_vast_dunes","b":"r_border_saltfen_crossing","base_length_ticks":2},{"index":23,"a":"r_br_mire_channels","b":"r_border_saltfen_crossing","base_length_ticks":2},{"index":24,"a":"r_br_reeky_canopy","b":"r_border_hillmire_gate","base_length_ticks":2},{"index":25,"a":"r_or_rocky_hills","b":"r_border_hillmire_gate","base_length_ticks":2},{"index":26,"a":"r_or_windy_plains","b":"r_border_howling_pass","base_length_ticks":2},{"index":27,"a":"r_gr_lower_high_mountains","b":"r_border_howling_pass","base_length_ticks":3},{"index":28,"a":"r_gr_upper_high_mountains","b":"r_border_frostpass","base_length_ticks":3},{"index":29,"a":"r_arc_white_wastes","b":"r_border_frostpass","base_length_ticks":3},{"index":30,"a":"r_arc_white_wastes","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":31,"a":"r_red_rare_veins","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":32,"a":"r_br_mire_channels","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":33,"a":"r_gr_upper_high_mountains","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":34,"a":"r_tri_tricky_woods","b":"r_core_three_trails_market","base_length_ticks":2},{"index":35,"a":"r_red_vast_dunes","b":"r_core_three_trails_market","base_length_ticks":2},{"index":36,"a":"r_or_rocky_hills","b":"r_core_three_trails_market","base_length_ticks":2},{"index":37,"a":"r_gr_lower_high_mountains","b":"r_core_three_trails_market","base_length_ticks":2},{"index":38,"a":"r_arc_ice_shelf","b":"r_core_moon_ford","base_length_ticks":1},{"index":39,"a":"r_tri_whisper_thicket","b":"r_core_moon_ford","base_length_ticks":2},{"index":40,"a":"r_br_reeky_canopy","b":"r_core_moon_ford","base_length_ticks":2},{"index":41,"a":"r_or_windy_plains","b":"r_core_moon_ford","base_length_ticks":1}],"forces":{"f_arctic_000":{"id":"f_arctic_000","owner":"arctic","tier":2,"location_kind":"garrison","location_region_id":"r_arc_frosthold","location_transit":null},"f_brown_003":{"id":"f_brown_003","owner":"brown","tier":2,"location_kind":"garrison","location_region_id":"r_br_root_cities","location_transit":null},"f_grey_005":{"id":"f_grey_005","owner":"grey","tier":2,"location_kind":"garrison","location_region_id":"r_gr_middle_high_mountains","location_transit":null},"f_orange_004":{"id":"f_orange_004","owner":"orange","tier":2,"location_kind":"garrison","location_region_id":"r_or_vulpgard","location_transit":null},"f_red_002":{"id":"f_red_002","owner":"red","tier":2,"location_kind":"garrison","location_region_id":"r_red_mirage_camp","location_transit":null},"f_tricoloured_001":{"id":"f_tricoloured_001","owner":"tricoloured","tier":2,"location_kind":"garrison","location_region_id":"r_tri_hidden_grove","location_transit":null}},"scouts":{},"caravans":{},"players":{"arctic":{"tribe":"arctic","influence":5,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"brown":{"tribe":"brown","influence":5,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"grey":{"tribe":"grey","influence":5,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"orange":{"tribe":"orange","influence":5,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"red":{"tribe":"red","influence":10,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"tricoloured":{"tribe":"tricoloured","influence":5,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]}},"pacts":[]}},{"tick":1,"label":"Tick 1","state_hash":"sha256:25526ad8f4a1304aad49bded7f95673169a75b8477b58f280228ab214e520e7a","orders_by_tribe":{"arctic":{"tribe":"arctic","tick":0,"orders":[{"kind":"recruit","payload":{"region_id":"r_arc_ice_shelf","tier":1}},{"kind":"move","payload":{"force_id":"f_arctic_000","destination_region_id":"r_arc_white_wastes"}}]},"tricoloured":{"tribe":"tricoloured","tick":0,"orders":[{"kind":"recruit","payload":{"region_id":"r_tri_hidden_grove","tier":1}},{"kind":"scout","payload":{"from_region_id":"r_tri_hidden_grove","target_region_id":"r_border_glasswood_verge"}},{"kind":"message","payload":{"to":"arctic","text":"The forest breathes. Do you hear its whispers, or only the howling wind?"}}]},"red":{"tribe":"red","tick":0,"orders":[{"kind":"recruit","payload":{"region_id":"r_red_mirage_camp","tier":1}},{"kind":"move","payload":{"force_id":"f_red_002","destination_region_id":"r_red_rare_veins"}},{"kind":"scout","payload":{"from_region_id":"r_red_mirage_camp","target_region_id":"r_border_saltfen_crossing"}},{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"orange","length_ticks":10}}},{"kind":"message","payload":{"to":"orange","text":"Greetings neighbor! Let's secure our border and prosper together."}}]},"brown":{"tribe":"brown","tick":0,"orders":[{"kind":"build","payload":{"region_id":"r_br_root_cities","structure":"granary"}},{"kind":"propose","payload":{"proposal":{"kind":"trade_offer","to":"arctic","amount_influence":5}}},{"kind":"message","payload":{"to":"arctic","text":"Greetings. A small token to foster prosperity between our peoples."}}]},"orange":{"tribe":"orange","tick":0,"orders":[{"kind":"recruit","payload":{"region_id":"r_or_windy_plains","tier":2}},{"kind":"move","payload":{"force_id":"f_orange_004","destination_region_id":"r_or_rocky_hills"}}]},"grey":{"tribe":"grey","tick":0,"orders":[{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"arctic","length_ticks":20}}},{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"tricoloured","length_ticks":20}}},{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"red","length_ticks":20}}},{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"brown","length_ticks":20}}},{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"orange","length_ticks":20}}},{"kind":"scout","payload":{"from_region_id":"r_gr_middle_high_mountains","target_region_id":"r_border_frostpass"}},{"kind":"scout","payload":{"from_region_id":"r_gr_middle_high_mountains","target_region_id":"r_core_foxfire_ruins"}},{"kind":"scout","payload":{"from_region_id":"r_gr_middle_high_mountains","target_region_id":"r_gr_lower_high_mountains"}},{"kind":"build","payload":{"region_id":"r_gr_upper_high_mountains","structure":"watchtower"}}]}},"resolution_events":[{"kind":"recruited","tribe":"arctic","region_id":"r_arc_ice_shelf","tier":1,"force_id":"f_arctic_006"},{"kind":"build_failed","tribe":"brown","reason":"no_influence"},{"kind":"proposal_sent","from":"brown","to":"arctic","proposal_kind":"trade_offer","id":"p_0000"},{"kind":"message_sent","from":"brown","to":"arctic"},{"kind":"proposal_sent","from":"grey","to":"arctic","proposal_kind":"nap","id":"p_0001"},{"kind":"proposal_sent","from":"grey","to":"tricoloured","proposal_kind":"nap","id":"p_0002"},{"kind":"proposal_sent","from":"grey","to":"red","proposal_kind":"nap","id":"p_0003"},{"kind":"proposal_sent","from":"grey","to":"brown","proposal_kind":"nap","id":"p_0004"},{"kind":"proposal_sent","from":"grey","to":"orange","proposal_kind":"nap","id":"p_0005"},{"kind":"build_failed","tribe":"grey","reason":"no_influence"},{"kind":"recruited","tribe":"orange","region_id":"r_or_windy_plains","tier":2,"force_id":"f_orange_007"},{"kind":"recruit_failed","reason":"garrison_present"},{"kind":"proposal_sent","from":"red","to":"orange","proposal_kind":"nap","id":"p_0006"},{"kind":"message_sent","from":"red","to":"orange"},{"kind":"recruit_failed","reason":"garrison_present"},{"kind":"message_sent","from":"tricoloured","to":"arctic"},{"kind":"dispatch_move","tribe":"arctic","force_id":"f_arctic_000","from":"r_arc_frosthold","to":"r_arc_white_wastes","ticks":3},{"kind":"scout_failed","reason":"no_trail"},{"kind":"scout_failed","reason":"no_trail"},{"kind":"dispatch_scout","tribe":"grey","scout_id":"s_grey_000","from":"r_gr_middle_high_mountains","to":"r_gr_lower_high_mountains"},{"kind":"dispatch_move","tribe":"orange","force_id":"f_orange_004","from":"r_or_vulpgard","to":"r_or_rocky_hills","ticks":2},{"kind":"dispatch_move","tribe":"red","force_id":"f_red_002","from":"r_red_mirage_camp","to":"r_red_rare_veins","ticks":2},{"kind":"scout_failed","reason":"no_trail"},{"kind":"scout_failed","reason":"no_trail"},{"kind":"influence_credited","tribe":"arctic","amount":4},{"kind":"influence_credited","tribe":"tricoloured","amount":2},{"kind":"influence_credited","tribe":"red","amount":2},{"kind":"influence_credited","tribe":"brown","amount":2},{"kind":"influence_credited","tribe":"orange","amount":6},{"kind":"influence_credited","tribe":"grey","amount":4}],"tick_summary":{"messages":[{"from":"tricoloured","to":"arctic","text":"The forest breathes. Do you hear its whispers, or only the howling wind?"},{"from":"red","to":"orange","text":"Greetings neighbor! Let's secure our border and prosper together."},{"from":"brown","to":"arctic","text":"Greetings. A small token to foster prosperity between our peoples."}],"diplomacy":[{"kind":"proposal_order","from":"red","to":"orange","proposal_kind":"nap","length_ticks":10,"amount_influence":null},{"kind":"proposal_order","from":"brown","to":"arctic","proposal_kind":"trade_offer","length_ticks":null,"amount_influence":5},{"kind":"proposal_order","from":"grey","to":"arctic","proposal_kind":"nap","length_ticks":20,"amount_influence":null},{"kind":"proposal_order","from":"grey","to":"tricoloured","proposal_kind":"nap","length_ticks":20,"amount_influence":null},{"kind":"proposal_order","from":"grey","to":"red","proposal_kind":"nap","length_ticks":20,"amount_influence":null},{"kind":"proposal_order","from":"grey","to":"brown","proposal_kind":"nap","length_ticks":20,"amount_influence":null},{"kind":"proposal_order","from":"grey","to":"orange","proposal_kind":"nap","length_ticks":20,"amount_influence":null},{"kind":"proposal_sent","from":"brown","to":"arctic","proposal_kind":"trade_offer","id":"p_0000"},{"kind":"proposal_sent","from":"grey","to":"arctic","proposal_kind":"nap","id":"p_0001"},{"kind":"proposal_sent","from":"grey","to":"tricoloured","proposal_kind":"nap","id":"p_0002"},{"kind":"proposal_sent","from":"grey","to":"red","proposal_kind":"nap","id":"p_0003"},{"kind":"proposal_sent","from":"grey","to":"brown","proposal_kind":"nap","id":"p_0004"},{"kind":"proposal_sent","from":"grey","to":"orange","proposal_kind":"nap","id":"p_0005"},{"kind":"proposal_sent","from":"red","to":"orange","proposal_kind":"nap","id":"p_0006"}]},"projected_views":{"arctic":{"tick":1,"for_tribe":"arctic","visible_regions":{"r_arc_frosthold":{"id":"r_arc_frosthold","type":"mountains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":null},"r_arc_ice_shelf":{"id":"r_arc_ice_shelf","type":"plains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":"f_arctic_006"},"r_arc_white_wastes":{"id":"r_arc_white_wastes","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_snowpine_reach":{"id":"r_border_snowpine_reach","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"arctic","influence":7,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"brown","text":null,"proposal":{"id":"p_0000","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"brown","text":"Greetings. A small token to foster prosperity between our peoples.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0001","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"tricoloured","text":"The forest breathes. Do you hear its whispers, or only the howling wind?","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0000","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":3},{"id":"p_0001","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":20,"amount_influence":0,"expires_tick":3}]},"my_forces":[{"id":"f_arctic_000","owner":"arctic","tier":2,"location_kind":"transit","location_region_id":null,"location_transit":{"trail_index":1,"direction_from":"r_arc_frosthold","direction_to":"r_arc_white_wastes","ticks_remaining":2}},{"id":"f_arctic_006","owner":"arctic","tier":1,"location_kind":"garrison","location_region_id":"r_arc_ice_shelf","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[{"tick":1,"kind":"proposal","from_tribe":"brown","text":null,"proposal":{"id":"p_0000","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"brown","text":"Greetings. A small token to foster prosperity between our peoples.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0001","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"tricoloured","text":"The forest breathes. Do you hear its whispers, or only the howling wind?","proposal":null,"reputation_penalty":false,"payload":{}}],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"tricoloured":{"tick":1,"for_tribe":"tricoloured","visible_regions":{"r_border_glasswood_verge":{"id":"r_border_glasswood_verge","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_three_trails_market":{"id":"r_core_three_trails_market","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_hidden_grove":{"id":"r_tri_hidden_grove","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":"f_tricoloured_001"},"r_tri_tricky_woods":{"id":"r_tri_tricky_woods","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_whisper_thicket":{"id":"r_tri_whisper_thicket","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"tricoloured","influence":7,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0002","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0002","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":20,"amount_influence":0,"expires_tick":3}]},"my_forces":[{"id":"f_tricoloured_001","owner":"tricoloured","tier":2,"location_kind":"garrison","location_region_id":"r_tri_hidden_grove","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0002","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}}],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"red":{"tick":1,"for_tribe":"red","visible_regions":{"r_border_saltfen_crossing":{"id":"r_border_saltfen_crossing","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_three_trails_market":{"id":"r_core_three_trails_market","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_red_mirage_camp":{"id":"r_red_mirage_camp","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":null},"r_red_rare_veins":{"id":"r_red_rare_veins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_red_vast_dunes":{"id":"r_red_vast_dunes","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"red","influence":12,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0003","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0003","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":20,"amount_influence":0,"expires_tick":3}]},"my_forces":[{"id":"f_red_002","owner":"red","tier":2,"location_kind":"transit","location_region_id":null,"location_transit":{"trail_index":7,"direction_from":"r_red_mirage_camp","direction_to":"r_red_rare_veins","ticks_remaining":1}}],"my_scouts":[],"my_caravans":[],"inbox_new":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0003","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}}],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"brown":{"tick":1,"for_tribe":"brown","visible_regions":{"r_border_hillmire_gate":{"id":"r_border_hillmire_gate","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_mire_channels":{"id":"r_br_mire_channels","type":"swamps","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_reeky_canopy":{"id":"r_br_reeky_canopy","type":"swamps","owner":"brown","structures":[],"road_targets":{},"garrison_force_id":null},"r_br_root_cities":{"id":"r_br_root_cities","type":"swamps","owner":"brown","structures":["road"],"road_targets":{"0":"r_br_mire_channels"},"garrison_force_id":"f_brown_003"},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"brown","influence":7,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0004","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0004","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":20,"amount_influence":0,"expires_tick":3}]},"my_forces":[{"id":"f_brown_003","owner":"brown","tier":2,"location_kind":"garrison","location_region_id":"r_br_root_cities","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0004","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}}],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"orange":{"tick":1,"for_tribe":"orange","visible_regions":{"r_border_howling_pass":{"id":"r_border_howling_pass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_or_rocky_hills":{"id":"r_or_rocky_hills","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_or_vulpgard":{"id":"r_or_vulpgard","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":null},"r_or_windy_plains":{"id":"r_or_windy_plains","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":"f_orange_007"}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"orange","influence":6,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0005","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"proposal","from_tribe":"red","text":null,"proposal":{"id":"p_0006","kind":"nap","from_tribe":"red","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"red","text":"Greetings neighbor! Let's secure our border and prosper together.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0005","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":20,"amount_influence":0,"expires_tick":3},{"id":"p_0006","kind":"nap","from_tribe":"red","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":3}]},"my_forces":[{"id":"f_orange_004","owner":"orange","tier":2,"location_kind":"transit","location_region_id":null,"location_transit":{"trail_index":13,"direction_from":"r_or_vulpgard","direction_to":"r_or_rocky_hills","ticks_remaining":1}},{"id":"f_orange_007","owner":"orange","tier":2,"location_kind":"garrison","location_region_id":"r_or_windy_plains","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0005","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"proposal","from_tribe":"red","text":null,"proposal":{"id":"p_0006","kind":"nap","from_tribe":"red","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"red","text":"Greetings neighbor! Let's secure our border and prosper together.","proposal":null,"reputation_penalty":false,"payload":{}}],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"grey":{"tick":1,"for_tribe":"grey","visible_regions":{"r_border_frostpass":{"id":"r_border_frostpass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_foxfire_ruins":{"id":"r_core_foxfire_ruins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_lower_high_mountains":{"id":"r_gr_lower_high_mountains","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_middle_high_mountains":{"id":"r_gr_middle_high_mountains","type":"mountains","owner":"grey","structures":["fort"],"road_targets":{},"garrison_force_id":"f_grey_005"},"r_gr_upper_high_mountains":{"id":"r_gr_upper_high_mountains","type":"mountains","owner":"grey","structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"grey","influence":6,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"my_forces":[{"id":"f_grey_005","owner":"grey","tier":2,"location_kind":"garrison","location_region_id":"r_gr_middle_high_mountains","location_transit":null}],"my_scouts":[{"id":"s_grey_000","owner":"grey","target_region_id":"r_gr_lower_high_mountains","location_kind":"transit","location_region_id":null,"expires_tick":null,"transit":{"trail_index":16,"direction_from":"r_gr_middle_high_mountains","direction_to":"r_gr_lower_high_mountains","ticks_remaining":2}}],"my_caravans":[],"inbox_new":[],"announcements_new":[],"pacts_involving_me":[],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]}},"state":{"tick":1,"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"],"winner":null,"regions":{"r_arc_frosthold":{"id":"r_arc_frosthold","type":"mountains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":null},"r_arc_ice_shelf":{"id":"r_arc_ice_shelf","type":"plains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":"f_arctic_006"},"r_arc_white_wastes":{"id":"r_arc_white_wastes","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_frostpass":{"id":"r_border_frostpass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_glasswood_verge":{"id":"r_border_glasswood_verge","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_hillmire_gate":{"id":"r_border_hillmire_gate","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_howling_pass":{"id":"r_border_howling_pass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_saltfen_crossing":{"id":"r_border_saltfen_crossing","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_snowpine_reach":{"id":"r_border_snowpine_reach","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_mire_channels":{"id":"r_br_mire_channels","type":"swamps","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_reeky_canopy":{"id":"r_br_reeky_canopy","type":"swamps","owner":"brown","structures":[],"road_targets":{},"garrison_force_id":null},"r_br_root_cities":{"id":"r_br_root_cities","type":"swamps","owner":"brown","structures":["road"],"road_targets":{"0":"r_br_mire_channels"},"garrison_force_id":"f_brown_003"},"r_core_foxfire_ruins":{"id":"r_core_foxfire_ruins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_three_trails_market":{"id":"r_core_three_trails_market","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_lower_high_mountains":{"id":"r_gr_lower_high_mountains","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_middle_high_mountains":{"id":"r_gr_middle_high_mountains","type":"mountains","owner":"grey","structures":["fort"],"road_targets":{},"garrison_force_id":"f_grey_005"},"r_gr_upper_high_mountains":{"id":"r_gr_upper_high_mountains","type":"mountains","owner":"grey","structures":[],"road_targets":{},"garrison_force_id":null},"r_or_rocky_hills":{"id":"r_or_rocky_hills","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_or_vulpgard":{"id":"r_or_vulpgard","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":null},"r_or_windy_plains":{"id":"r_or_windy_plains","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":"f_orange_007"},"r_red_mirage_camp":{"id":"r_red_mirage_camp","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":null},"r_red_rare_veins":{"id":"r_red_rare_veins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_red_vast_dunes":{"id":"r_red_vast_dunes","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_hidden_grove":{"id":"r_tri_hidden_grove","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":"f_tricoloured_001"},"r_tri_tricky_woods":{"id":"r_tri_tricky_woods","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_whisper_thicket":{"id":"r_tri_whisper_thicket","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"trails":[{"index":0,"a":"r_arc_frosthold","b":"r_arc_ice_shelf","base_length_ticks":2},{"index":1,"a":"r_arc_frosthold","b":"r_arc_white_wastes","base_length_ticks":3},{"index":2,"a":"r_arc_ice_shelf","b":"r_arc_white_wastes","base_length_ticks":2},{"index":3,"a":"r_tri_hidden_grove","b":"r_tri_tricky_woods","base_length_ticks":2},{"index":4,"a":"r_tri_hidden_grove","b":"r_tri_whisper_thicket","base_length_ticks":2},{"index":5,"a":"r_tri_tricky_woods","b":"r_tri_whisper_thicket","base_length_ticks":2},{"index":6,"a":"r_red_mirage_camp","b":"r_red_vast_dunes","base_length_ticks":2},{"index":7,"a":"r_red_mirage_camp","b":"r_red_rare_veins","base_length_ticks":2},{"index":8,"a":"r_red_vast_dunes","b":"r_red_rare_veins","base_length_ticks":2},{"index":9,"a":"r_br_root_cities","b":"r_br_reeky_canopy","base_length_ticks":3},{"index":10,"a":"r_br_root_cities","b":"r_br_mire_channels","base_length_ticks":3},{"index":11,"a":"r_br_reeky_canopy","b":"r_br_mire_channels","base_length_ticks":3},{"index":12,"a":"r_or_vulpgard","b":"r_or_windy_plains","base_length_ticks":1},{"index":13,"a":"r_or_vulpgard","b":"r_or_rocky_hills","base_length_ticks":2},{"index":14,"a":"r_or_windy_plains","b":"r_or_rocky_hills","base_length_ticks":2},{"index":15,"a":"r_gr_middle_high_mountains","b":"r_gr_upper_high_mountains","base_length_ticks":3},{"index":16,"a":"r_gr_middle_high_mountains","b":"r_gr_lower_high_mountains","base_length_ticks":3},{"index":17,"a":"r_gr_upper_high_mountains","b":"r_gr_lower_high_mountains","base_length_ticks":3},{"index":18,"a":"r_arc_ice_shelf","b":"r_border_snowpine_reach","base_length_ticks":2},{"index":19,"a":"r_tri_whisper_thicket","b":"r_border_snowpine_reach","base_length_ticks":2},{"index":20,"a":"r_tri_tricky_woods","b":"r_border_glasswood_verge","base_length_ticks":2},{"index":21,"a":"r_red_rare_veins","b":"r_border_glasswood_verge","base_length_ticks":2},{"index":22,"a":"r_red_vast_dunes","b":"r_border_saltfen_crossing","base_length_ticks":2},{"index":23,"a":"r_br_mire_channels","b":"r_border_saltfen_crossing","base_length_ticks":2},{"index":24,"a":"r_br_reeky_canopy","b":"r_border_hillmire_gate","base_length_ticks":2},{"index":25,"a":"r_or_rocky_hills","b":"r_border_hillmire_gate","base_length_ticks":2},{"index":26,"a":"r_or_windy_plains","b":"r_border_howling_pass","base_length_ticks":2},{"index":27,"a":"r_gr_lower_high_mountains","b":"r_border_howling_pass","base_length_ticks":3},{"index":28,"a":"r_gr_upper_high_mountains","b":"r_border_frostpass","base_length_ticks":3},{"index":29,"a":"r_arc_white_wastes","b":"r_border_frostpass","base_length_ticks":3},{"index":30,"a":"r_arc_white_wastes","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":31,"a":"r_red_rare_veins","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":32,"a":"r_br_mire_channels","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":33,"a":"r_gr_upper_high_mountains","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":34,"a":"r_tri_tricky_woods","b":"r_core_three_trails_market","base_length_ticks":2},{"index":35,"a":"r_red_vast_dunes","b":"r_core_three_trails_market","base_length_ticks":2},{"index":36,"a":"r_or_rocky_hills","b":"r_core_three_trails_market","base_length_ticks":2},{"index":37,"a":"r_gr_lower_high_mountains","b":"r_core_three_trails_market","base_length_ticks":2},{"index":38,"a":"r_arc_ice_shelf","b":"r_core_moon_ford","base_length_ticks":1},{"index":39,"a":"r_tri_whisper_thicket","b":"r_core_moon_ford","base_length_ticks":2},{"index":40,"a":"r_br_reeky_canopy","b":"r_core_moon_ford","base_length_ticks":2},{"index":41,"a":"r_or_windy_plains","b":"r_core_moon_ford","base_length_ticks":1}],"forces":{"f_arctic_000":{"id":"f_arctic_000","owner":"arctic","tier":2,"location_kind":"transit","location_region_id":null,"location_transit":{"trail_index":1,"direction_from":"r_arc_frosthold","direction_to":"r_arc_white_wastes","ticks_remaining":2}},"f_arctic_006":{"id":"f_arctic_006","owner":"arctic","tier":1,"location_kind":"garrison","location_region_id":"r_arc_ice_shelf","location_transit":null},"f_brown_003":{"id":"f_brown_003","owner":"brown","tier":2,"location_kind":"garrison","location_region_id":"r_br_root_cities","location_transit":null},"f_grey_005":{"id":"f_grey_005","owner":"grey","tier":2,"location_kind":"garrison","location_region_id":"r_gr_middle_high_mountains","location_transit":null},"f_orange_004":{"id":"f_orange_004","owner":"orange","tier":2,"location_kind":"transit","location_region_id":null,"location_transit":{"trail_index":13,"direction_from":"r_or_vulpgard","direction_to":"r_or_rocky_hills","ticks_remaining":1}},"f_orange_007":{"id":"f_orange_007","owner":"orange","tier":2,"location_kind":"garrison","location_region_id":"r_or_windy_plains","location_transit":null},"f_red_002":{"id":"f_red_002","owner":"red","tier":2,"location_kind":"transit","location_region_id":null,"location_transit":{"trail_index":7,"direction_from":"r_red_mirage_camp","direction_to":"r_red_rare_veins","ticks_remaining":1}},"f_tricoloured_001":{"id":"f_tricoloured_001","owner":"tricoloured","tier":2,"location_kind":"garrison","location_region_id":"r_tri_hidden_grove","location_transit":null}},"scouts":{"s_grey_000":{"id":"s_grey_000","owner":"grey","target_region_id":"r_gr_lower_high_mountains","location_kind":"transit","location_region_id":null,"expires_tick":null,"transit":{"trail_index":16,"direction_from":"r_gr_middle_high_mountains","direction_to":"r_gr_lower_high_mountains","ticks_remaining":2}}},"caravans":{},"players":{"arctic":{"tribe":"arctic","influence":7,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"brown","text":null,"proposal":{"id":"p_0000","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"brown","text":"Greetings. A small token to foster prosperity between our peoples.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0001","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"tricoloured","text":"The forest breathes. Do you hear its whispers, or only the howling wind?","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0000","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":3},{"id":"p_0001","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":20,"amount_influence":0,"expires_tick":3}]},"brown":{"tribe":"brown","influence":7,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0004","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0004","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":20,"amount_influence":0,"expires_tick":3}]},"grey":{"tribe":"grey","influence":6,"reputation_penalty_expires_tick":0,"inbox":[],"outstanding_proposals":[]},"orange":{"tribe":"orange","influence":6,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0005","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"proposal","from_tribe":"red","text":null,"proposal":{"id":"p_0006","kind":"nap","from_tribe":"red","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"red","text":"Greetings neighbor! Let's secure our border and prosper together.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0005","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":20,"amount_influence":0,"expires_tick":3},{"id":"p_0006","kind":"nap","from_tribe":"red","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":3}]},"red":{"tribe":"red","influence":12,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0003","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0003","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":20,"amount_influence":0,"expires_tick":3}]},"tricoloured":{"tribe":"tricoloured","influence":7,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0002","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0002","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":20,"amount_influence":0,"expires_tick":3}]}},"pacts":[]}},{"tick":2,"label":"Tick 2","state_hash":"sha256:14351270f114f7fe1d0dc42d08ad2bc4f83d771240809181edf3b24067173415","orders_by_tribe":{"arctic":{"tribe":"arctic","tick":1,"orders":[{"kind":"respond","payload":{"proposal_id":"p_0000","response":"decline"}},{"kind":"respond","payload":{"proposal_id":"p_0001","response":"accept"}},{"kind":"scout","payload":{"from_region_id":"r_arc_frosthold","target_region_id":"r_border_snowpine_reach"}}]},"tricoloured":{"tribe":"tricoloured","tick":1,"orders":[{"kind":"respond","payload":{"proposal_id":"p_0002","response":"accept"}},{"kind":"recruit","payload":{"region_id":"r_tri_hidden_grove","tier":1}},{"kind":"move","payload":{"force_id":"f_tricoloured_001","destination_region_id":"r_tri_whisper_thicket"}},{"kind":"scout","payload":{"from_region_id":"r_tri_hidden_grove","target_region_id":"r_border_glasswood_verge"}},{"kind":"message","payload":{"to":"grey","text":"Agreed. Silence serves us both."}}]},"red":{"tribe":"red","tick":1,"orders":[{"kind":"respond","payload":{"proposal_id":"p_0003","response":"accept"}},{"kind":"message","payload":{"to":"grey","text":"A wise choice for stability. Let us both prosper in these early days."}},{"kind":"recruit","payload":{"region_id":"r_red_mirage_camp","tier":1}}]},"brown":{"tribe":"brown","tick":1,"orders":[{"kind":"respond","payload":{"proposal_id":"p_0004","response":"accept"}},{"kind":"propose","payload":{"proposal":{"kind":"trade_offer","to":"arctic","amount_influence":5}}},{"kind":"build","payload":{"region_id":"r_br_root_cities","structure":"granary"}},{"kind":"scout","payload":{"from_region_id":"r_br_root_cities","target_region_id":"r_border_hillmire_gate"}}]},"orange":{"tribe":"orange","tick":1,"orders":[{"kind":"respond","payload":{"proposal_id":"p_0005","response":"accept"}},{"kind":"respond","payload":{"proposal_id":"p_0006","response":"decline"}},{"kind":"message","payload":{"to":"red","text":"I do not trade words with weaklings. Prepare."}},{"kind":"recruit","payload":{"region_id":"r_or_vulpgard","tier":2}}]},"grey":{"tribe":"grey","tick":1,"orders":[{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"arctic","length_ticks":10}}},{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"tricoloured","length_ticks":10}}},{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"red","length_ticks":10}}},{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"brown","length_ticks":10}}},{"kind":"propose","payload":{"proposal":{"kind":"nap","to":"orange","length_ticks":10}}},{"kind":"message","payload":{"to":"arctic","text":"I have noticed that... we must secure peace immediately."}},{"kind":"message","payload":{"to":"tricoloured","text":"I have noticed that... we must secure peace immediately."}},{"kind":"message","payload":{"to":"red","text":"I have noticed that... we must secure peace immediately."}},{"kind":"message","payload":{"to":"brown","text":"I have noticed that... we must secure peace immediately."}},{"kind":"message","payload":{"to":"orange","text":"I have noticed that... we must secure peace immediately."}}]}},"resolution_events":[{"kind":"proposal_declined","id":"p_0000"},{"kind":"pact_formed","parties":["arctic","grey"],"pact":"nap"},{"kind":"pact_formed","parties":["brown","grey"],"pact":"nap"},{"kind":"proposal_sent","from":"brown","to":"arctic","proposal_kind":"trade_offer","id":"p_0007"},{"kind":"build_failed","tribe":"brown","reason":"no_influence"},{"kind":"proposal_sent","from":"grey","to":"arctic","proposal_kind":"nap","id":"p_0008"},{"kind":"proposal_sent","from":"grey","to":"tricoloured","proposal_kind":"nap","id":"p_0009"},{"kind":"proposal_sent","from":"grey","to":"red","proposal_kind":"nap","id":"p_0010"},{"kind":"proposal_sent","from":"grey","to":"brown","proposal_kind":"nap","id":"p_0011"},{"kind":"proposal_sent","from":"grey","to":"orange","proposal_kind":"nap","id":"p_0012"},{"kind":"message_sent","from":"grey","to":"arctic"},{"kind":"message_sent","from":"grey","to":"tricoloured"},{"kind":"message_sent","from":"grey","to":"red"},{"kind":"message_sent","from":"grey","to":"brown"},{"kind":"message_sent","from":"grey","to":"orange"},{"kind":"pact_formed","parties":["grey","orange"],"pact":"nap"},{"kind":"proposal_declined","id":"p_0006"},{"kind":"message_sent","from":"orange","to":"red"},{"kind":"recruited","tribe":"orange","region_id":"r_or_vulpgard","tier":2,"force_id":"f_orange_008"},{"kind":"pact_formed","parties":["grey","red"],"pact":"nap"},{"kind":"message_sent","from":"red","to":"grey"},{"kind":"recruited","tribe":"red","region_id":"r_red_mirage_camp","tier":1,"force_id":"f_red_009"},{"kind":"pact_formed","parties":["grey","tricoloured"],"pact":"nap"},{"kind":"recruit_failed","reason":"garrison_present"},{"kind":"message_sent","from":"tricoloured","to":"grey"},{"kind":"scout_failed","reason":"no_trail"},{"kind":"scout_failed","reason":"no_trail"},{"kind":"dispatch_move","tribe":"tricoloured","force_id":"f_tricoloured_001","from":"r_tri_hidden_grove","to":"r_tri_whisper_thicket","ticks":2},{"kind":"scout_failed","reason":"no_trail"},{"kind":"force_arrived","force_id":"f_orange_004","region_id":"r_or_rocky_hills"},{"kind":"region_claimed","tribe":"orange","region_id":"r_or_rocky_hills","previous_owner":null},{"kind":"force_arrived","force_id":"f_red_002","region_id":"r_red_rare_veins"},{"kind":"region_claimed","tribe":"red","region_id":"r_red_rare_veins","previous_owner":null},{"kind":"influence_credited","tribe":"arctic","amount":4},{"kind":"influence_credited","tribe":"tricoloured","amount":2},{"kind":"influence_credited","tribe":"red","amount":5},{"kind":"influence_credited","tribe":"brown","amount":2},{"kind":"influence_credited","tribe":"orange","amount":8},{"kind":"influence_credited","tribe":"grey","amount":4}],"tick_summary":{"messages":[{"from":"tricoloured","to":"grey","text":"Agreed. Silence serves us both."},{"from":"red","to":"grey","text":"A wise choice for stability. Let us both prosper in these early days."},{"from":"orange","to":"red","text":"I do not trade words with weaklings. Prepare."},{"from":"grey","to":"arctic","text":"I have noticed that... we must secure peace immediately."},{"from":"grey","to":"tricoloured","text":"I have noticed that... we must secure peace immediately."},{"from":"grey","to":"red","text":"I have noticed that... we must secure peace immediately."},{"from":"grey","to":"brown","text":"I have noticed that... we must secure peace immediately."},{"from":"grey","to":"orange","text":"I have noticed that... we must secure peace immediately."}],"diplomacy":[{"kind":"respond_order","from":"arctic","proposal_id":"p_0000","response":"decline"},{"kind":"respond_order","from":"arctic","proposal_id":"p_0001","response":"accept"},{"kind":"respond_order","from":"tricoloured","proposal_id":"p_0002","response":"accept"},{"kind":"respond_order","from":"red","proposal_id":"p_0003","response":"accept"},{"kind":"respond_order","from":"brown","proposal_id":"p_0004","response":"accept"},{"kind":"proposal_order","from":"brown","to":"arctic","proposal_kind":"trade_offer","length_ticks":null,"amount_influence":5},{"kind":"respond_order","from":"orange","proposal_id":"p_0005","response":"accept"},{"kind":"respond_order","from":"orange","proposal_id":"p_0006","response":"decline"},{"kind":"proposal_order","from":"grey","to":"arctic","proposal_kind":"nap","length_ticks":10,"amount_influence":null},{"kind":"proposal_order","from":"grey","to":"tricoloured","proposal_kind":"nap","length_ticks":10,"amount_influence":null},{"kind":"proposal_order","from":"grey","to":"red","proposal_kind":"nap","length_ticks":10,"amount_influence":null},{"kind":"proposal_order","from":"grey","to":"brown","proposal_kind":"nap","length_ticks":10,"amount_influence":null},{"kind":"proposal_order","from":"grey","to":"orange","proposal_kind":"nap","length_ticks":10,"amount_influence":null},{"kind":"proposal_declined","id":"p_0000"},{"kind":"pact_formed","parties":["arctic","grey"],"pact":"nap"},{"kind":"pact_formed","parties":["brown","grey"],"pact":"nap"},{"kind":"proposal_sent","from":"brown","to":"arctic","proposal_kind":"trade_offer","id":"p_0007"},{"kind":"proposal_sent","from":"grey","to":"arctic","proposal_kind":"nap","id":"p_0008"},{"kind":"proposal_sent","from":"grey","to":"tricoloured","proposal_kind":"nap","id":"p_0009"},{"kind":"proposal_sent","from":"grey","to":"red","proposal_kind":"nap","id":"p_0010"},{"kind":"proposal_sent","from":"grey","to":"brown","proposal_kind":"nap","id":"p_0011"},{"kind":"proposal_sent","from":"grey","to":"orange","proposal_kind":"nap","id":"p_0012"},{"kind":"pact_formed","parties":["grey","orange"],"pact":"nap"},{"kind":"proposal_declined","id":"p_0006"},{"kind":"pact_formed","parties":["grey","red"],"pact":"nap"},{"kind":"pact_formed","parties":["grey","tricoloured"],"pact":"nap"}]},"projected_views":{"arctic":{"tick":2,"for_tribe":"arctic","visible_regions":{"r_arc_frosthold":{"id":"r_arc_frosthold","type":"mountains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":null},"r_arc_ice_shelf":{"id":"r_arc_ice_shelf","type":"plains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":"f_arctic_006"},"r_arc_white_wastes":{"id":"r_arc_white_wastes","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_snowpine_reach":{"id":"r_border_snowpine_reach","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"arctic","influence":11,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"brown","text":null,"proposal":{"id":"p_0000","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"brown","text":"Greetings. A small token to foster prosperity between our peoples.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0001","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"tricoloured","text":"The forest breathes. Do you hear its whispers, or only the howling wind?","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"brown","text":null,"proposal":{"id":"p_0007","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0008","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0007","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":4},{"id":"p_0008","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":10,"amount_influence":0,"expires_tick":4}]},"my_forces":[{"id":"f_arctic_000","owner":"arctic","tier":2,"location_kind":"transit","location_region_id":null,"location_transit":{"trail_index":1,"direction_from":"r_arc_frosthold","direction_to":"r_arc_white_wastes","ticks_remaining":1}},{"id":"f_arctic_006","owner":"arctic","tier":1,"location_kind":"garrison","location_region_id":"r_arc_ice_shelf","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[{"tick":2,"kind":"proposal","from_tribe":"brown","text":null,"proposal":{"id":"p_0007","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0008","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"announcements_new":[{"tick":2,"kind":"pact_formed","parties":["arctic","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["brown","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","orange"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","red"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","tricoloured"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null}],"pacts_involving_me":[{"kind":"nap","parties":["arctic","grey"],"formed_tick":1,"expires_tick":21}],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"tricoloured":{"tick":2,"for_tribe":"tricoloured","visible_regions":{"r_border_glasswood_verge":{"id":"r_border_glasswood_verge","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_three_trails_market":{"id":"r_core_three_trails_market","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_hidden_grove":{"id":"r_tri_hidden_grove","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_tricky_woods":{"id":"r_tri_tricky_woods","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_whisper_thicket":{"id":"r_tri_whisper_thicket","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"tricoloured","influence":9,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0002","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0009","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0009","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":10,"amount_influence":0,"expires_tick":4}]},"my_forces":[{"id":"f_tricoloured_001","owner":"tricoloured","tier":2,"location_kind":"transit","location_region_id":null,"location_transit":{"trail_index":4,"direction_from":"r_tri_hidden_grove","direction_to":"r_tri_whisper_thicket","ticks_remaining":1}}],"my_scouts":[],"my_caravans":[],"inbox_new":[{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0009","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"announcements_new":[{"tick":2,"kind":"pact_formed","parties":["arctic","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["brown","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","orange"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","red"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","tricoloured"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null}],"pacts_involving_me":[{"kind":"nap","parties":["grey","tricoloured"],"formed_tick":1,"expires_tick":21}],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"red":{"tick":2,"for_tribe":"red","visible_regions":{"r_border_glasswood_verge":{"id":"r_border_glasswood_verge","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_saltfen_crossing":{"id":"r_border_saltfen_crossing","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_foxfire_ruins":{"id":"r_core_foxfire_ruins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_three_trails_market":{"id":"r_core_three_trails_market","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_red_mirage_camp":{"id":"r_red_mirage_camp","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":"f_red_009"},"r_red_rare_veins":{"id":"r_red_rare_veins","type":"ruins","owner":"red","structures":[],"road_targets":{},"garrison_force_id":"f_red_002"},"r_red_vast_dunes":{"id":"r_red_vast_dunes","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"red","influence":15,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0003","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0010","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"orange","text":"I do not trade words with weaklings. Prepare.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0010","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":10,"amount_influence":0,"expires_tick":4}]},"my_forces":[{"id":"f_red_002","owner":"red","tier":2,"location_kind":"garrison","location_region_id":"r_red_rare_veins","location_transit":null},{"id":"f_red_009","owner":"red","tier":1,"location_kind":"garrison","location_region_id":"r_red_mirage_camp","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0010","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"orange","text":"I do not trade words with weaklings. Prepare.","proposal":null,"reputation_penalty":false,"payload":{}}],"announcements_new":[{"tick":2,"kind":"pact_formed","parties":["arctic","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["brown","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","orange"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","red"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","tricoloured"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null}],"pacts_involving_me":[{"kind":"nap","parties":["grey","red"],"formed_tick":1,"expires_tick":21}],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"brown":{"tick":2,"for_tribe":"brown","visible_regions":{"r_border_hillmire_gate":{"id":"r_border_hillmire_gate","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_mire_channels":{"id":"r_br_mire_channels","type":"swamps","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_reeky_canopy":{"id":"r_br_reeky_canopy","type":"swamps","owner":"brown","structures":[],"road_targets":{},"garrison_force_id":null},"r_br_root_cities":{"id":"r_br_root_cities","type":"swamps","owner":"brown","structures":["road"],"road_targets":{"0":"r_br_mire_channels"},"garrison_force_id":"f_brown_003"},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"brown","influence":9,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0004","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0011","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0011","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":10,"amount_influence":0,"expires_tick":4}]},"my_forces":[{"id":"f_brown_003","owner":"brown","tier":2,"location_kind":"garrison","location_region_id":"r_br_root_cities","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0011","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"announcements_new":[{"tick":2,"kind":"pact_formed","parties":["arctic","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["brown","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","orange"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","red"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","tricoloured"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null}],"pacts_involving_me":[{"kind":"nap","parties":["brown","grey"],"formed_tick":1,"expires_tick":21}],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"orange":{"tick":2,"for_tribe":"orange","visible_regions":{"r_border_hillmire_gate":{"id":"r_border_hillmire_gate","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_howling_pass":{"id":"r_border_howling_pass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_three_trails_market":{"id":"r_core_three_trails_market","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_or_rocky_hills":{"id":"r_or_rocky_hills","type":"mountains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":"f_orange_004"},"r_or_vulpgard":{"id":"r_or_vulpgard","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":"f_orange_008"},"r_or_windy_plains":{"id":"r_or_windy_plains","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":"f_orange_007"}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"orange","influence":9,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0005","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"proposal","from_tribe":"red","text":null,"proposal":{"id":"p_0006","kind":"nap","from_tribe":"red","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"red","text":"Greetings neighbor! Let's secure our border and prosper together.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0012","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0012","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":4}]},"my_forces":[{"id":"f_orange_004","owner":"orange","tier":2,"location_kind":"garrison","location_region_id":"r_or_rocky_hills","location_transit":null},{"id":"f_orange_007","owner":"orange","tier":2,"location_kind":"garrison","location_region_id":"r_or_windy_plains","location_transit":null},{"id":"f_orange_008","owner":"orange","tier":2,"location_kind":"garrison","location_region_id":"r_or_vulpgard","location_transit":null}],"my_scouts":[],"my_caravans":[],"inbox_new":[{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0012","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"announcements_new":[{"tick":2,"kind":"pact_formed","parties":["arctic","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["brown","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","orange"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","red"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","tricoloured"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null}],"pacts_involving_me":[{"kind":"nap","parties":["grey","orange"],"formed_tick":1,"expires_tick":21}],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]},"grey":{"tick":2,"for_tribe":"grey","visible_regions":{"r_border_frostpass":{"id":"r_border_frostpass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_foxfire_ruins":{"id":"r_core_foxfire_ruins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_lower_high_mountains":{"id":"r_gr_lower_high_mountains","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_middle_high_mountains":{"id":"r_gr_middle_high_mountains","type":"mountains","owner":"grey","structures":["fort"],"road_targets":{},"garrison_force_id":"f_grey_005"},"r_gr_upper_high_mountains":{"id":"r_gr_upper_high_mountains","type":"mountains","owner":"grey","structures":[],"road_targets":{},"garrison_force_id":null}},"visible_forces":[],"visible_transits":[],"visible_scouts":[],"my_player_state":{"tribe":"grey","influence":10,"reputation_penalty_expires_tick":0,"inbox":[{"tick":2,"kind":"message","from_tribe":"red","text":"A wise choice for stability. Let us both prosper in these early days.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"tricoloured","text":"Agreed. Silence serves us both.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[]},"my_forces":[{"id":"f_grey_005","owner":"grey","tier":2,"location_kind":"garrison","location_region_id":"r_gr_middle_high_mountains","location_transit":null}],"my_scouts":[{"id":"s_grey_000","owner":"grey","target_region_id":"r_gr_lower_high_mountains","location_kind":"transit","location_region_id":null,"expires_tick":null,"transit":{"trail_index":16,"direction_from":"r_gr_middle_high_mountains","direction_to":"r_gr_lower_high_mountains","ticks_remaining":1}}],"my_caravans":[],"inbox_new":[{"tick":2,"kind":"message","from_tribe":"red","text":"A wise choice for stability. Let us both prosper in these early days.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"tricoloured","text":"Agreed. Silence serves us both.","proposal":null,"reputation_penalty":false,"payload":{}}],"announcements_new":[{"tick":2,"kind":"pact_formed","parties":["arctic","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["brown","grey"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","orange"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","red"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null},{"tick":2,"kind":"pact_formed","parties":["grey","tricoloured"],"detail":"nap","breaker":null,"interceptor":null,"amount":null,"condition":null}],"pacts_involving_me":[{"kind":"nap","parties":["arctic","grey"],"formed_tick":1,"expires_tick":21},{"kind":"nap","parties":["brown","grey"],"formed_tick":1,"expires_tick":21},{"kind":"nap","parties":["grey","orange"],"formed_tick":1,"expires_tick":21},{"kind":"nap","parties":["grey","red"],"formed_tick":1,"expires_tick":21},{"kind":"nap","parties":["grey","tricoloured"],"formed_tick":1,"expires_tick":21}],"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"]}},"state":{"tick":2,"tribes_alive":["arctic","tricoloured","red","brown","orange","grey"],"winner":null,"regions":{"r_arc_frosthold":{"id":"r_arc_frosthold","type":"mountains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":null},"r_arc_ice_shelf":{"id":"r_arc_ice_shelf","type":"plains","owner":"arctic","structures":[],"road_targets":{},"garrison_force_id":"f_arctic_006"},"r_arc_white_wastes":{"id":"r_arc_white_wastes","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_frostpass":{"id":"r_border_frostpass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_glasswood_verge":{"id":"r_border_glasswood_verge","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_hillmire_gate":{"id":"r_border_hillmire_gate","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_howling_pass":{"id":"r_border_howling_pass","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_saltfen_crossing":{"id":"r_border_saltfen_crossing","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_border_snowpine_reach":{"id":"r_border_snowpine_reach","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_mire_channels":{"id":"r_br_mire_channels","type":"swamps","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_br_reeky_canopy":{"id":"r_br_reeky_canopy","type":"swamps","owner":"brown","structures":[],"road_targets":{},"garrison_force_id":null},"r_br_root_cities":{"id":"r_br_root_cities","type":"swamps","owner":"brown","structures":["road"],"road_targets":{"0":"r_br_mire_channels"},"garrison_force_id":"f_brown_003"},"r_core_foxfire_ruins":{"id":"r_core_foxfire_ruins","type":"ruins","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_moon_ford":{"id":"r_core_moon_ford","type":"river_crossing","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_core_three_trails_market":{"id":"r_core_three_trails_market","type":"plains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_lower_high_mountains":{"id":"r_gr_lower_high_mountains","type":"mountains","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null},"r_gr_middle_high_mountains":{"id":"r_gr_middle_high_mountains","type":"mountains","owner":"grey","structures":["fort"],"road_targets":{},"garrison_force_id":"f_grey_005"},"r_gr_upper_high_mountains":{"id":"r_gr_upper_high_mountains","type":"mountains","owner":"grey","structures":[],"road_targets":{},"garrison_force_id":null},"r_or_rocky_hills":{"id":"r_or_rocky_hills","type":"mountains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":"f_orange_004"},"r_or_vulpgard":{"id":"r_or_vulpgard","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":"f_orange_008"},"r_or_windy_plains":{"id":"r_or_windy_plains","type":"plains","owner":"orange","structures":[],"road_targets":{},"garrison_force_id":"f_orange_007"},"r_red_mirage_camp":{"id":"r_red_mirage_camp","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":"f_red_009"},"r_red_rare_veins":{"id":"r_red_rare_veins","type":"ruins","owner":"red","structures":[],"road_targets":{},"garrison_force_id":"f_red_002"},"r_red_vast_dunes":{"id":"r_red_vast_dunes","type":"desert","owner":"red","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_hidden_grove":{"id":"r_tri_hidden_grove","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_tricky_woods":{"id":"r_tri_tricky_woods","type":"forest","owner":"tricoloured","structures":[],"road_targets":{},"garrison_force_id":null},"r_tri_whisper_thicket":{"id":"r_tri_whisper_thicket","type":"forest","owner":null,"structures":[],"road_targets":{},"garrison_force_id":null}},"trails":[{"index":0,"a":"r_arc_frosthold","b":"r_arc_ice_shelf","base_length_ticks":2},{"index":1,"a":"r_arc_frosthold","b":"r_arc_white_wastes","base_length_ticks":3},{"index":2,"a":"r_arc_ice_shelf","b":"r_arc_white_wastes","base_length_ticks":2},{"index":3,"a":"r_tri_hidden_grove","b":"r_tri_tricky_woods","base_length_ticks":2},{"index":4,"a":"r_tri_hidden_grove","b":"r_tri_whisper_thicket","base_length_ticks":2},{"index":5,"a":"r_tri_tricky_woods","b":"r_tri_whisper_thicket","base_length_ticks":2},{"index":6,"a":"r_red_mirage_camp","b":"r_red_vast_dunes","base_length_ticks":2},{"index":7,"a":"r_red_mirage_camp","b":"r_red_rare_veins","base_length_ticks":2},{"index":8,"a":"r_red_vast_dunes","b":"r_red_rare_veins","base_length_ticks":2},{"index":9,"a":"r_br_root_cities","b":"r_br_reeky_canopy","base_length_ticks":3},{"index":10,"a":"r_br_root_cities","b":"r_br_mire_channels","base_length_ticks":3},{"index":11,"a":"r_br_reeky_canopy","b":"r_br_mire_channels","base_length_ticks":3},{"index":12,"a":"r_or_vulpgard","b":"r_or_windy_plains","base_length_ticks":1},{"index":13,"a":"r_or_vulpgard","b":"r_or_rocky_hills","base_length_ticks":2},{"index":14,"a":"r_or_windy_plains","b":"r_or_rocky_hills","base_length_ticks":2},{"index":15,"a":"r_gr_middle_high_mountains","b":"r_gr_upper_high_mountains","base_length_ticks":3},{"index":16,"a":"r_gr_middle_high_mountains","b":"r_gr_lower_high_mountains","base_length_ticks":3},{"index":17,"a":"r_gr_upper_high_mountains","b":"r_gr_lower_high_mountains","base_length_ticks":3},{"index":18,"a":"r_arc_ice_shelf","b":"r_border_snowpine_reach","base_length_ticks":2},{"index":19,"a":"r_tri_whisper_thicket","b":"r_border_snowpine_reach","base_length_ticks":2},{"index":20,"a":"r_tri_tricky_woods","b":"r_border_glasswood_verge","base_length_ticks":2},{"index":21,"a":"r_red_rare_veins","b":"r_border_glasswood_verge","base_length_ticks":2},{"index":22,"a":"r_red_vast_dunes","b":"r_border_saltfen_crossing","base_length_ticks":2},{"index":23,"a":"r_br_mire_channels","b":"r_border_saltfen_crossing","base_length_ticks":2},{"index":24,"a":"r_br_reeky_canopy","b":"r_border_hillmire_gate","base_length_ticks":2},{"index":25,"a":"r_or_rocky_hills","b":"r_border_hillmire_gate","base_length_ticks":2},{"index":26,"a":"r_or_windy_plains","b":"r_border_howling_pass","base_length_ticks":2},{"index":27,"a":"r_gr_lower_high_mountains","b":"r_border_howling_pass","base_length_ticks":3},{"index":28,"a":"r_gr_upper_high_mountains","b":"r_border_frostpass","base_length_ticks":3},{"index":29,"a":"r_arc_white_wastes","b":"r_border_frostpass","base_length_ticks":3},{"index":30,"a":"r_arc_white_wastes","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":31,"a":"r_red_rare_veins","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":32,"a":"r_br_mire_channels","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":33,"a":"r_gr_upper_high_mountains","b":"r_core_foxfire_ruins","base_length_ticks":2},{"index":34,"a":"r_tri_tricky_woods","b":"r_core_three_trails_market","base_length_ticks":2},{"index":35,"a":"r_red_vast_dunes","b":"r_core_three_trails_market","base_length_ticks":2},{"index":36,"a":"r_or_rocky_hills","b":"r_core_three_trails_market","base_length_ticks":2},{"index":37,"a":"r_gr_lower_high_mountains","b":"r_core_three_trails_market","base_length_ticks":2},{"index":38,"a":"r_arc_ice_shelf","b":"r_core_moon_ford","base_length_ticks":1},{"index":39,"a":"r_tri_whisper_thicket","b":"r_core_moon_ford","base_length_ticks":2},{"index":40,"a":"r_br_reeky_canopy","b":"r_core_moon_ford","base_length_ticks":2},{"index":41,"a":"r_or_windy_plains","b":"r_core_moon_ford","base_length_ticks":1}],"forces":{"f_arctic_000":{"id":"f_arctic_000","owner":"arctic","tier":2,"location_kind":"transit","location_region_id":null,"location_transit":{"trail_index":1,"direction_from":"r_arc_frosthold","direction_to":"r_arc_white_wastes","ticks_remaining":1}},"f_arctic_006":{"id":"f_arctic_006","owner":"arctic","tier":1,"location_kind":"garrison","location_region_id":"r_arc_ice_shelf","location_transit":null},"f_brown_003":{"id":"f_brown_003","owner":"brown","tier":2,"location_kind":"garrison","location_region_id":"r_br_root_cities","location_transit":null},"f_grey_005":{"id":"f_grey_005","owner":"grey","tier":2,"location_kind":"garrison","location_region_id":"r_gr_middle_high_mountains","location_transit":null},"f_orange_004":{"id":"f_orange_004","owner":"orange","tier":2,"location_kind":"garrison","location_region_id":"r_or_rocky_hills","location_transit":null},"f_orange_007":{"id":"f_orange_007","owner":"orange","tier":2,"location_kind":"garrison","location_region_id":"r_or_windy_plains","location_transit":null},"f_orange_008":{"id":"f_orange_008","owner":"orange","tier":2,"location_kind":"garrison","location_region_id":"r_or_vulpgard","location_transit":null},"f_red_002":{"id":"f_red_002","owner":"red","tier":2,"location_kind":"garrison","location_region_id":"r_red_rare_veins","location_transit":null},"f_red_009":{"id":"f_red_009","owner":"red","tier":1,"location_kind":"garrison","location_region_id":"r_red_mirage_camp","location_transit":null},"f_tricoloured_001":{"id":"f_tricoloured_001","owner":"tricoloured","tier":2,"location_kind":"transit","location_region_id":null,"location_transit":{"trail_index":4,"direction_from":"r_tri_hidden_grove","direction_to":"r_tri_whisper_thicket","ticks_remaining":1}}},"scouts":{"s_grey_000":{"id":"s_grey_000","owner":"grey","target_region_id":"r_gr_lower_high_mountains","location_kind":"transit","location_region_id":null,"expires_tick":null,"transit":{"trail_index":16,"direction_from":"r_gr_middle_high_mountains","direction_to":"r_gr_lower_high_mountains","ticks_remaining":1}}},"caravans":{},"players":{"arctic":{"tribe":"arctic","influence":11,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"brown","text":null,"proposal":{"id":"p_0000","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"brown","text":"Greetings. A small token to foster prosperity between our peoples.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0001","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"tricoloured","text":"The forest breathes. Do you hear its whispers, or only the howling wind?","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"brown","text":null,"proposal":{"id":"p_0007","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0008","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0007","kind":"trade_offer","from_tribe":"brown","to_tribe":"arctic","length_ticks":5,"amount_influence":5,"expires_tick":4},{"id":"p_0008","kind":"nap","from_tribe":"grey","to_tribe":"arctic","length_ticks":10,"amount_influence":0,"expires_tick":4}]},"brown":{"tribe":"brown","influence":9,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0004","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0011","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0011","kind":"nap","from_tribe":"grey","to_tribe":"brown","length_ticks":10,"amount_influence":0,"expires_tick":4}]},"grey":{"tribe":"grey","influence":10,"reputation_penalty_expires_tick":0,"inbox":[{"tick":2,"kind":"message","from_tribe":"red","text":"A wise choice for stability. Let us both prosper in these early days.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"tricoloured","text":"Agreed. Silence serves us both.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[]},"orange":{"tribe":"orange","influence":9,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0005","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"proposal","from_tribe":"red","text":null,"proposal":{"id":"p_0006","kind":"nap","from_tribe":"red","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":1,"kind":"message","from_tribe":"red","text":"Greetings neighbor! Let's secure our border and prosper together.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0012","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0012","kind":"nap","from_tribe":"grey","to_tribe":"orange","length_ticks":10,"amount_influence":0,"expires_tick":4}]},"red":{"tribe":"red","influence":15,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0003","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0010","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"orange","text":"I do not trade words with weaklings. Prepare.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0010","kind":"nap","from_tribe":"grey","to_tribe":"red","length_ticks":10,"amount_influence":0,"expires_tick":4}]},"tricoloured":{"tribe":"tricoloured","influence":9,"reputation_penalty_expires_tick":0,"inbox":[{"tick":1,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0002","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":20,"amount_influence":0,"expires_tick":3},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"proposal","from_tribe":"grey","text":null,"proposal":{"id":"p_0009","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":10,"amount_influence":0,"expires_tick":4},"reputation_penalty":false,"payload":{}},{"tick":2,"kind":"message","from_tribe":"grey","text":"I have noticed that... we must secure peace immediately.","proposal":null,"reputation_penalty":false,"payload":{}}],"outstanding_proposals":[{"id":"p_0009","kind":"nap","from_tribe":"grey","to_tribe":"tricoloured","length_ticks":10,"amount_influence":0,"expires_tick":4}]}},"pacts":[{"kind":"nap","parties":["arctic","grey"],"formed_tick":1,"expires_tick":21},{"kind":"nap","parties":["brown","grey"],"formed_tick":1,"expires_tick":21},{"kind":"nap","parties":["grey","orange"],"formed_tick":1,"expires_tick":21},{"kind":"nap","parties":["grey","red"],"formed_tick":1,"expires_tick":21},{"kind":"nap","parties":["grey","tricoloured"],"formed_tick":1,"expires_tick":21}]}}]};
+const frames = DATA.frames;
+const layout = DATA.layout;
+const terrainFill = DATA.terrain_fill;
+const tribeStroke = DATA.tribe_stroke;
+
+let frameIdx = 0;
+let timer = null;
+let selectedPerspective = "all";
+
+const slider = document.getElementById("tickSlider");
+slider.max = String(frames.length - 1);
+const perspectiveSelect = document.getElementById("perspectiveSelect");
+perspectiveSelect.innerHTML = [
+  `<option value="all">Omniscient</option>`,
+  ...(DATA.meta.roster || []).map((tribe) => `<option value="${tribe}">${tribe[0].toUpperCase() + tribe.slice(1)} perspective</option>`),
+].join("");
+
+function tribeColor(tribe) {
+  return tribeStroke[tribe] || "#666";
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function shortRegionId(rid) {
+  return rid.startsWith("r_") ? rid.slice(2) : rid;
+}
+
+function regionCounts(state) {
+  const counts = {};
+  for (const tribe of Object.keys(state.players)) counts[tribe] = 0;
+  for (const region of Object.values(state.regions)) {
+    if (region.owner) counts[region.owner] = (counts[region.owner] || 0) + 1;
+  }
+  return counts;
+}
+
+function orderedForceList(state) {
+  return Object.entries(state.forces).sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function getPerspectiveView(frame) {
+  if (selectedPerspective === "all") return null;
+  return (frame.projected_views || {})[selectedPerspective] || null;
+}
+
+function fuzzyForceByRegion(view) {
+  const lookup = {};
+  for (const entry of (view?.visible_forces || [])) lookup[entry.region_id] = entry;
+  return lookup;
+}
+
+function transitMidpoint(force, state) {
+  const transit = force.location_transit;
+  const from = layout[transit.direction_from];
+  const to = layout[transit.direction_to];
+  const x = (from[0] + to[0]) / 2;
+  const y = (from[1] + to[1]) / 2;
+  return [x, y];
+}
+
+function renderMap(frame) {
+  const state = frame.state;
+  const perspective = getPerspectiveView(frame);
+  const visibleRegions = new Set(Object.keys(perspective?.visible_regions || {}));
+  const visibleForceLookup = fuzzyForceByRegion(perspective);
+  const coords = Object.values(layout);
+  const xs = coords.map(([x]) => x);
+  const ys = coords.map(([, y]) => y);
+  const pad = 90;
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const width = maxX - minX + pad * 2;
+  const height = maxY - minY + pad * 2;
+  const tx = (x) => x - minX + pad;
+  const ty = (y) => y - minY + pad;
+
+  const svg = [];
+  svg.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="background:#121212">`);
+
+  for (const trail of state.trails) {
+    const a = layout[trail.a];
+    const b = layout[trail.b];
+    const mx = (tx(a[0]) + tx(b[0])) / 2;
+    const my = (ty(a[1]) + ty(b[1])) / 2;
+    svg.push(`<line x1="${tx(a[0])}" y1="${ty(a[1])}" x2="${tx(b[0])}" y2="${ty(b[1])}" stroke="#565656" stroke-width="3" stroke-dasharray="7,4" />`);
+    svg.push(`<rect x="${mx - 12}" y="${my - 10}" width="24" height="18" rx="4" fill="#111" stroke="#777" />`);
+    svg.push(`<text x="${mx}" y="${my + 3}" fill="#ddd" font-size="11" text-anchor="middle">${trail.base_length_ticks}t</text>`);
+  }
+
+  for (const [rid, region] of Object.entries(state.regions)) {
+    const regionVisible = !perspective || visibleRegions.has(rid);
+    const shownRegion = regionVisible
+      ? (perspective ? perspective.visible_regions[rid] : region)
+      : null;
+    const [x, y] = layout[rid];
+    const cx = tx(x);
+    const cy = ty(y);
+    const owner = shownRegion?.owner || null;
+    const stroke = owner ? tribeColor(owner) : "#222";
+    const strokeWidth = owner ? 4 : 1.5;
+    const fill = regionVisible
+      ? (terrainFill[shownRegion.type] || "#444")
+      : "#0e0e0e";
+    svg.push(`<circle cx="${cx}" cy="${cy}" r="42" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${regionVisible ? "1" : "0.55"}" />`);
+    svg.push(`<text x="${cx}" y="${cy - 4}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">${escapeHtml(regionVisible ? shortRegionId(rid) : "?")}</text>`);
+    svg.push(`<text x="${cx}" y="${cy + 10}" fill="#eaeaea" font-size="9" text-anchor="middle">${escapeHtml(regionVisible ? shownRegion.type : "hidden")}</text>`);
+    if (owner) {
+      svg.push(`<text x="${cx}" y="${cy + 26}" fill="${tribeColor(owner)}" font-size="10" font-weight="bold" text-anchor="middle">${escapeHtml(owner.toUpperCase())}</text>`);
+    }
+    if (regionVisible && shownRegion.structures.length) {
+      svg.push(`<text x="${cx}" y="${cy - 28}" fill="#ffe7aa" font-size="9" text-anchor="middle">[${escapeHtml(shownRegion.structures.join(","))}]</text>`);
+    }
+    if (!regionVisible) continue;
+    const garrisonId = shownRegion.garrison_force_id;
+    if (perspective) {
+      const myGarrison = (perspective.my_forces || []).find(
+        (f) => f.location_kind === "garrison" && f.location_region_id === rid
+      );
+      if (myGarrison) {
+        svg.push(`<rect x="${cx + 22}" y="${cy + 18}" width="26" height="18" rx="6" fill="${tribeColor(myGarrison.owner)}" stroke="#111" />`);
+        svg.push(`<text x="${cx + 35}" y="${cy + 31}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">T${myGarrison.tier}</text>`);
+      } else if (visibleForceLookup[rid]) {
+        const vf = visibleForceLookup[rid];
+        svg.push(`<rect x="${cx + 8}" y="${cy + 18}" width="40" height="18" rx="6" fill="${tribeColor(vf.owner)}" stroke="#111" />`);
+        svg.push(`<text x="${cx + 28}" y="${cy + 31}" fill="#fff" font-size="8" font-weight="bold" text-anchor="middle">${escapeHtml(vf.fuzzy_tier.replaceAll("_", " "))}</text>`);
+      }
+    } else if (garrisonId) {
+      const garrison = state.forces[garrisonId];
+      if (garrison) {
+        svg.push(`<rect x="${cx + 22}" y="${cy + 18}" width="26" height="18" rx="6" fill="${tribeColor(garrison.owner)}" stroke="#111" />`);
+        svg.push(`<text x="${cx + 35}" y="${cy + 31}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">T${garrison.tier}</text>`);
+      }
+    }
+  }
+
+  const preciseTransits = perspective
+    ? (perspective.my_forces || []).filter((f) => f.location_kind === "transit" && f.location_transit)
+    : orderedForceList(state).map(([, force]) => force).filter((f) => f.location_kind === "transit" && f.location_transit);
+  for (const force of preciseTransits) {
+    const [x, y] = transitMidpoint(force, state);
+    const cx = tx(x);
+    const cy = ty(y);
+    svg.push(`<rect x="${cx - 34}" y="${cy - 10}" width="68" height="20" rx="8" fill="${tribeColor(force.owner)}" stroke="#111" />`);
+    svg.push(`<text x="${cx}" y="${cy + 4}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">${escapeHtml(force.owner.slice(0, 2).toUpperCase())} T${force.tier} → ${escapeHtml(shortRegionId(force.location_transit.direction_to))} (${force.location_transit.ticks_remaining})</text>`);
+  }
+  for (const transit of (perspective?.visible_transits || [])) {
+    const from = layout[transit.direction_from];
+    const to = layout[transit.direction_to];
+    const cx = tx((from[0] + to[0]) / 2);
+    const cy = ty((from[1] + to[1]) / 2);
+    svg.push(`<rect x="${cx - 38}" y="${cy - 10}" width="76" height="20" rx="8" fill="${tribeColor(transit.owner)}" stroke="#111" opacity="0.9" />`);
+    svg.push(`<text x="${cx}" y="${cy + 4}" fill="#fff" font-size="8" font-weight="bold" text-anchor="middle">${escapeHtml(transit.owner.slice(0, 2).toUpperCase())} ${escapeHtml(transit.fuzzy_tier.replaceAll("_", " "))}</text>`);
+  }
+
+  const preciseScouts = perspective
+    ? (perspective.my_scouts || []).filter((s) => s.location_kind === "arrived" && s.location_region_id)
+    : Object.values(state.scouts).filter((s) => s.location_kind === "arrived" && s.location_region_id);
+  for (const scout of preciseScouts) {
+    const [x, y] = layout[scout.location_region_id];
+    const cx = tx(x) - 30;
+    const cy = ty(y) + 28;
+    svg.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="#111" stroke="${tribeColor(scout.owner)}" stroke-width="2" />`);
+    svg.push(`<text x="${cx}" y="${cy + 4}" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">S</text>`);
+  }
+  for (const scout of (perspective?.visible_scouts || [])) {
+    const [x, y] = layout[scout.region_id];
+    const cx = tx(x) - 30;
+    const cy = ty(y) + 28;
+    svg.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="#111" stroke="${tribeColor(scout.owner)}" stroke-width="2" opacity="0.9" />`);
+    svg.push(`<text x="${cx}" y="${cy + 4}" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">S</text>`);
+  }
+
+  const caravans = perspective ? (perspective.my_caravans || []) : Object.values(state.caravans);
+  for (const caravan of caravans) {
+    const rid = caravan.path[Math.min(caravan.current_index, caravan.path.length - 1)];
+    if (!rid || !layout[rid]) continue;
+    const [x, y] = layout[rid];
+    const cx = tx(x) + 30;
+    const cy = ty(y) - 30;
+    svg.push(`<rect x="${cx - 18}" y="${cy - 10}" width="36" height="20" rx="8" fill="#d1b254" stroke="#111" />`);
+    svg.push(`<text x="${cx}" y="${cy + 4}" fill="#111" font-size="9" font-weight="bold" text-anchor="middle">C${caravan.amount_influence}</text>`);
+  }
+
+  svg.push(`</svg>`);
+  document.getElementById("mapWrap").innerHTML = svg.join("");
+}
+
+function renderScoreboard(frame) {
+  const state = frame.state;
+  const counts = regionCounts(state);
+  const cards = Object.entries(state.players).map(([tribe, player]) => {
+    const forceCount = Object.values(state.forces).filter((f) => f.owner === tribe).length;
+    const pactCount = state.pacts.filter((p) => p.parties.includes(tribe)).length;
+    return `
+      <div class="scoreCard">
+        <div class="tribe" style="color:${tribeColor(tribe)}">${escapeHtml(tribe.toUpperCase())}</div>
+        <div>Influence: <span class="mono">${player.influence}</span></div>
+        <div>Regions: <span class="mono">${counts[tribe] || 0}</span></div>
+        <div>Forces: <span class="mono">${forceCount}</span></div>
+        <div>Pacts: <span class="mono">${pactCount}</span></div>
+      </div>
+    `;
+  });
+  document.getElementById("scoreboard").innerHTML = cards.join("");
+}
+
+function renderPerspectivePanel(frame) {
+  const perspective = getPerspectiveView(frame);
+  const panel = document.getElementById("perspectivePanel");
+  if (!perspective) {
+    panel.innerHTML = `<div class="item">Showing <strong>omniscient</strong> replay state. Switch to a tribe perspective to see that tribe's fog-of-war, inbox, and visible forces.</div>`;
+    return;
+  }
+  const visibleRegions = Object.keys(perspective.visible_regions || {}).sort();
+  const pacts = perspective.pacts_involving_me || [];
+  const inbox = perspective.inbox_new || [];
+  const inboxHtml = inbox.length
+    ? `<ul>${inbox.map((entry) => {
+        if (entry.kind === "message") return `<li>${escapeHtml("message from " + entry.from_tribe + ": " + (entry.text || ""))}</li>`;
+        if (entry.kind === "proposal") return `<li>${escapeHtml("proposal " + entry.proposal.kind + " from " + entry.from_tribe + " (" + entry.proposal.id + ")")}</li>`;
+        if (entry.kind === "scout_report") return `<li>${escapeHtml("scout report: " + ((entry.payload && entry.payload.region_id) || "unknown"))}</li>`;
+        if (entry.kind === "caravan_delivered") return `<li>${escapeHtml("caravan from " + entry.from_tribe + " amount=" + ((entry.payload && entry.payload.amount) || ""))}</li>`;
+        return `<li>${escapeHtml(entry.kind)}</li>`;
+      }).join("")}</ul>`
+    : `<div class="small">No new inbox items.</div>`;
+  const pactsHtml = pacts.length
+    ? `<ul>${pacts.map((p) => `<li>${escapeHtml(p.kind + ": " + p.parties.join(" / ") + " (exp " + p.expires_tick + ")")}</li>`).join("")}</ul>`
+    : `<div class="small">No active pacts.</div>`;
+  const items = [
+    `<div class="pillRow">
+      <span class="pill">Tribe: <strong style="color:${tribeColor(perspective.for_tribe)}">${escapeHtml(perspective.for_tribe.toUpperCase())}</strong></span>
+      <span class="pill">Visible regions: <span class="mono">${visibleRegions.length}</span></span>
+      <span class="pill">Visible foreign forces: <span class="mono">${(perspective.visible_forces || []).length}</span></span>
+      <span class="pill">Visible transits: <span class="mono">${(perspective.visible_transits || []).length}</span></span>
+    </div>`,
+    `<div class="item">
+      <div><strong>Visible region ids</strong></div>
+      <div class="small mono">${escapeHtml(visibleRegions.join(", ") || "(none)")}</div>
+    </div>`,
+    `<div class="item">
+      <div><strong>Inbox this tick</strong></div>
+      ${inboxHtml}
+    </div>`,
+    `<div class="item">
+      <div><strong>Active pacts involving this tribe</strong></div>
+      ${pactsHtml}
+    </div>`,
+  ];
+  panel.innerHTML = items.join("");
+}
+
+function describeEvent(event) {
+  const kind = event.kind;
+  if (kind === "combat") return `${event.attacker} vs ${event.defender} at ${event.region || event.region_id} → ${event.result}`;
+  if (kind === "dispatch_move") return `${event.tribe} moved ${event.force_id}: ${event.from} → ${event.to} (${event.ticks}t)`;
+  if (kind === "dispatch_scout") return `${event.tribe} dispatched scout ${event.scout_id}: ${event.from} → ${event.to}`;
+  if (kind === "force_arrived") return `${event.force_id} arrived at ${event.region_id}`;
+  if (kind === "scout_arrived") return `${event.scout_id} arrived at ${event.region_id}`;
+  if (kind === "recruited") return `${event.tribe} recruited Tier ${event.tier} at ${event.region_id}`;
+  if (kind === "built") return `${event.tribe} built ${event.structure} at ${event.region_id}`;
+  if (kind === "proposal_sent") return `${event.from} proposed ${event.proposal_kind} to ${event.to}`;
+  if (kind === "pact_formed") return `Pact formed: ${event.parties.join(" / ")} (${event.pact})`;
+  if (kind === "pact_broken" || kind === "pact_broken_by_move") return `Pact broken by ${event.breaker}: ${(event.parties || []).join(" / ")}`;
+  if (kind === "war_declared") return `War declared: ${(event.parties || []).join(" / ")}`;
+  if (kind === "caravan_delivered") return `Caravan delivered: ${event.from} → ${event.to} (${event.amount})`;
+  if (kind === "caravan_intercepted") return `Caravan intercepted: ${event.from} → ${event.to} by ${event.interceptor} (${event.amount})`;
+  if (kind === "proposal_expired") return `Proposal expired: ${event.id} (${event.from} → ${event.to})`;
+  if (kind === "influence_credited") return `${event.tribe} gained ${event.amount} Influence`;
+  if (kind && kind.endsWith("_failed")) return `${kind}: ${event.reason || "unknown"}`;
+  return JSON.stringify(event);
+}
+
+function renderList(targetId, items, renderFn) {
+  const el = document.getElementById(targetId);
+  if (!items.length) {
+    el.innerHTML = `<div class="empty">None this tick.</div>`;
+    return;
+  }
+  el.innerHTML = items.map(renderFn).join("");
+}
+
+function renderComms(frame) {
+  const items = [];
+  for (const msg of frame.tick_summary.messages) {
+    items.push(`
+      <div class="item">
+        <div><strong style="color:${tribeColor(msg.from)}">${escapeHtml(msg.from)}</strong> → <strong style="color:${tribeColor(msg.to)}">${escapeHtml(msg.to)}</strong></div>
+        <pre>${escapeHtml(msg.text)}</pre>
+      </div>
+    `);
+  }
+  for (const entry of frame.tick_summary.diplomacy) {
+    let body = "";
+    if (entry.kind === "proposal_order") {
+      body = `${entry.from} proposes ${entry.proposal_kind} to ${entry.to}`;
+      if (entry.length_ticks) body += ` for ${entry.length_ticks} ticks`;
+      if (entry.amount_influence) body += ` (${entry.amount_influence} Influence)`;
+    } else if (entry.kind === "respond_order") {
+      body = `${entry.from} responds ${entry.response} to ${entry.proposal_id}`;
+    } else {
+      body = describeEvent(entry);
+    }
+    items.push(`<div class="item">${escapeHtml(body)}</div>`);
+  }
+  const el = document.getElementById("commsList");
+  el.innerHTML = items.length ? items.join("") : `<div class="empty">No communication or diplomacy this tick.</div>`;
+}
+
+function renderOrders(frame) {
+  const tribes = Object.keys(frame.orders_by_tribe).sort();
+  renderList("ordersList", tribes, (tribe) => {
+    const orders = frame.orders_by_tribe[tribe].orders || [];
+    const body = orders.length
+      ? orders.map((o) => `<li><span class="mono">${escapeHtml(o.kind)}</span> <span class="small">${escapeHtml(JSON.stringify(o.payload || {}))}</span></li>`).join("")
+      : `<div class="small">pass</div>`;
+    return `
+      <div class="item">
+        <div><strong style="color:${tribeColor(tribe)}">${escapeHtml(tribe.toUpperCase())}</strong></div>
+        ${orders.length ? `<ul>${body}</ul>` : body}
+      </div>
+    `;
+  });
+}
+
+function renderEvents(frame) {
+  renderList("eventsList", frame.resolution_events, (event) => `
+    <div class="item">
+      <div><span class="mono">${escapeHtml(event.kind)}</span></div>
+      <div class="small">${escapeHtml(describeEvent(event))}</div>
+    </div>
+  `);
+}
+
+function renderMeta(frame) {
+  const winner = frame.state.winner ? ` winner=${JSON.stringify(frame.state.winner)}` : "";
+  document.getElementById("tickLabel").textContent = `${frame.label} (${frameIdx}/${frames.length - 1})`;
+  document.getElementById("metaLine").textContent =
+    `seed=${DATA.meta.seed}  map=${DATA.meta.map_kind}  finalTick=${DATA.meta.tick_final}${winner}`;
+  const warnings = DATA.meta.warnings || [];
+  const bar = document.getElementById("warningBar");
+  if (warnings.length) {
+    bar.style.display = "block";
+    bar.textContent = `Replay warning: ${warnings[0]}${warnings.length > 1 ? ` (+${warnings.length - 1} more)` : ""}`;
+  } else {
+    bar.style.display = "none";
+    bar.textContent = "";
+  }
+}
+
+function renderFrame(idx) {
+  frameIdx = idx;
+  slider.value = String(idx);
+  const frame = frames[idx];
+  renderMeta(frame);
+  renderMap(frame);
+  renderScoreboard(frame);
+  renderPerspectivePanel(frame);
+  renderComms(frame);
+  renderOrders(frame);
+  renderEvents(frame);
+}
+
+function stopPlayback() {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  document.getElementById("playBtn").textContent = "Play";
+}
+
+function startPlayback() {
+  stopPlayback();
+  const delay = Number(document.getElementById("speedSelect").value);
+  timer = setInterval(() => {
+    if (frameIdx >= frames.length - 1) {
+      stopPlayback();
+      return;
+    }
+    renderFrame(frameIdx + 1);
+  }, delay);
+  document.getElementById("playBtn").textContent = "Pause";
+}
+
+document.getElementById("playBtn").addEventListener("click", () => {
+  if (timer) stopPlayback();
+  else startPlayback();
+});
+document.getElementById("prevBtn").addEventListener("click", () => {
+  stopPlayback();
+  renderFrame(Math.max(0, frameIdx - 1));
+});
+document.getElementById("nextBtn").addEventListener("click", () => {
+  stopPlayback();
+  renderFrame(Math.min(frames.length - 1, frameIdx + 1));
+});
+document.getElementById("speedSelect").addEventListener("change", () => {
+  if (timer) startPlayback();
+});
+document.getElementById("perspectiveSelect").addEventListener("change", (e) => {
+  selectedPerspective = e.target.value;
+  renderFrame(frameIdx);
+});
+slider.addEventListener("input", (e) => {
+  stopPlayback();
+  renderFrame(Number(e.target.value));
+});
+
+renderFrame(0);
+</script>
+</body>
+</html>

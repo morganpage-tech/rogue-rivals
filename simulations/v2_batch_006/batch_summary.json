@@ -1,0 +1,183 @@
+{
+  "kind": "batch_summary",
+  "num_matches": 5,
+  "base_seed": 202604180,
+  "max_ticks": 30,
+  "map_kind": "expanded",
+  "persona_assignment": {
+    "orange": "warlord",
+    "grey": "paranoid_isolationist",
+    "brown": "merchant_prince",
+    "red": "opportunist"
+  },
+  "elapsed_s": 1641.02,
+  "matches": [
+    {
+      "kind": "match_summary",
+      "match_idx": 0,
+      "seed": 202604180,
+      "persona_assignment": {
+        "orange": "warlord",
+        "grey": "paranoid_isolationist",
+        "brown": "merchant_prince",
+        "red": "opportunist"
+      },
+      "winner": null,
+      "tick_final": 30,
+      "tribes_alive_at_end": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "elapsed_s": 789.73,
+      "llm_calls": 120,
+      "llm_errors": 13,
+      "diagnostics_sample": [
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 1,
+      "seed": 202604181,
+      "persona_assignment": {
+        "orange": "warlord",
+        "grey": "paranoid_isolationist",
+        "brown": "merchant_prince",
+        "red": "opportunist"
+      },
+      "winner": null,
+      "tick_final": 30,
+      "tribes_alive_at_end": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "elapsed_s": 727.66,
+      "llm_calls": 120,
+      "llm_errors": 27,
+      "diagnostics_sample": [
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 2,
+      "seed": 202604182,
+      "persona_assignment": {
+        "orange": "warlord",
+        "grey": "paranoid_isolationist",
+        "brown": "merchant_prince",
+        "red": "opportunist"
+      },
+      "winner": null,
+      "tick_final": 30,
+      "tribes_alive_at_end": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "elapsed_s": 789.73,
+      "llm_calls": 120,
+      "llm_errors": 21,
+      "diagnostics_sample": [
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 3,
+      "seed": 202604183,
+      "persona_assignment": {
+        "orange": "warlord",
+        "grey": "paranoid_isolationist",
+        "brown": "merchant_prince",
+        "red": "opportunist"
+      },
+      "winner": null,
+      "tick_final": 30,
+      "tribes_alive_at_end": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "elapsed_s": 829.01,
+      "llm_calls": 120,
+      "llm_errors": 17,
+      "diagnostics_sample": [
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 4,
+      "seed": 202604184,
+      "persona_assignment": {
+        "orange": "warlord",
+        "grey": "paranoid_isolationist",
+        "brown": "merchant_prince",
+        "red": "opportunist"
+      },
+      "winner": null,
+      "tick_final": 30,
+      "tribes_alive_at_end": [
+        "orange",
+        "grey",
+        "red"
+      ],
+      "elapsed_s": 912.79,
+      "llm_calls": 113,
+      "llm_errors": 8,
+      "diagnostics_sample": [
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)"
+      ]
+    }
+  ]
+}

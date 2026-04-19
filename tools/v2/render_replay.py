@@ -1,0 +1,927 @@
+"""Render a standalone HTML replay viewer for a v2 match trace.
+
+This is intentionally post-processing only: it reads an existing
+`match_*.jsonl`, reconstructs each tick offline using the deterministic
+engine, and writes a self-contained HTML file. Current match runners and
+trace formats remain unchanged.
+
+Usage:
+    python -m tools.v2.render_replay \
+        --trace simulations/v2_smoke/match_000.jsonl \
+        --map expanded \
+        --out maps/v2_smoke_match_000_replay.html
+"""
+
+from __future__ import annotations
+
+import argparse
+import html
+import json
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
+from .engine import tick as engine_tick
+from .fog import project_for_player
+from .mapgen import (
+    CONTINENT_6P_DEFAULT_TRIBES,
+    CONTINENT_6P_REGION_LAYOUT,
+    EXPANDED_REGION_LAYOUT,
+    MINIMAL_REGION_LAYOUT,
+    build_continent_map_6p,
+    build_expanded_map,
+    build_hand_map,
+    place_tribes,
+    place_tribes_continent_6p,
+    place_tribes_expanded,
+)
+from .render_map import TERRAIN_FILL, TRIBE_STROKE
+from .state import GameState, Order, OrderPacket
+
+TRIBES_4 = ["orange", "grey", "brown", "red"]
+
+
+def _roster_for_map(map_kind: str) -> List[str]:
+    if map_kind in ("minimal", "expanded"):
+        return list(TRIBES_4)
+    if map_kind == "6p-continent":
+        return list(CONTINENT_6P_DEFAULT_TRIBES)
+    raise ValueError(f"unknown map kind: {map_kind!r}")
+
+
+def _build_match_state(
+    seed: int, map_kind: str
+) -> Tuple[GameState, Dict[str, Tuple[int, int]], List[str]]:
+    state = GameState(seed=seed)
+    if map_kind == "minimal":
+        build_hand_map(state)
+        roster = _roster_for_map(map_kind)
+        place_tribes(state, roster)
+        return state, MINIMAL_REGION_LAYOUT, roster
+    if map_kind == "expanded":
+        build_expanded_map(state)
+        roster = _roster_for_map(map_kind)
+        place_tribes_expanded(state, roster)
+        return state, EXPANDED_REGION_LAYOUT, roster
+    if map_kind == "6p-continent":
+        roster = _roster_for_map(map_kind)
+        build_continent_map_6p(state)
+        place_tribes_continent_6p(state, roster)
+        return state, CONTINENT_6P_REGION_LAYOUT, roster
+    raise ValueError(f"unknown map kind: {map_kind!r}")
+
+
+def _read_trace(trace_path: Path) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    tick_records: List[Dict[str, Any]] = []
+    summary: Dict[str, Any] = {}
+    with trace_path.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            if rec.get("kind") == "match_summary":
+                summary = rec
+            else:
+                tick_records.append(rec)
+    if not tick_records:
+        raise ValueError(f"no tick records found in {trace_path}")
+    return tick_records, summary
+
+
+def _packets_from_record(record: Dict[str, Any]) -> Dict[str, OrderPacket]:
+    packets: Dict[str, OrderPacket] = {}
+    for tribe, pkt in record.get("orders_by_tribe", {}).items():
+        orders = [
+            Order(kind=o["kind"], payload=o.get("payload", {}))
+            for o in pkt.get("orders", [])
+        ]
+        packets[tribe] = OrderPacket(tribe=tribe, tick=pkt["tick"], orders=orders)
+    return packets
+
+
+def _state_snapshot(state: GameState) -> Dict[str, Any]:
+    return {
+        "tick": state.tick,
+        "tribes_alive": list(state.tribes_alive),
+        "winner": state.winner,
+        "regions": {rid: asdict(region) for rid, region in sorted(state.regions.items())},
+        "trails": [asdict(trail) for trail in state.trails],
+        "forces": {fid: asdict(force) for fid, force in sorted(state.forces.items())},
+        "scouts": {sid: asdict(scout) for sid, scout in sorted(state.scouts.items())},
+        "caravans": {cid: asdict(caravan) for cid, caravan in sorted(state.caravans.items())},
+        "players": {tribe: asdict(player) for tribe, player in sorted(state.players.items())},
+        "pacts": [asdict(pact) for pact in state.pacts],
+    }
+
+
+def _tick_summary_from_record(record: Dict[str, Any]) -> Dict[str, Any]:
+    messages: List[Dict[str, Any]] = []
+    diplomacy: List[Dict[str, Any]] = []
+
+    for tribe, pkt in record.get("orders_by_tribe", {}).items():
+        for order in pkt.get("orders", []):
+            kind = order.get("kind")
+            payload = order.get("payload", {}) or {}
+            if kind == "message":
+                messages.append(
+                    {
+                        "from": tribe,
+                        "to": payload.get("to"),
+                        "text": payload.get("text", ""),
+                    }
+                )
+            elif kind == "propose":
+                proposal = payload.get("proposal", {}) or {}
+                diplomacy.append(
+                    {
+                        "kind": "proposal_order",
+                        "from": tribe,
+                        "to": proposal.get("to"),
+                        "proposal_kind": proposal.get("kind"),
+                        "length_ticks": proposal.get("length_ticks"),
+                        "amount_influence": proposal.get("amount_influence"),
+                    }
+                )
+            elif kind == "respond":
+                diplomacy.append(
+                    {
+                        "kind": "respond_order",
+                        "from": tribe,
+                        "proposal_id": payload.get("proposal_id"),
+                        "response": payload.get("response"),
+                    }
+                )
+
+    for event in record.get("resolution_events", []):
+        if event.get("kind") in {
+            "proposal_sent",
+            "proposal_declined",
+            "proposal_expired",
+            "pact_formed",
+            "pact_broken",
+            "pact_broken_by_move",
+            "war_declared",
+            "caravan_delivered",
+            "caravan_intercepted",
+        }:
+            diplomacy.append(event)
+
+    return {"messages": messages, "diplomacy": diplomacy}
+
+
+def build_replay_payload(
+    trace_path: Path, map_kind: str, seed_override: int | None = None
+) -> Dict[str, Any]:
+    tick_records, summary = _read_trace(trace_path)
+    seed = tick_records[0].get("seed", summary.get("seed", seed_override))
+    if seed is None:
+        raise ValueError(
+            "trace does not contain a seed; pass --seed when rendering this replay"
+        )
+    state, layout, roster = _build_match_state(seed=seed, map_kind=map_kind)
+    warnings: List[str] = []
+
+    frames: List[Dict[str, Any]] = [
+        {
+            "tick": 0,
+            "label": "Initial state",
+            "state_hash": None,
+            "orders_by_tribe": {},
+            "resolution_events": [],
+            "tick_summary": {"messages": [], "diplomacy": []},
+            "projected_views": {tribe: project_for_player(state, tribe) for tribe in roster},
+            "state": _state_snapshot(state),
+        }
+    ]
+
+    for record in tick_records:
+        packets = _packets_from_record(record)
+        result = engine_tick(state, packets)
+        if result["state_hash"] != record.get("state_hash"):
+            warnings.append(
+                "trace replay mismatch at tick "
+                f"{record.get('tick')}: expected {record.get('state_hash')}, "
+                f"got {result['state_hash']}"
+            )
+        frames.append(
+            {
+                "tick": state.tick,
+                "label": f"Tick {state.tick}",
+                "state_hash": result["state_hash"],
+                "orders_by_tribe": record.get("orders_by_tribe", {}),
+                "resolution_events": record.get("resolution_events", []),
+                "tick_summary": _tick_summary_from_record(record),
+                "projected_views": record.get("projected_views", {}),
+                "state": _state_snapshot(state),
+            }
+        )
+
+    return {
+        "meta": {
+            "trace_path": str(trace_path),
+            "map_kind": map_kind,
+            "seed": seed,
+            "match_idx": tick_records[0].get("match_idx"),
+            "tick_final": summary.get("tick_final", frames[-1]["tick"]),
+            "winner": summary.get("winner"),
+            "roster": roster,
+            "warnings": warnings,
+        },
+        "layout": layout,
+        "terrain_fill": TERRAIN_FILL,
+        "tribe_stroke": TRIBE_STROKE,
+        "frames": frames,
+    }
+
+
+def render_html(payload: Dict[str, Any]) -> str:
+    data_json = json.dumps(payload, separators=(",", ":"))
+    title = f"Rogue Rivals v2 replay - {payload['meta']['map_kind']} map"
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<style>
+  :root {{
+    color-scheme: dark;
+    --bg: #151515;
+    --panel: #202020;
+    --panel-2: #262626;
+    --border: #383838;
+    --muted: #a5a5a5;
+    --text: #efefef;
+    --accent: #7cc4ff;
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.4 Inter, system-ui, sans-serif;
+  }}
+  .page {{
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-height: 100vh;
+  }}
+  .topbar {{
+    display: grid;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: #111;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }}
+  .controls {{
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }}
+  button, select {{
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }}
+  input[type="range"] {{
+    flex: 1 1 320px;
+  }}
+  .meta {{
+    color: var(--muted);
+    font-size: 13px;
+  }}
+  .warningBar {{
+    display: none;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border: 1px solid #6a4a12;
+    border-radius: 8px;
+    background: #3a2a12;
+    color: #ffdca0;
+    font-size: 13px;
+  }}
+  .content {{
+    display: grid;
+    grid-template-columns: minmax(520px, 1.5fr) minmax(360px, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }}
+  .panel {{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }}
+  .panel h2 {{
+    margin: 0;
+    padding: 12px 14px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }}
+  #mapPanel {{
+    min-height: 720px;
+  }}
+  #mapWrap {{
+    padding: 10px;
+    overflow: auto;
+  }}
+  #mapWrap svg {{
+    width: 100%;
+    height: auto;
+    min-width: 880px;
+    display: block;
+  }}
+  .sidebar {{
+    display: grid;
+    gap: 16px;
+    align-content: start;
+  }}
+  .sectionBody {{
+    padding: 12px 14px;
+  }}
+  .scoreGrid {{
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }}
+  .perspectiveGrid {{
+    display: grid;
+    gap: 8px;
+  }}
+  .pillRow {{
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }}
+  .pill {{
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--muted);
+    background: #191919;
+  }}
+  .scoreCard {{
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: #191919;
+  }}
+  .scoreCard .tribe {{
+    font-weight: 700;
+    margin-bottom: 6px;
+  }}
+  .mono {{
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }}
+  .small {{
+    font-size: 12px;
+    color: var(--muted);
+  }}
+  .list {{
+    display: grid;
+    gap: 8px;
+  }}
+  .item {{
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: #191919;
+  }}
+  .item pre {{
+    margin: 8px 0 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }}
+  .empty {{
+    color: var(--muted);
+    font-style: italic;
+  }}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <div>
+      <div style="font-size:20px;font-weight:700;">{html.escape(title)}</div>
+      <div class="meta" id="metaLine"></div>
+      <div class="warningBar" id="warningBar"></div>
+    </div>
+    <div class="controls">
+      <button id="playBtn">Play</button>
+      <button id="prevBtn">Prev</button>
+      <button id="nextBtn">Next</button>
+      <input id="tickSlider" type="range" min="0" step="1">
+      <select id="perspectiveSelect"></select>
+      <select id="speedSelect">
+        <option value="1400">0.7x</option>
+        <option value="900" selected>1x</option>
+        <option value="500">2x</option>
+        <option value="250">4x</option>
+      </select>
+      <span id="tickLabel" class="mono"></span>
+    </div>
+  </div>
+  <div class="content">
+    <div class="panel" id="mapPanel">
+      <h2>Map Replay</h2>
+      <div id="mapWrap"></div>
+    </div>
+    <div class="sidebar">
+      <div class="panel">
+        <h2>Scoreboard</h2>
+        <div class="sectionBody">
+          <div id="scoreboard" class="scoreGrid"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Selected Perspective</h2>
+        <div class="sectionBody">
+          <div id="perspectivePanel" class="perspectiveGrid"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Messages And Diplomacy</h2>
+        <div class="sectionBody">
+          <div id="commsList" class="list"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Orders</h2>
+        <div class="sectionBody">
+          <div id="ordersList" class="list"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Resolution Events</h2>
+        <div class="sectionBody">
+          <div id="eventsList" class="list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const DATA = {data_json};
+const frames = DATA.frames;
+const layout = DATA.layout;
+const terrainFill = DATA.terrain_fill;
+const tribeStroke = DATA.tribe_stroke;
+
+let frameIdx = 0;
+let timer = null;
+let selectedPerspective = "all";
+
+const slider = document.getElementById("tickSlider");
+slider.max = String(frames.length - 1);
+const perspectiveSelect = document.getElementById("perspectiveSelect");
+perspectiveSelect.innerHTML = [
+  `<option value="all">Omniscient</option>`,
+  ...(DATA.meta.roster || []).map((tribe) => `<option value="${{tribe}}">${{tribe[0].toUpperCase() + tribe.slice(1)}} perspective</option>`),
+].join("");
+
+function tribeColor(tribe) {{
+  return tribeStroke[tribe] || "#666";
+}}
+
+function escapeHtml(text) {{
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}}
+
+function shortRegionId(rid) {{
+  return rid.startsWith("r_") ? rid.slice(2) : rid;
+}}
+
+function regionCounts(state) {{
+  const counts = {{}};
+  for (const tribe of Object.keys(state.players)) counts[tribe] = 0;
+  for (const region of Object.values(state.regions)) {{
+    if (region.owner) counts[region.owner] = (counts[region.owner] || 0) + 1;
+  }}
+  return counts;
+}}
+
+function orderedForceList(state) {{
+  return Object.entries(state.forces).sort((a, b) => a[0].localeCompare(b[0]));
+}}
+
+function getPerspectiveView(frame) {{
+  if (selectedPerspective === "all") return null;
+  return (frame.projected_views || {{}})[selectedPerspective] || null;
+}}
+
+function fuzzyForceByRegion(view) {{
+  const lookup = {{}};
+  for (const entry of (view?.visible_forces || [])) lookup[entry.region_id] = entry;
+  return lookup;
+}}
+
+function transitMidpoint(force, state) {{
+  const transit = force.location_transit;
+  const from = layout[transit.direction_from];
+  const to = layout[transit.direction_to];
+  const x = (from[0] + to[0]) / 2;
+  const y = (from[1] + to[1]) / 2;
+  return [x, y];
+}}
+
+function renderMap(frame) {{
+  const state = frame.state;
+  const perspective = getPerspectiveView(frame);
+  const visibleRegions = new Set(Object.keys(perspective?.visible_regions || {{}}));
+  const visibleForceLookup = fuzzyForceByRegion(perspective);
+  const coords = Object.values(layout);
+  const xs = coords.map(([x]) => x);
+  const ys = coords.map(([, y]) => y);
+  const pad = 90;
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const width = maxX - minX + pad * 2;
+  const height = maxY - minY + pad * 2;
+  const tx = (x) => x - minX + pad;
+  const ty = (y) => y - minY + pad;
+
+  const svg = [];
+  svg.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${{width}} ${{height}}" style="background:#121212">`);
+
+  for (const trail of state.trails) {{
+    const a = layout[trail.a];
+    const b = layout[trail.b];
+    const mx = (tx(a[0]) + tx(b[0])) / 2;
+    const my = (ty(a[1]) + ty(b[1])) / 2;
+    svg.push(`<line x1="${{tx(a[0])}}" y1="${{ty(a[1])}}" x2="${{tx(b[0])}}" y2="${{ty(b[1])}}" stroke="#565656" stroke-width="3" stroke-dasharray="7,4" />`);
+    svg.push(`<rect x="${{mx - 12}}" y="${{my - 10}}" width="24" height="18" rx="4" fill="#111" stroke="#777" />`);
+    svg.push(`<text x="${{mx}}" y="${{my + 3}}" fill="#ddd" font-size="11" text-anchor="middle">${{trail.base_length_ticks}}t</text>`);
+  }}
+
+  for (const [rid, region] of Object.entries(state.regions)) {{
+    const regionVisible = !perspective || visibleRegions.has(rid);
+    const shownRegion = regionVisible
+      ? (perspective ? perspective.visible_regions[rid] : region)
+      : null;
+    const [x, y] = layout[rid];
+    const cx = tx(x);
+    const cy = ty(y);
+    const owner = shownRegion?.owner || null;
+    const stroke = owner ? tribeColor(owner) : "#222";
+    const strokeWidth = owner ? 4 : 1.5;
+    const fill = regionVisible
+      ? (terrainFill[shownRegion.type] || "#444")
+      : "#0e0e0e";
+    svg.push(`<circle cx="${{cx}}" cy="${{cy}}" r="42" fill="${{fill}}" stroke="${{stroke}}" stroke-width="${{strokeWidth}}" opacity="${{regionVisible ? "1" : "0.55"}}" />`);
+    svg.push(`<text x="${{cx}}" y="${{cy - 4}}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">${{escapeHtml(regionVisible ? shortRegionId(rid) : "?")}}</text>`);
+    svg.push(`<text x="${{cx}}" y="${{cy + 10}}" fill="#eaeaea" font-size="9" text-anchor="middle">${{escapeHtml(regionVisible ? shownRegion.type : "hidden")}}</text>`);
+    if (owner) {{
+      svg.push(`<text x="${{cx}}" y="${{cy + 26}}" fill="${{tribeColor(owner)}}" font-size="10" font-weight="bold" text-anchor="middle">${{escapeHtml(owner.toUpperCase())}}</text>`);
+    }}
+    if (regionVisible && shownRegion.structures.length) {{
+      svg.push(`<text x="${{cx}}" y="${{cy - 28}}" fill="#ffe7aa" font-size="9" text-anchor="middle">[${{escapeHtml(shownRegion.structures.join(","))}}]</text>`);
+    }}
+    if (!regionVisible) continue;
+    const garrisonId = shownRegion.garrison_force_id;
+    if (perspective) {{
+      const myGarrison = (perspective.my_forces || []).find(
+        (f) => f.location_kind === "garrison" && f.location_region_id === rid
+      );
+      if (myGarrison) {{
+        svg.push(`<rect x="${{cx + 22}}" y="${{cy + 18}}" width="26" height="18" rx="6" fill="${{tribeColor(myGarrison.owner)}}" stroke="#111" />`);
+        svg.push(`<text x="${{cx + 35}}" y="${{cy + 31}}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">T${{myGarrison.tier}}</text>`);
+      }} else if (visibleForceLookup[rid]) {{
+        const vf = visibleForceLookup[rid];
+        svg.push(`<rect x="${{cx + 8}}" y="${{cy + 18}}" width="40" height="18" rx="6" fill="${{tribeColor(vf.owner)}}" stroke="#111" />`);
+        svg.push(`<text x="${{cx + 28}}" y="${{cy + 31}}" fill="#fff" font-size="8" font-weight="bold" text-anchor="middle">${{escapeHtml(vf.fuzzy_tier.replaceAll("_", " "))}}</text>`);
+      }}
+    }} else if (garrisonId) {{
+      const garrison = state.forces[garrisonId];
+      if (garrison) {{
+        svg.push(`<rect x="${{cx + 22}}" y="${{cy + 18}}" width="26" height="18" rx="6" fill="${{tribeColor(garrison.owner)}}" stroke="#111" />`);
+        svg.push(`<text x="${{cx + 35}}" y="${{cy + 31}}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">T${{garrison.tier}}</text>`);
+      }}
+    }}
+  }}
+
+  const preciseTransits = perspective
+    ? (perspective.my_forces || []).filter((f) => f.location_kind === "transit" && f.location_transit)
+    : orderedForceList(state).map(([, force]) => force).filter((f) => f.location_kind === "transit" && f.location_transit);
+  for (const force of preciseTransits) {{
+    const [x, y] = transitMidpoint(force, state);
+    const cx = tx(x);
+    const cy = ty(y);
+    svg.push(`<rect x="${{cx - 34}}" y="${{cy - 10}}" width="68" height="20" rx="8" fill="${{tribeColor(force.owner)}}" stroke="#111" />`);
+    svg.push(`<text x="${{cx}}" y="${{cy + 4}}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">${{escapeHtml(force.owner.slice(0, 2).toUpperCase())}} T${{force.tier}} → ${{escapeHtml(shortRegionId(force.location_transit.direction_to))}} (${{force.location_transit.ticks_remaining}})</text>`);
+  }}
+  for (const transit of (perspective?.visible_transits || [])) {{
+    const from = layout[transit.direction_from];
+    const to = layout[transit.direction_to];
+    const cx = tx((from[0] + to[0]) / 2);
+    const cy = ty((from[1] + to[1]) / 2);
+    svg.push(`<rect x="${{cx - 38}}" y="${{cy - 10}}" width="76" height="20" rx="8" fill="${{tribeColor(transit.owner)}}" stroke="#111" opacity="0.9" />`);
+    svg.push(`<text x="${{cx}}" y="${{cy + 4}}" fill="#fff" font-size="8" font-weight="bold" text-anchor="middle">${{escapeHtml(transit.owner.slice(0, 2).toUpperCase())}} ${{escapeHtml(transit.fuzzy_tier.replaceAll("_", " "))}}</text>`);
+  }}
+
+  const preciseScouts = perspective
+    ? (perspective.my_scouts || []).filter((s) => s.location_kind === "arrived" && s.location_region_id)
+    : Object.values(state.scouts).filter((s) => s.location_kind === "arrived" && s.location_region_id);
+  for (const scout of preciseScouts) {{
+    const [x, y] = layout[scout.location_region_id];
+    const cx = tx(x) - 30;
+    const cy = ty(y) + 28;
+    svg.push(`<circle cx="${{cx}}" cy="${{cy}}" r="10" fill="#111" stroke="${{tribeColor(scout.owner)}}" stroke-width="2" />`);
+    svg.push(`<text x="${{cx}}" y="${{cy + 4}}" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">S</text>`);
+  }}
+  for (const scout of (perspective?.visible_scouts || [])) {{
+    const [x, y] = layout[scout.region_id];
+    const cx = tx(x) - 30;
+    const cy = ty(y) + 28;
+    svg.push(`<circle cx="${{cx}}" cy="${{cy}}" r="10" fill="#111" stroke="${{tribeColor(scout.owner)}}" stroke-width="2" opacity="0.9" />`);
+    svg.push(`<text x="${{cx}}" y="${{cy + 4}}" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">S</text>`);
+  }}
+
+  const caravans = perspective ? (perspective.my_caravans || []) : Object.values(state.caravans);
+  for (const caravan of caravans) {{
+    const rid = caravan.path[Math.min(caravan.current_index, caravan.path.length - 1)];
+    if (!rid || !layout[rid]) continue;
+    const [x, y] = layout[rid];
+    const cx = tx(x) + 30;
+    const cy = ty(y) - 30;
+    svg.push(`<rect x="${{cx - 18}}" y="${{cy - 10}}" width="36" height="20" rx="8" fill="#d1b254" stroke="#111" />`);
+    svg.push(`<text x="${{cx}}" y="${{cy + 4}}" fill="#111" font-size="9" font-weight="bold" text-anchor="middle">C${{caravan.amount_influence}}</text>`);
+  }}
+
+  svg.push(`</svg>`);
+  document.getElementById("mapWrap").innerHTML = svg.join("");
+}}
+
+function renderScoreboard(frame) {{
+  const state = frame.state;
+  const counts = regionCounts(state);
+  const cards = Object.entries(state.players).map(([tribe, player]) => {{
+    const forceCount = Object.values(state.forces).filter((f) => f.owner === tribe).length;
+    const pactCount = state.pacts.filter((p) => p.parties.includes(tribe)).length;
+    return `
+      <div class="scoreCard">
+        <div class="tribe" style="color:${{tribeColor(tribe)}}">${{escapeHtml(tribe.toUpperCase())}}</div>
+        <div>Influence: <span class="mono">${{player.influence}}</span></div>
+        <div>Regions: <span class="mono">${{counts[tribe] || 0}}</span></div>
+        <div>Forces: <span class="mono">${{forceCount}}</span></div>
+        <div>Pacts: <span class="mono">${{pactCount}}</span></div>
+      </div>
+    `;
+  }});
+  document.getElementById("scoreboard").innerHTML = cards.join("");
+}}
+
+function renderPerspectivePanel(frame) {{
+  const perspective = getPerspectiveView(frame);
+  const panel = document.getElementById("perspectivePanel");
+  if (!perspective) {{
+    panel.innerHTML = `<div class="item">Showing <strong>omniscient</strong> replay state. Switch to a tribe perspective to see that tribe's fog-of-war, inbox, and visible forces.</div>`;
+    return;
+  }}
+  const visibleRegions = Object.keys(perspective.visible_regions || {{}}).sort();
+  const pacts = perspective.pacts_involving_me || [];
+  const inbox = perspective.inbox_new || [];
+  const inboxHtml = inbox.length
+    ? `<ul>${{inbox.map((entry) => {{
+        if (entry.kind === "message") return `<li>${{escapeHtml("message from " + entry.from_tribe + ": " + (entry.text || ""))}}</li>`;
+        if (entry.kind === "proposal") return `<li>${{escapeHtml("proposal " + entry.proposal.kind + " from " + entry.from_tribe + " (" + entry.proposal.id + ")")}}</li>`;
+        if (entry.kind === "scout_report") return `<li>${{escapeHtml("scout report: " + ((entry.payload && entry.payload.region_id) || "unknown"))}}</li>`;
+        if (entry.kind === "caravan_delivered") return `<li>${{escapeHtml("caravan from " + entry.from_tribe + " amount=" + ((entry.payload && entry.payload.amount) || ""))}}</li>`;
+        return `<li>${{escapeHtml(entry.kind)}}</li>`;
+      }}).join("")}}</ul>`
+    : `<div class="small">No new inbox items.</div>`;
+  const pactsHtml = pacts.length
+    ? `<ul>${{pacts.map((p) => `<li>${{escapeHtml(p.kind + ": " + p.parties.join(" / ") + " (exp " + p.expires_tick + ")")}}</li>`).join("")}}</ul>`
+    : `<div class="small">No active pacts.</div>`;
+  const items = [
+    `<div class="pillRow">
+      <span class="pill">Tribe: <strong style="color:${{tribeColor(perspective.for_tribe)}}">${{escapeHtml(perspective.for_tribe.toUpperCase())}}</strong></span>
+      <span class="pill">Visible regions: <span class="mono">${{visibleRegions.length}}</span></span>
+      <span class="pill">Visible foreign forces: <span class="mono">${{(perspective.visible_forces || []).length}}</span></span>
+      <span class="pill">Visible transits: <span class="mono">${{(perspective.visible_transits || []).length}}</span></span>
+    </div>`,
+    `<div class="item">
+      <div><strong>Visible region ids</strong></div>
+      <div class="small mono">${{escapeHtml(visibleRegions.join(", ") || "(none)")}}</div>
+    </div>`,
+    `<div class="item">
+      <div><strong>Inbox this tick</strong></div>
+      ${{inboxHtml}}
+    </div>`,
+    `<div class="item">
+      <div><strong>Active pacts involving this tribe</strong></div>
+      ${{pactsHtml}}
+    </div>`,
+  ];
+  panel.innerHTML = items.join("");
+}}
+
+function describeEvent(event) {{
+  const kind = event.kind;
+  if (kind === "combat") return `${{event.attacker}} vs ${{event.defender}} at ${{event.region || event.region_id}} → ${{event.result}}`;
+  if (kind === "dispatch_move") return `${{event.tribe}} moved ${{event.force_id}}: ${{event.from}} → ${{event.to}} (${{event.ticks}}t)`;
+  if (kind === "dispatch_scout") return `${{event.tribe}} dispatched scout ${{event.scout_id}}: ${{event.from}} → ${{event.to}}`;
+  if (kind === "force_arrived") return `${{event.force_id}} arrived at ${{event.region_id}}`;
+  if (kind === "scout_arrived") return `${{event.scout_id}} arrived at ${{event.region_id}}`;
+  if (kind === "recruited") return `${{event.tribe}} recruited Tier ${{event.tier}} at ${{event.region_id}}`;
+  if (kind === "built") return `${{event.tribe}} built ${{event.structure}} at ${{event.region_id}}`;
+  if (kind === "proposal_sent") return `${{event.from}} proposed ${{event.proposal_kind}} to ${{event.to}}`;
+  if (kind === "pact_formed") return `Pact formed: ${{event.parties.join(" / ")}} (${{event.pact}})`;
+  if (kind === "pact_broken" || kind === "pact_broken_by_move") return `Pact broken by ${{event.breaker}}: ${{(event.parties || []).join(" / ")}}`;
+  if (kind === "war_declared") return `War declared: ${{(event.parties || []).join(" / ")}}`;
+  if (kind === "caravan_delivered") return `Caravan delivered: ${{event.from}} → ${{event.to}} (${{event.amount}})`;
+  if (kind === "caravan_intercepted") return `Caravan intercepted: ${{event.from}} → ${{event.to}} by ${{event.interceptor}} (${{event.amount}})`;
+  if (kind === "proposal_expired") return `Proposal expired: ${{event.id}} (${{event.from}} → ${{event.to}})`;
+  if (kind === "influence_credited") return `${{event.tribe}} gained ${{event.amount}} Influence`;
+  if (kind && kind.endsWith("_failed")) return `${{kind}}: ${{event.reason || "unknown"}}`;
+  return JSON.stringify(event);
+}}
+
+function renderList(targetId, items, renderFn) {{
+  const el = document.getElementById(targetId);
+  if (!items.length) {{
+    el.innerHTML = `<div class="empty">None this tick.</div>`;
+    return;
+  }}
+  el.innerHTML = items.map(renderFn).join("");
+}}
+
+function renderComms(frame) {{
+  const items = [];
+  for (const msg of frame.tick_summary.messages) {{
+    items.push(`
+      <div class="item">
+        <div><strong style="color:${{tribeColor(msg.from)}}">${{escapeHtml(msg.from)}}</strong> → <strong style="color:${{tribeColor(msg.to)}}">${{escapeHtml(msg.to)}}</strong></div>
+        <pre>${{escapeHtml(msg.text)}}</pre>
+      </div>
+    `);
+  }}
+  for (const entry of frame.tick_summary.diplomacy) {{
+    let body = "";
+    if (entry.kind === "proposal_order") {{
+      body = `${{entry.from}} proposes ${{entry.proposal_kind}} to ${{entry.to}}`;
+      if (entry.length_ticks) body += ` for ${{entry.length_ticks}} ticks`;
+      if (entry.amount_influence) body += ` (${{entry.amount_influence}} Influence)`;
+    }} else if (entry.kind === "respond_order") {{
+      body = `${{entry.from}} responds ${{entry.response}} to ${{entry.proposal_id}}`;
+    }} else {{
+      body = describeEvent(entry);
+    }}
+    items.push(`<div class="item">${{escapeHtml(body)}}</div>`);
+  }}
+  const el = document.getElementById("commsList");
+  el.innerHTML = items.length ? items.join("") : `<div class="empty">No communication or diplomacy this tick.</div>`;
+}}
+
+function renderOrders(frame) {{
+  const tribes = Object.keys(frame.orders_by_tribe).sort();
+  renderList("ordersList", tribes, (tribe) => {{
+    const orders = frame.orders_by_tribe[tribe].orders || [];
+    const body = orders.length
+      ? orders.map((o) => `<li><span class="mono">${{escapeHtml(o.kind)}}</span> <span class="small">${{escapeHtml(JSON.stringify(o.payload || {{}}))}}</span></li>`).join("")
+      : `<div class="small">pass</div>`;
+    return `
+      <div class="item">
+        <div><strong style="color:${{tribeColor(tribe)}}">${{escapeHtml(tribe.toUpperCase())}}</strong></div>
+        ${{orders.length ? `<ul>${{body}}</ul>` : body}}
+      </div>
+    `;
+  }});
+}}
+
+function renderEvents(frame) {{
+  renderList("eventsList", frame.resolution_events, (event) => `
+    <div class="item">
+      <div><span class="mono">${{escapeHtml(event.kind)}}</span></div>
+      <div class="small">${{escapeHtml(describeEvent(event))}}</div>
+    </div>
+  `);
+}}
+
+function renderMeta(frame) {{
+  const winner = frame.state.winner ? ` winner=${{JSON.stringify(frame.state.winner)}}` : "";
+  document.getElementById("tickLabel").textContent = `${{frame.label}} (${{frameIdx}}/${{frames.length - 1}})`;
+  document.getElementById("metaLine").textContent =
+    `seed=${{DATA.meta.seed}}  map=${{DATA.meta.map_kind}}  finalTick=${{DATA.meta.tick_final}}${{winner}}`;
+  const warnings = DATA.meta.warnings || [];
+  const bar = document.getElementById("warningBar");
+  if (warnings.length) {{
+    bar.style.display = "block";
+    bar.textContent = `Replay warning: ${{warnings[0]}}${{warnings.length > 1 ? ` (+${{warnings.length - 1}} more)` : ""}}`;
+  }} else {{
+    bar.style.display = "none";
+    bar.textContent = "";
+  }}
+}}
+
+function renderFrame(idx) {{
+  frameIdx = idx;
+  slider.value = String(idx);
+  const frame = frames[idx];
+  renderMeta(frame);
+  renderMap(frame);
+  renderScoreboard(frame);
+  renderPerspectivePanel(frame);
+  renderComms(frame);
+  renderOrders(frame);
+  renderEvents(frame);
+}}
+
+function stopPlayback() {{
+  if (timer) {{
+    clearInterval(timer);
+    timer = null;
+  }}
+  document.getElementById("playBtn").textContent = "Play";
+}}
+
+function startPlayback() {{
+  stopPlayback();
+  const delay = Number(document.getElementById("speedSelect").value);
+  timer = setInterval(() => {{
+    if (frameIdx >= frames.length - 1) {{
+      stopPlayback();
+      return;
+    }}
+    renderFrame(frameIdx + 1);
+  }}, delay);
+  document.getElementById("playBtn").textContent = "Pause";
+}}
+
+document.getElementById("playBtn").addEventListener("click", () => {{
+  if (timer) stopPlayback();
+  else startPlayback();
+}});
+document.getElementById("prevBtn").addEventListener("click", () => {{
+  stopPlayback();
+  renderFrame(Math.max(0, frameIdx - 1));
+}});
+document.getElementById("nextBtn").addEventListener("click", () => {{
+  stopPlayback();
+  renderFrame(Math.min(frames.length - 1, frameIdx + 1));
+}});
+document.getElementById("speedSelect").addEventListener("change", () => {{
+  if (timer) startPlayback();
+}});
+document.getElementById("perspectiveSelect").addEventListener("change", (e) => {{
+  selectedPerspective = e.target.value;
+  renderFrame(frameIdx);
+}});
+slider.addEventListener("input", (e) => {{
+  stopPlayback();
+  renderFrame(Number(e.target.value));
+}});
+
+renderFrame(0);
+</script>
+</body>
+</html>
+"""
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Render a Rogue Rivals v2 replay HTML")
+    parser.add_argument("--trace", type=Path, required=True, help="Path to match_*.jsonl")
+    parser.add_argument(
+        "--map",
+        dest="map_kind",
+        choices=["minimal", "expanded", "6p-continent"],
+        default="expanded",
+        help="Map used by the match trace",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Override seed for traces that do not embed one (e.g. sim_v2)",
+    )
+    parser.add_argument("--out", type=Path, required=True, help="Output HTML path")
+    args = parser.parse_args()
+
+    payload = build_replay_payload(args.trace, args.map_kind, seed_override=args.seed)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(render_html(payload), encoding="utf-8")
+    print(f"wrote {args.out}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

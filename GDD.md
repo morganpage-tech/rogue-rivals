@@ -96,6 +96,16 @@ All four tribes share the neutral **Ruins** region, the only source of **Scrap**
 
 **Design principle:** No tribe can win without trading. Endgame buildings require resource types a single tribe can never self-gather, forcing cross-tribe negotiation. Tribe asymmetry is **spatial/resource**, not statistical ? there are no combat or yield modifiers by tribe. This keeps the prototype balance tractable; flavor abilities return post-launch.
 
+### 3.1 Post-launch Tribes (Lore)
+
+The following tribes are **cosmetic / post-launch content** (see ?16 Premium Items). They do not add new regions or resources at launch; their lore seeds future expansions and Fox Skin drops.
+
+- **Blue Foxiz ? The Sharp Valleys.** Traversing the wasteland of the Sharp Valleys, amongst the razor-sharp rocks, the Blue Foxiz have learned not only to survive but also to prosper from their knowledge of the region.
+- **Pink Foxiz ? The Dim Caves.** Hidden in the dark, steam-filled Dim Caves, the Pink Foxiz learn to read the shadows on the wall. They were discovered by **Vulp The Great** ? the first Rogue ? who described their strange rituals.
+- **Cheetah Foxiz ? The Tropical Savannah.** Deep down, to the south of the Continent, on a small piece of land between the branches of the huge palms, one must pray not to see the eyes of the notorious Cheetah Foxiz who inhabit the Tropical Savannah.
+
+> Canon note: *Vulp The Great* is the **first Rogue** and the in-fiction origin of the Rogue archetype referenced in ?2.3.
+
 ---
 
 ## 4. Core Gameplay Loop (v0.7.3)
@@ -243,6 +253,18 @@ The SMS/RCS thread **is** the game log. It is not a notification feed ? it is th
 | Raid alert    | *"Tricoloured Foxiz raided your scrap pile! Watchtower held."*               |
 | Standings     | *"Standings: Red (42) ? Grey (38) ? Brown (34) ? Tricolour (31)"*            |
 | Match end     | *"The Barren Lands bow to the Red Foxiz."*                                   |
+
+
+#### Post-launch flavor (cosmetic tribes, see ?3.1 / ?16)
+
+These messages only appear when a Fox Skin is equipped; they do not alter mechanics.
+
+
+| Message       | Example                                                                     |
+| ------------- | --------------------------------------------------------------------------- |
+| Turn notice   | *"Your turn ? Blue Foxiz. The valleys are quiet."*                          |
+| Action result | *"Pink Foxiz read the shadows; a pending Ambush was revealed in the Ruins."* |
+| Raid alert    | *"Cheetah Foxiz moved between the palms. Your scouts lost their trail."*    |
 
 
 ### 6.3 Viral Onboarding

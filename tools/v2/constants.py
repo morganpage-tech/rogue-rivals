@@ -85,12 +85,17 @@ TRIBE_HOME_TERRAIN: Dict[str, str] = {
     "grey": "mountains",
     "brown": "swamps",
     "red": "desert",
+    "tricoloured": "forest",
+    # Arctic uses mountain/plains semantics until a dedicated frost terrain exists.
+    "arctic": "mountains",
 }
 STARTING_INFLUENCE: Dict[str, int] = {
     "orange": 5,
     "grey": 5,
     "brown": 5,
     "red": 10,
+    "tricoloured": 5,
+    "arctic": 5,
 }
 STARTING_GARRISON_TIER: int = 2
 

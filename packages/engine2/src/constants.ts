@@ -136,6 +136,9 @@ export const TRIBE_HOME_TERRAIN: Record<Tribe, RegionType> = {
   grey: "mountains",
   brown: "swamps",
   red: "desert",
+  tricoloured: "forest",
+  // Arctic uses mountain/plains semantics until a dedicated frost terrain exists.
+  arctic: "mountains",
 };
 
 export const STARTING_INFLUENCE: Record<Tribe, number> = {
@@ -143,6 +146,8 @@ export const STARTING_INFLUENCE: Record<Tribe, number> = {
   grey: 5,
   brown: 5,
   red: 10,
+  tricoloured: 5,
+  arctic: 5,
 };
 
 export const STARTING_GARRISON_TIER: ForceTier = 2;

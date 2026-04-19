@@ -1,0 +1,140 @@
+{
+  "kind": "batch_summary",
+  "num_matches": 5,
+  "base_seed": 202604180,
+  "max_ticks": 30,
+  "map_kind": "expanded",
+  "persona_assignment": {
+    "orange": "warlord",
+    "grey": "paranoid_isolationist",
+    "brown": "merchant_prince",
+    "red": "opportunist"
+  },
+  "elapsed_s": 1636.09,
+  "matches": [
+    {
+      "kind": "match_summary",
+      "match_idx": 0,
+      "seed": 202604180,
+      "persona_assignment": {
+        "orange": "warlord",
+        "grey": "paranoid_isolationist",
+        "brown": "merchant_prince",
+        "red": "opportunist"
+      },
+      "winner": null,
+      "tick_final": 30,
+      "tribes_alive_at_end": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "elapsed_s": 587.66,
+      "llm_calls": 120,
+      "llm_errors": 1,
+      "diagnostics_sample": [
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 1,
+      "seed": 202604181,
+      "persona_assignment": {
+        "orange": "warlord",
+        "grey": "paranoid_isolationist",
+        "brown": "merchant_prince",
+        "red": "opportunist"
+      },
+      "winner": null,
+      "tick_final": 30,
+      "tribes_alive_at_end": [
+        "orange",
+        "grey",
+        "red"
+      ],
+      "elapsed_s": 592.66,
+      "llm_calls": 114,
+      "llm_errors": 2,
+      "diagnostics_sample": [
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 2,
+      "seed": 202604182,
+      "persona_assignment": {
+        "orange": "warlord",
+        "grey": "paranoid_isolationist",
+        "brown": "merchant_prince",
+        "red": "opportunist"
+      },
+      "winner": null,
+      "tick_final": 30,
+      "tribes_alive_at_end": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "elapsed_s": 580.35,
+      "llm_calls": 120,
+      "llm_errors": 2,
+      "diagnostics_sample": [
+        "LLM call failed: Invalid JSON from model: Expecting ',' delimiter: line 25 column 3 (char 498)",
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)"
+      ]
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 3,
+      "seed": 202604183,
+      "persona_assignment": {
+        "orange": "warlord",
+        "grey": "paranoid_isolationist",
+        "brown": "merchant_prince",
+        "red": "opportunist"
+      },
+      "winner": null,
+      "tick_final": 30,
+      "tribes_alive_at_end": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "elapsed_s": 470.71,
+      "llm_calls": 120,
+      "llm_errors": 0,
+      "diagnostics_sample": []
+    },
+    {
+      "kind": "match_summary",
+      "match_idx": 4,
+      "seed": 202604184,
+      "persona_assignment": {
+        "orange": "warlord",
+        "grey": "paranoid_isolationist",
+        "brown": "merchant_prince",
+        "red": "opportunist"
+      },
+      "winner": null,
+      "tick_final": 30,
+      "tribes_alive_at_end": [
+        "orange",
+        "grey",
+        "brown",
+        "red"
+      ],
+      "elapsed_s": 572.45,
+      "llm_calls": 120,
+      "llm_errors": 1,
+      "diagnostics_sample": [
+        "LLM call failed: Invalid JSON from model: Expecting value: line 1 column 1 (char 0)"
+      ]
+    }
+  ]
+}

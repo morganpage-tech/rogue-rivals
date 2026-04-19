@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
-Tribe = str  # "orange" | "grey" | "brown" | "red"
+Tribe = str  # "orange" | "grey" | "brown" | "red" | "tricoloured" | "arctic"
 RegionType = str
 StructureKind = str
 RegionId = str

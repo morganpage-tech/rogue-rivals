@@ -16,8 +16,14 @@
 // Identity primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Canonical four-tribe roster for v2.0. Additional tribes deferred to v2.1. */
-export type Tribe = "orange" | "grey" | "brown" | "red";
+/** Canonical roster currently supported by the authored maps in `tools/v2/`. */
+export type Tribe =
+  | "orange"
+  | "grey"
+  | "brown"
+  | "red"
+  | "tricoloured"
+  | "arctic";
 
 /** Terrain types, as per RULES_v2.md §4.1. */
 export type RegionType =
