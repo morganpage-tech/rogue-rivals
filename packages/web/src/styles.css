@@ -683,6 +683,25 @@ code,
   pointer-events: none;
 }
 
+/** Your garrison tier — center of region node (not trail edge “Nt” travel time). */
+.v2-map-garrison-tier {
+  font-size: 16px;
+  font-weight: 800;
+  fill: #fff;
+  stroke: #0a0a0a;
+  stroke-width: 3px;
+  paint-order: stroke fill;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.v2-map-trail-time {
+  fill: #9ab0c0;
+  font-size: 10px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
 .v2-queue-list {
   margin: 8px 0 0 18px;
   font-size: 12px;

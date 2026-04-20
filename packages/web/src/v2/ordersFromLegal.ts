@@ -3,11 +3,55 @@ import type {
   LegalOrderOption,
   Order,
   OrderPacket,
+  ProjectedView,
   Proposal,
   StructureKind,
   GameState,
   Tribe,
 } from "@rr/engine2";
+
+/** Whether a legal option starts at the given region (for map-driven filtering). Propose/respond always match. */
+export function legalOptionMatchesRegion(
+  opt: LegalOrderOption,
+  regionId: string,
+  view: ProjectedView,
+): boolean {
+  const p = opt.payload as Record<string, unknown>;
+  switch (opt.kind) {
+    case "move": {
+      const forceId = p.forceId as string;
+      const f = view.myForces.find((x) => x.id === forceId);
+      const origin =
+        f?.location.kind === "garrison" ? f.location.regionId : null;
+      return origin === regionId;
+    }
+    case "recruit":
+      return (p.regionId as string) === regionId;
+    case "build": {
+      const rid = p.regionId as string;
+      return rid === regionId;
+    }
+    case "scout":
+      return (p.fromRegionId as string) === regionId;
+    case "propose":
+    case "respond":
+      return true;
+    default:
+      return true;
+  }
+}
+
+/**
+ * True when a scout order would not reveal new map tiles: v2 fog already includes every region
+ * adjacent to any province you own, and scouts may only target adjacent regions — so the
+ * destination is always already in `visibleRegions`. (Scouts can still matter for inbox reports
+ * and combat; the UI hides them as redundant for map intel.)
+ */
+export function scoutOptionRedundantForMapIntel(view: ProjectedView, opt: LegalOrderOption): boolean {
+  if (opt.kind !== "scout") return false;
+  const target = opt.payload.targetRegionId as string;
+  return target in view.visibleRegions;
+}
 
 /** Turn a legal-option row into a concrete `Order` (payloads are camelCase from `projectForPlayer`). */
 export function orderFromLegalOption(opt: LegalOrderOption): Order {

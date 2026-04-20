@@ -14,9 +14,9 @@
 - **v0.7.3 clarifications pass (2026-04-18)** ? no behavior change; surfaced during TS engine port. ?1.4 documents the narrow RNG scope (turn-order shuffle only; gameplay resolution uses no randomness). ?4.2 adds the Forge tie-break rule for choosing among equally-feasible 3-resource bundles. ?7.1 documents the match-end ordering when Great Hall and VP threshold fire on the same turn. `rules_version` remains `"v0.7.3"` ? existing simulation logs are unaffected.
 - **v0.7.3** ? Trade Beads: each player earns **at most 2 Beads per round** from completed trades (further trades in the same round still transfer resources and update `partners_traded`, but award **no** extra Bead once the cap is reached). *Rationale:* v0.7.2's **1 Bead/round** cap over-corrected and zeroed **alliance** viability; v0.7.3 relaxes to **2 Beads/round** to preserve the banker nerf while keeping volume-trading strategies alive.
 - **v0.7.2** ? Trade Beads: each player earns **at most 1 Bead per round** from completed trades (later trades in the same round still transfer resources and update `partners_traded`, but award **no** extra Bead). *Rationale:* v0.7.1 smart-agent batch showed **banker** snowballing via uncapped per-round bead income; the round cap preserves trading for resources while blunting pure trade-spam VP.
-- **v0.7.1** ? Trade Beads: **+1 Bead on every completed trade** (no longer first-new-partner only); conversion spends **2 Beads** per **+1 VP** (repeatable `while` loop, uncapped). *Rationale:* v0.7 uncapped bead-to-VP conversion had little room to operate because bead **earning** was still capped at **num_players ? 1** per match; v0.7.1 makes **trade volume** the bead VP engine while keeping **`partners_traded`** for tiebreakers (?7.2 #2).
-- **v0.7** ? Great Hall costs **6** resources (`1T+1O+1F+1Rel+2S`); match ends at **`vp >= 8`**; Trade Beads convert in a **repeatable loop** (spend **3 Beads** per **+1 VP**, no per-match cap).
-- **v0.6** ? Prior baseline: Great Hall **10** resources; **`vp >= 10`** threshold; at most **one** Bead-to-VP conversion per player per match (Beads above 3 had no extra effect).
+- **v0.7.1** ? Trade Beads: **+1 Bead on every completed trade** (no longer first-new-partner only); conversion spends **2 Beads** per **+1 VP** (repeatable `while` loop, uncapped). *Rationale:* v0.7 uncapped bead-to-VP conversion had little room to operate because bead **earning** was still capped at **num_players ? 1** per match; v0.7.1 makes **trade volume** the bead VP engine while keeping `**partners_traded`** for tiebreakers (?7.2 #2).
+- **v0.7** ? Great Hall costs **6** resources (`1T+1O+1F+1Rel+2S`); match ends at `**vp >= 8`**; Trade Beads convert in a **repeatable loop** (spend **3 Beads** per **+1 VP**, no per-match cap).
+- **v0.6** ? Prior baseline: Great Hall **10** resources; `**vp >= 10`** threshold; at most **one** Bead-to-VP conversion per player per match (Beads above 3 had no extra effect).
 
 ---
 
@@ -35,12 +35,14 @@
 
 Matches support 2, 3, or 4 players. Each player chooses a unique tribe from:
 
-| Tribe | Home Region | Home Resource |
-|---|---|---|
-| `orange` | `plains` | `timber` |
-| `grey` | `mountains` | `ore` |
-| `brown` | `swamps` | `fiber` |
-| `red` | `desert` | `relics` |
+
+| Tribe    | Home Region | Home Resource |
+| -------- | ----------- | ------------- |
+| `orange` | `plains`    | `timber`      |
+| `grey`   | `mountains` | `ore`         |
+| `brown`  | `swamps`    | `fiber`       |
+| `red`    | `desert`    | `relics`      |
+
 
 Tribes not assigned to a player are **absent** from the match ? their home region is still gatherable (away yield only), their home resource is not available as a home yield for anyone.
 
@@ -103,14 +105,14 @@ On your turn, resolve in this order:
 1. **Refresh state:** Reset `active_ambush_region` from *previous* round is NOT reset here ? ambushes persist through the round they were set in; see ?4.3.
 2. **Expire stale offers:** Any trade offer YOU made on your previous turn that is still pending is cancelled now.
 3. **Free phase (any order, any number of times):**
-   - Propose trade offers (?3)
-   - Accept/reject/counter pending offers addressed to you
+  - Propose trade offers (?3)
+  - Accept/reject/counter pending offers addressed to you
 4. **Action phase (exactly once):** Execute one of:
-   - `Gather(region)` (?4.1)
-   - `Build(building_type)` (?4.2)
-   - `Ambush(region)` (?4.3)
-   - `Scout(region)` (?4.4)
-   - `Pass` ? no action; allowed but agents should only use it if genuinely no legal action exists.
+  - `Gather(region)` (?4.1)
+  - `Build(building_type)` (?4.2)
+  - `Ambush(region)` (?4.3)
+  - `Scout(region)` (?4.4)
+  - `Pass` ? no action; allowed but agents should only use it if genuinely no legal action exists.
 5. **Log turn:** Write the turn event to the match log (see `SIMULATION_SCHEMA.md`).
 
 ---
@@ -144,6 +146,7 @@ offer = {
 ### 3.3 Offer resolution
 
 When accepted:
+
 1. Verify offerer has `offered` resources. If not, cancel offer, no effect.
 2. Verify recipient has `requested` resources. If not, cancel offer, no effect.
 3. Transfer resources: offerer loses `offered`, gains `requested`; recipient loses `requested`, gains `offered`.
@@ -217,6 +220,7 @@ for each player X:
 Stolen beads bypass the 2/round earn cap on the ambusher's side (they are loot, not trade earnings) — they enter `ambusher.beads` directly. The ambusher's own conversion loop then fires as usual.
 
 > **Rule variants.** Two non-canonical fallbacks exist in `tools/sim.py` under the `RR_BEAD_VULN_MODE` env var for regression / experimentation:
+>
 > - `deny`: on-hit, pending beads are destroyed (no transfer, no event beyond `bead_denied`). Produces the same trader nerf as `steal` but without the raider upside.
 > - `off`: legacy v0.7.4 behaviour — beads award + convert inside `trade_resolved`, pending_beads is unused. Used only to replay pre-v0.8 batches byte-identically.
 > Neither variant is part of the v0.8 rule set; batches run with either must record `RR_BEAD_VULN_MODE` in `run_metadata.notes`.
@@ -267,14 +271,17 @@ player.resources[resource_type] += yield_amount
 
 **Base yield table:**
 
-| Region | Home player | Away player |
-|---|---|---|
+
+| Region                               | Home player        | Away player        |
+| ------------------------------------ | ------------------ | ------------------ |
 | plains / mountains / swamps / desert | 2 of home resource | 1 of that resource |
-| ruins | 1 Scrap | 1 Scrap |
+| ruins                                | 1 Scrap            | 1 Scrap            |
+
 
 ### 4.2 `Build(building_type)`
 
 **Preconditions:**
+
 - Building type is one of `shack | den | watchtower | forge | great_hall`.
 - Player does not already own this building type.
 - Player has the required resources.
@@ -283,15 +290,18 @@ player.resources[resource_type] += yield_amount
 
 #### Building catalog
 
-| Type | Cost (exact) | VP | Effect |
-|---|---|---|---|
-| `shack` | 1 of home resource + 1 Scrap | 1 | `+1` Gather yield at home region |
-| `den` | 1 home + 1 non-home (any 1 of T/O/F/Rel that is not your home) + 1 Scrap | 1 | `+1` Gather yield at home region (stacks with Shack) |
-| `watchtower` | 2 of any single resource + 1 Scrap | 2 | Immunity to 1 Ambush per round at any of your Gathers |
-| `forge` | 1 each of any 3 different resources (any 3 of T/O/F/Rel/S) + 1 Scrap | 2 | `+1` Gather yield at every region |
-| `great_hall` | 1T + 1O + 1F + 1Rel + 2S | 4 | Triggers match end |
+
+| Type         | Cost (exact)                                                             | VP  | Effect                                                |
+| ------------ | ------------------------------------------------------------------------ | --- | ----------------------------------------------------- |
+| `shack`      | 1 of home resource + 1 Scrap                                             | 1   | `+1` Gather yield at home region                      |
+| `den`        | 1 home + 1 non-home (any 1 of T/O/F/Rel that is not your home) + 1 Scrap | 1   | `+1` Gather yield at home region (stacks with Shack)  |
+| `watchtower` | 2 of any single resource + 1 Scrap                                       | 2   | Immunity to 1 Ambush per round at any of your Gathers |
+| `forge`      | 1 each of any 3 different resources (any 3 of T/O/F/Rel/S) + 1 Scrap     | 2   | `+1` Gather yield at every region                     |
+| `great_hall` | 1T + 1O + 1F + 1Rel + 2S                                                 | 4   | Triggers match end                                    |
+
 
 Notes:
+
 - `watchtower` resource does NOT need to be home. 2 of any resource works.
 - `forge` 3-different requirement is INCLUSIVE of Scrap, then the building itself costs another 1 Scrap on top. In other words: pick 3 different resources from {T,O,F,Rel,S}, pay 1 of each, plus 1 additional Scrap (so if one of the 3 was Scrap, total Scrap cost = 2). Simpler restatement: `forge = pick 3 different resources, pay 1 each, then pay 1 Scrap`.
 - **Forge triple tie-break (determinism requirement).** When a player can afford multiple valid 3-resource bundles, the engine MUST choose the lexicographically smallest feasible triple under the canonical resource ordering `(T, O, F, Rel, S)`. Generate candidate triples with nested index loops `i < j < k` over that ordering, filter to those the player can actually pay (accounting for the extra 1 Scrap), then take the first. This matches the reference Python simulator (`tools/sim.py`) and ensures byte-identical replay across implementations.
@@ -300,19 +310,21 @@ Notes:
 ### 4.3 `Ambush(region)`
 
 **Preconditions:**
+
 - Region is one of `plains | mountains | swamps | desert | ruins`.
 - Player has `resources.S >= 1`.
 - Player has no `active_ambush_region` already set (max 1 pending ambush).
 
 **Resolution:**
+
 1. `player.resources.S -= 1` (paid regardless of outcome).
 2. `player.active_ambush_region = region`.
 3. Log `ambush_set` event with `hidden: true` ? other players see only a generic "moved in secret" message in the public log.
 4. The ambush persists **across up to 2 end-of-round ticks** before expiring (v0.7.4; was 1 in v0.7.3.1):
-   - If another player `Gather`s this region at any time while the ambush is active, resolve per ?4.1's ambush check; a triggered ambush clears immediately (the TTL is set to 0 regardless of how many ticks remain).
-   - If a player `Scout`s this region while the ambush is active, resolve per ?4.4; the ambush is cleared immediately.
-   - Otherwise, at each `end_of_round_resolution()` the ambush's TTL is decremented; the ambush expires (and logs `ambush_expired`) only when the TTL reaches 0. A freshly-set ambush therefore survives the round in which it was set **and** the following round before auto-expiry.
-   - An ambusher has at most **one** active ambush at a time, regardless of TTL state; this is unchanged from v0.7.3.1.
+  - If another player `Gather`s this region at any time while the ambush is active, resolve per ?4.1's ambush check; a triggered ambush clears immediately (the TTL is set to 0 regardless of how many ticks remain).
+  - If a player `Scout`s this region while the ambush is active, resolve per ?4.4; the ambush is cleared immediately.
+  - Otherwise, at each `end_of_round_resolution()` the ambush's TTL is decremented; the ambush expires (and logs `ambush_expired`) only when the TTL reaches 0. A freshly-set ambush therefore survives the round in which it was set **and** the following round before auto-expiry.
+  - An ambusher has at most **one** active ambush at a time, regardless of TTL state; this is unchanged from v0.7.3.1.
 
 ### 4.4 `Scout(region)`
 
@@ -428,32 +440,34 @@ else: apply tiebreakers in order:
 
 ## 8. Glossary of public events (for SMS-thread and simulation logs)
 
-| Event | Description | Public? |
-|---|---|---|
-| `turn_start` | Player X begins their turn | yes |
-| `trade_proposed` | Player X offers Player Y | yes |
-| `trade_resolved` | Trade between X and Y completed | yes |
-| `trade_rejected` | Y rejected X's offer | yes |
-| `trade_countered` | Y countered X's offer | yes |
-| `trade_expired` | X's offer to Y expired | yes |
-| `action_gather` | X gathered at region | yes (reveals region + yield) |
-| `action_build` | X built a building | yes |
-| `action_ambush_set` | X moved in secret | yes (region hidden) |
-| `action_scout` | X scouted a region | yes |
-| `ambush_triggered` | X ambushed Y at region | yes |
-| `ambush_scouted` | Z scouted X's ambush at region | yes |
-| `ambush_expired` | X's ambush at region expired with no effect | yes (but retroactively) |
-| `bead_earned` | X earned Bead from trade with Y (goes to `pending_beads` under v0.8) | yes |
-| `bead_capped` | X completed a trade but earned no Bead (already at the per-round trade Bead cap) | yes |
-| `bead_stolen` | v0.8: X was ambushed this round; their pending Beads transferred to ambusher A at end-of-round | yes |
-| `bead_denied` | v0.8 (deny variant only): X was ambushed this round; pending Beads destroyed at end-of-round | yes |
-| `bead_converted` | X (or an ambusher who just stole beads) converted 2 Beads to +1 VP | yes |
-| `trailing_bonus_applied` | X is trailing, +1 Gather next round | yes |
-| `tribute_route_proposed` | X requests tribute from Y | yes |
-| `tribute_route_accepted` | Y accepted tribute route | yes |
-| `tribute_route_payment` | Y sends 1 resource to X | yes |
-| `round_end` | Round N ended, standings updated | yes |
-| `match_end` | Match ended, winner announced | yes |
+
+| Event                    | Description                                                                                    | Public?                      |
+| ------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------- |
+| `turn_start`             | Player X begins their turn                                                                     | yes                          |
+| `trade_proposed`         | Player X offers Player Y                                                                       | yes                          |
+| `trade_resolved`         | Trade between X and Y completed                                                                | yes                          |
+| `trade_rejected`         | Y rejected X's offer                                                                           | yes                          |
+| `trade_countered`        | Y countered X's offer                                                                          | yes                          |
+| `trade_expired`          | X's offer to Y expired                                                                         | yes                          |
+| `action_gather`          | X gathered at region                                                                           | yes (reveals region + yield) |
+| `action_build`           | X built a building                                                                             | yes                          |
+| `action_ambush_set`      | X moved in secret                                                                              | yes (region hidden)          |
+| `action_scout`           | X scouted a region                                                                             | yes                          |
+| `ambush_triggered`       | X ambushed Y at region                                                                         | yes                          |
+| `ambush_scouted`         | Z scouted X's ambush at region                                                                 | yes                          |
+| `ambush_expired`         | X's ambush at region expired with no effect                                                    | yes (but retroactively)      |
+| `bead_earned`            | X earned Bead from trade with Y (goes to `pending_beads` under v0.8)                           | yes                          |
+| `bead_capped`            | X completed a trade but earned no Bead (already at the per-round trade Bead cap)               | yes                          |
+| `bead_stolen`            | v0.8: X was ambushed this round; their pending Beads transferred to ambusher A at end-of-round | yes                          |
+| `bead_denied`            | v0.8 (deny variant only): X was ambushed this round; pending Beads destroyed at end-of-round   | yes                          |
+| `bead_converted`         | X (or an ambusher who just stole beads) converted 2 Beads to +1 VP                             | yes                          |
+| `trailing_bonus_applied` | X is trailing, +1 Gather next round                                                            | yes                          |
+| `tribute_route_proposed` | X requests tribute from Y                                                                      | yes                          |
+| `tribute_route_accepted` | Y accepted tribute route                                                                       | yes                          |
+| `tribute_route_payment`  | Y sends 1 resource to X                                                                        | yes                          |
+| `round_end`              | Round N ended, standings updated                                                               | yes                          |
+| `match_end`              | Match ended, winner announced                                                                  | yes                          |
+
 
 ---
 

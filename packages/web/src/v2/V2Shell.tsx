@@ -331,8 +331,10 @@ export function V2Shell() {
             <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
               Fog of war: only your visible regions are drawn. Select a region for context (orders
               use the legal list below). Use +/− to zoom; drag the map background to pan;
-              double-click or Fit resets the view. Transits, scouts, caravans, and structures match
-              the replay map.
+              double-click or Fit resets the view. <strong>T1–T4</strong> in the center of a region
+              is <strong>your garrison tier</strong>. Small <strong>gray “Nt” on trails</strong> is
+              base travel time in ticks, not your army strength. Moving armies appear as colored
+              pills on the trail path.
             </p>
             <V2Map
               view={view}
@@ -352,6 +354,7 @@ export function V2Shell() {
             <OrderQueue
               view={view}
               chosenIds={chosenIds}
+              selectedRegionId={selectedRegionId}
               canAdd={canAddLegalId}
               onToggle={toggle}
               onClear={() => setChosenIds([])}

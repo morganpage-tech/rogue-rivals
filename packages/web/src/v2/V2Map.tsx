@@ -69,6 +69,22 @@ export interface V2MapGlyphState {
   readonly caravans: readonly Caravan[];
 }
 
+/** Garrison tier labels: live/fog uses `view.myForces`; omniscient replay uses full `glyphState.forces`. */
+function garrisonForceForRegion(
+  regionId: string,
+  view: ProjectedView,
+  glyphState: V2MapGlyphState | null,
+): Force | undefined {
+  if (glyphState) {
+    return glyphState.forces.find(
+      (f) => f.location.kind === "garrison" && f.location.regionId === regionId,
+    );
+  }
+  return view.myForces.find(
+    (f) => f.location.kind === "garrison" && f.location.regionId === regionId,
+  );
+}
+
 interface V2MapProps {
   view: ProjectedView;
   selectedRegionId: string | null;
@@ -327,6 +343,11 @@ export function V2Map({
       const label = `${f.owner.slice(0, 2).toUpperCase()} T${f.tier} → ${regionShortName(f.location.directionTo)} (${f.location.ticksRemaining})`;
       out.push(
         <g key={`ft-${f.id}`}>
+          <title>
+            {f.owner === view.forTribe
+              ? `Your army — tier ${f.tier}, ${f.location.ticksRemaining} ticks to arrival`
+              : `Enemy transit — ${f.owner}`}
+          </title>
           <rect
             x={cx - 34}
             y={cy - 10}
@@ -504,34 +525,8 @@ export function V2Map({
         if (!p || !r) continue;
         const cx = p[0];
         const cy = p[1];
-        const myG = view.myForces.find(
-          (f) => f.location.kind === "garrison" && f.location.regionId === id,
-        );
-        if (myG) {
-          out.push(
-            <g key={`gar-${id}`}>
-              <rect
-                x={cx + 22}
-                y={cy + 18}
-                width={26}
-                height={18}
-                rx={6}
-                fill={tribeStrokeHex(myG.owner)}
-                stroke="#111"
-              />
-              <text
-                x={cx + 35}
-                y={cy + 31}
-                fill="#fff"
-                fontSize={10}
-                fontWeight="bold"
-                textAnchor="middle"
-              >
-                T{myG.tier}
-              </text>
-            </g>,
-          );
-        } else {
+        const myG = garrisonForceForRegion(id, view, glyphState);
+        if (!myG) {
           const vf = visibleForceByRegion.get(id);
           if (vf) {
             const ft = vf.fuzzyTier.replace(/_/g, " ");
@@ -615,7 +610,7 @@ export function V2Map({
           viewBox={viewBoxStr}
           preserveAspectRatio="xMidYMid meet"
           role="img"
-          aria-label="Territory map (fog of war). Use the toolbar +/− buttons to zoom; drag the map background to pan."
+          aria-label="Territory map. Your garrison tier appears as T1–T4 in the center of regions you hold. Trail edge labels show travel time in ticks."
         >
           <rect
             x={ox}
@@ -656,8 +651,14 @@ export function V2Map({
                 />
                 {tickLabel != null && (
                   <g>
+                    <title>Trail travel time (ticks), not combat tier</title>
                     <rect x={mx - 12} y={my - 10} width={24} height={18} rx={4} fill="#111" stroke="#777" />
-                    <text x={mx} y={my + 3} fill="#ddd" fontSize={11} textAnchor="middle">
+                    <text
+                      x={mx}
+                      y={my + 3}
+                      textAnchor="middle"
+                      className="v2-map-trail-time"
+                    >
                       {tickLabel}t
                     </text>
                   </g>
@@ -672,8 +673,18 @@ export function V2Map({
             const sel = selectedRegionId === id;
             const short = regionShortName(id);
             const tc = TERRAIN_CLASS[r.type] ?? "terrain-plains";
+            const myGarrison = showUnitGlyphs
+              ? garrisonForceForRegion(id, view, glyphState)
+              : undefined;
+            const regionTitle =
+              myGarrison && myGarrison.owner === view.forTribe
+                ? `${short} — your garrison, tier ${myGarrison.tier}`
+                : myGarrison
+                  ? `${short} — ${myGarrison.owner} garrison, tier ${myGarrison.tier}`
+                  : short;
             return (
               <g key={id}>
+                <title>{regionTitle}</title>
                 <circle
                   cx={p[0]}
                   cy={p[1]}
@@ -703,6 +714,26 @@ export function V2Map({
           })}
           {glyphSvg}
           {overlayChildren}
+          {/* Garrison tier last so transit/scout/structure glyphs never paint over it */}
+          {showUnitGlyphs &&
+            ids.map((id) => {
+              const p = layout[id];
+              if (!p) return null;
+              const myG = garrisonForceForRegion(id, view, glyphState);
+              if (!myG) return null;
+              return (
+                <text
+                  key={`garrison-tier-${id}`}
+                  x={p[0]}
+                  y={p[1] + 6}
+                  textAnchor="middle"
+                  className="v2-map-garrison-tier"
+                  pointerEvents="none"
+                >
+                  T{myG.tier}
+                </text>
+              );
+            })}
         </svg>
       </div>
     </div>

@@ -1,17 +1,44 @@
 import type { LegalOrderOption, ProjectedView } from "@rr/engine2";
+import { useState } from "react";
+import { legalOptionMatchesRegion, scoutOptionRedundantForMapIntel } from "./ordersFromLegal.js";
 
 interface OrderQueueProps {
   view: ProjectedView;
   chosenIds: string[];
+  /** When set, only show move/recruit/build/scout options that start at this region; propose/respond stay visible. */
+  selectedRegionId?: string | null;
   /** When false, the option cannot be turned on (removing an already-selected id is always allowed). */
   canAdd: (id: string) => boolean;
   onToggle: (id: string) => void;
   onClear: () => void;
 }
 
-export function OrderQueue({ view, chosenIds, canAdd, onToggle, onClear }: OrderQueueProps) {
-  const byKind = (k: string) => view.legalOrderOptions.filter((o) => o.kind === k);
+export function OrderQueue({
+  view,
+  chosenIds,
+  selectedRegionId = null,
+  canAdd,
+  onToggle,
+  onClear,
+}: OrderQueueProps) {
+  const [showScoutOrders, setShowScoutOrders] = useState(false);
+  const hadScouts = view.legalOrderOptions.some((o) => o.kind === "scout");
+  const legalOptions = view.legalOrderOptions.filter(
+    (o) => showScoutOrders || !scoutOptionRedundantForMapIntel(view, o),
+  );
+
+  const regionFilter = (opts: LegalOrderOption[]) =>
+    selectedRegionId == null
+      ? opts
+      : opts.filter((o) => legalOptionMatchesRegion(o, selectedRegionId, view));
+
+  const byKind = (k: string) => regionFilter(legalOptions.filter((o) => o.kind === k));
   const kinds = ["move", "recruit", "build", "scout", "propose", "respond", "message"] as const;
+
+  const regionScopedKinds = ["move", "recruit", "build", "scout"] as const;
+  const hasRegionScopedActions =
+    selectedRegionId == null ||
+    regionScopedKinds.some((k) => byKind(k).length > 0);
 
   return (
     <div className="v2-order-queue">
@@ -27,6 +54,29 @@ export function OrderQueue({ view, chosenIds, canAdd, onToggle, onClear }: Order
         next tick; at most one <code className="mono">move</code> per force). Submit runs{" "}
         <code className="mono">tick()</code> on the local engine.
       </p>
+      {hadScouts && (
+        <label className="row" style={{ gap: 8, alignItems: "center", marginTop: 8 }}>
+          <input
+            type="checkbox"
+            checked={showScoutOrders}
+            onChange={(e) => setShowScoutOrders(e.target.checked)}
+          />
+          <span className="muted" style={{ fontSize: 12 }}>
+            Show scout orders (adjacent targets are already visible in fog — use for inbox/combat)
+          </span>
+        </label>
+      )}
+      {selectedRegionId != null && (
+        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+          Showing actions starting at <span className="mono">{selectedRegionId}</span>; click the map
+          again to clear selection.
+        </p>
+      )}
+      {selectedRegionId != null && !hasRegionScopedActions && (
+        <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+          No move, recruit, build, or scout options starting at this region this tick.
+        </p>
+      )}
       {chosenIds.length > 0 && (
         <ol className="v2-queue-list">
           {chosenIds.map((id) => {
