@@ -3,7 +3,7 @@
   "private": true,
   "workspaces": ["packages/*"],
   "scripts": {
-    "test": "pnpm -F @rr/engine test",
+    "test": "pnpm -r test",
     "build": "pnpm -F @rr/engine build"
   },
   "packageManager": "pnpm@9.15.4"

@@ -33,7 +33,8 @@ jobs:
           pnpm -F @rr/engine2 lint
           pnpm -F @rr/engine2 test
 
-      - name: "@rr/web (lint, build)"
+      - name: "@rr/web (lint, test, build)"
         run: |
           pnpm -F @rr/web lint
+          pnpm -F @rr/web test
           pnpm -F @rr/web build
