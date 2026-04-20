@@ -69,6 +69,9 @@ importers:
       vite:
         specifier: ^6.0.7
         version: 6.4.2(@types/node@20.19.39)(tsx@4.21.0)
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.4(@types/node@20.19.39)(tsx@4.21.0)
 
 packages:
 

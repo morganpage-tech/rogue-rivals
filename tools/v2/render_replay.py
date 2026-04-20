@@ -10,6 +10,9 @@ Usage:
         --trace simulations/v2_smoke/match_000.jsonl \
         --map expanded \
         --out maps/v2_smoke_match_000_replay.html
+
+    JSON only (for @rr/web Replay debugger):
+    python -m tools.v2.render_replay --trace match.jsonl --map 6p-continent --json-out replay.json
 """
 
 from __future__ import annotations
@@ -1311,13 +1314,37 @@ def main() -> int:
         default=None,
         help="Override seed for traces that do not embed one (e.g. sim_v2)",
     )
-    parser.add_argument("--out", type=Path, required=True, help="Output HTML path")
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="Output HTML path (optional if --json-out is set)",
+    )
+    parser.add_argument(
+        "--json-out",
+        type=Path,
+        default=None,
+        help="Write the same replay payload as JSON (for the web Replay debugger)",
+    )
     args = parser.parse_args()
 
-    payload = build_replay_payload(args.trace, args.map_kind, seed_override=args.seed)
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(render_html(payload), encoding="utf-8")
-    print(f"wrote {args.out}")
+    if args.out is None and args.json_out is None:
+        parser.error("Provide --out and/or --json-out")
+
+    payload: Dict[str, Any] = build_replay_payload(
+        args.trace, args.map_kind, seed_override=args.seed
+    )
+    if args.out is not None:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(render_html(payload), encoding="utf-8")
+        print(f"wrote {args.out}")
+    if args.json_out is not None:
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.json_out.write_text(
+            json.dumps(payload, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        print(f"wrote {args.json_out}")
     return 0
 
 

@@ -8,9 +8,20 @@ import {
   type GameState,
   type MatchConfig,
   type Order,
+  type ProjectedView,
   type Tribe,
 } from "@rr/engine2";
 import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  buildInitialReplayFrame,
+  buildReplayFrameFromTs,
+  makeLiveReplayPayload,
+  ReplayFileLoader,
+  ReplayViewer,
+  type ReplayFrame,
+  type ReplayPayload,
+} from "../replay/index.js";
+import { CONTINENT_6P_REGION_LAYOUT } from "./mapData.js";
 import { DiplomacyPanel } from "./DiplomacyPanel.js";
 import { assembleTickPackets } from "./llm/assembleTickPackets.js";
 import { OrderQueue } from "./OrderQueue.js";
@@ -47,6 +58,14 @@ export function V2Shell() {
   const [llmToken, setLlmToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [tickError, setTickError] = useState<string | null>(null);
+  const [replayFrames, setReplayFrames] = useState<ReplayFrame[]>(() => {
+    const s = stateRef.current!;
+    const pv = Object.fromEntries(
+      s.tribesAlive.map((t) => [t, projectForPlayer(s, t)]),
+    ) as Record<Tribe, ProjectedView>;
+    return [buildInitialReplayFrame(s, pv)];
+  });
+  const [importedReplay, setImportedReplay] = useState<ReplayPayload | null>(null);
 
   const state = stateRef.current;
   const view = useMemo(
@@ -55,6 +74,19 @@ export function V2Shell() {
   );
 
   const ps = view.myPlayerState;
+
+  const liveReplayPayload = useMemo(
+    () =>
+      makeLiveReplayPayload(replayFrames, {
+        seed: state.seed,
+        mapKind: "6p-continent",
+        roster: [...state.tribesAlive],
+        layout: CONTINENT_6P_REGION_LAYOUT,
+      }),
+    [replayFrames, state.seed, state.tribesAlive],
+  );
+
+  const displayReplayPayload = importedReplay ?? liveReplayPayload;
 
   const ordersForIds = useCallback(
     (ids: readonly string[]): Order[] => {
@@ -103,6 +135,12 @@ export function V2Shell() {
     setChosenIds([]);
     setMessageText("");
     setTickError(null);
+    setImportedReplay(null);
+    const s = stateRef.current;
+    const pv = Object.fromEntries(
+      s.tribesAlive.map((t) => [t, projectForPlayer(s, t)]),
+    ) as Record<Tribe, ProjectedView>;
+    setReplayFrames([buildInitialReplayFrame(s, pv)]);
     setBump((x) => x + 1);
   }, []);
 
@@ -116,7 +154,16 @@ export function V2Shell() {
         llmUrl: opponentMode === "llm" ? llmUrl : undefined,
         bearerToken: llmToken.trim() || undefined,
       });
-      tick(state, packets);
+      const result = tick(state, packets);
+      const frame = buildReplayFrameFromTs({
+        label: `Tick ${state.tick}`,
+        state: result.state,
+        stateHash: result.stateHash,
+        packets,
+        events: result.events,
+        projectedViews: result.projectedViews,
+      });
+      setReplayFrames((prev) => [...prev, frame].slice(-120));
       setChosenIds([]);
       setMessageText("");
       setBump((x) => x + 1);
@@ -136,6 +183,18 @@ export function V2Shell() {
   ]);
 
   const winner = state.winner;
+
+  const downloadLiveReplayJson = useCallback(() => {
+    const blob = new Blob([JSON.stringify(liveReplayPayload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `replay-live-${state.seed}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [liveReplayPayload, state.seed]);
 
   return (
     <>
@@ -336,6 +395,27 @@ export function V2Shell() {
             />
           </div>
         </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="row wrap" style={{ gap: 12, alignItems: "center", marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>Replay debugger</h3>
+          <ReplayFileLoader onLoad={(p) => setImportedReplay(p)} />
+          <button type="button" onClick={downloadLiveReplayJson}>
+            Download live session JSON
+          </button>
+          {importedReplay && (
+            <button type="button" onClick={() => setImportedReplay(null)}>
+              Clear imported replay
+            </button>
+          )}
+        </div>
+        {importedReplay && (
+          <p className="muted" style={{ fontSize: 12 }}>
+            Showing imported file. Clear to return to the live session recording.
+          </p>
+        )}
+        <ReplayViewer payload={displayReplayPayload} />
       </div>
     </>
   );
