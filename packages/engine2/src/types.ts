@@ -3,8 +3,8 @@
  *
  * This file is a *contract*. Every runtime field named here must appear in
  * `GameState` with exactly these semantics. The companion specification is
- * `RULES_v2.md` in the repo root — if this file disagrees with RULES_v2.md,
- * RULES_v2.md wins and this file must be patched.
+ * `RULES.md` in the repo root — if this file disagrees with RULES.md,
+ * RULES.md wins and this file must be patched.
  *
  * The reference simulator is `tools/v2/` (Python). The TypeScript runtime in
  * this package (`initMatch`, `tick`, `projectForPlayer`, `hashState`) mirrors
@@ -24,7 +24,7 @@ export type Tribe =
   | "tricoloured"
   | "arctic";
 
-/** Terrain types, as per RULES_v2.md §4.1. */
+/** Terrain types, as per RULES.md §4.1. */
 export type RegionType =
   | "plains"
   | "mountains"
@@ -34,7 +34,7 @@ export type RegionType =
   | "forest"
   | "river_crossing";
 
-/** Structures buildable in regions, per RULES_v2.md §4.3. */
+/** Structures buildable in regions, per RULES.md §4.3. */
 export type StructureKind =
   | "granary"
   | "fort"
@@ -43,7 +43,7 @@ export type StructureKind =
   | "shrine"
   | "forge";
 
-/** Force tiers I–IV, per RULES_v2.md §4.2. */
+/** Force tiers I–IV, per RULES.md §4.2. */
 export type ForceTier = 1 | 2 | 3 | 4;
 
 /**
@@ -73,7 +73,7 @@ export type ProposalId = string;
 
 /**
  * A map edge. Trail length (in ticks) depends on endpoint terrains and is
- * computed once at match init per RULES_v2.md §4.4. Road structures reduce
+ * computed once at match init per RULES.md §4.4. Road structures reduce
  * the *effective* length for their specific edge; the base length here is
  * terrain-derived and immutable.
  */
@@ -144,7 +144,7 @@ export interface Scout {
 
 /**
  * A caravan is a structured-trade delivery. Path is frozen at dispatch
- * (RULES_v2.md §4.7). Caravans are invisible to observers — visibility is a
+ * (RULES.md §4.7). Caravans are invisible to observers — visibility is a
  * diplomatic-privacy choice, not a bug.
  */
 export interface Caravan {
@@ -161,7 +161,7 @@ export interface Caravan {
 // Diplomacy
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Structured proposal kinds, per RULES_v2.md §3.11 and §7. */
+/** Structured proposal kinds, per RULES.md §3.11 and §7. */
 export type ProposalKind =
   | "nap"
   | "trade_offer"
@@ -292,7 +292,7 @@ export interface PlayerState {
   influence: number;
   /**
    * Tick at which the reputation tag stops being applied. 0 = no penalty.
-   * See RULES_v2.md §4.8.
+   * See RULES.md §4.8.
    */
   reputationPenaltyExpiresTick: number;
   inbox: InboxMessage[];
@@ -406,7 +406,7 @@ export interface LegalOrderOption {
 /**
  * Per-player, per-tick projection. The ONLY object an LLM or human player
  * should ever see. Contains no field that leaks information outside their
- * fog-of-war (RULES_v2.md §9).
+ * fog-of-war (RULES.md §9).
  */
 export interface ProjectedView {
   readonly tick: number;
@@ -451,7 +451,7 @@ export interface MatchConfig {
   readonly caravanTravelTicks: number;
 }
 
-/** Default config mirroring RULES_v2.md §2. */
+/** Default config mirroring RULES.md §2. */
 export const DEFAULT_MATCH_CONFIG: Omit<MatchConfig, "seed"> = {
   rulesVersion: "v2.0",
   tribes: ["orange", "grey", "brown", "red"],

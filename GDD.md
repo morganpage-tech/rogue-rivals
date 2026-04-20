@@ -1,514 +1,283 @@
-# ROGUE RIVALS ? Game Design Document
+# ROGUE RIVALS � Game Design Document v2
 
-**Version:** 0.7.3 (Draft ? core loop ruleset stable, pre-prototype)
+**Version:** 2.0 (Draft � async pivot, pre-rules)
 **Studio:** Rogues Studio
-**IP:** Rogues Universe ? The Barren Lands
-**Platform:** Jest (SMS/RCS)
-**Engine:** HTML5 Canvas
-**Genre:** Turn-based Multiplayer Strategy
-**Players:** 2?4
-**Session Model:** Asynchronous, ~30s per turn, up to 15 rounds per match
-**Target Timeline:** Playable prototype in 6 weeks
-
-**Companion specs:**
-
-- `RULES.md` ? canonical, simulation-ready rule set
-- `SIMULATION_SCHEMA.md` ? data format for automated playtest runs
-
-**Revision history:**
-
-- v0.1 ? initial draft derived from Jest pitch
-- v0.2 ? first simulation pass (2P); locked trade-as-passive, reframed raid to ambush
-- v0.3 ? added starter building, Ambush-failure-is-cheap, Trade Beads
-- v0.4 ? added Scout counter-mechanic, resource-gated buildings
-- v0.5 ? 4P stress test; ordinal standings, ambush Scrap cost, trailing-player bonus
-- v0.6 ? dropped Rogue-bind, simplified Bead cap to once-per-partner, tightened comeback
-- v0.7 ? pacing pass: cheaper Great Hall (6 resources), VP threshold **8**, repeatable Bead conversions (spend 3 Beads per +1 VP)
-- v0.8 ? rule change: **trade beads are now "in transit" until end-of-round, and are transferred to your ambusher if you're hit that round.** Every Bead earned from a completed trade (�3.4) enters a new per-player `pending_beads` accumulator and the 2-Bead ? 1-VP conversion is deferred from the trade-resolution moment to end-of-round settlement. At EOR, if the earner was the victim of any non-watchtower-absorbed `ambush_triggered` event that round, **all** of their pending Beads are banked by the first successful ambusher (who then runs the normal conversion). Watchtower absorbs keep protecting you here too. Motivation: the v0.7.4 canonical baseline crystallised a 55 % `diversified_trader` win rate because trade beads were structurally immune to ambush pressure ? the raider's signature action could steal gathered resources but not the VP output of trading. The v0.8 trader-vulnerability A/B (`simulations/trader_vuln/COMPARISON_trader_vuln.md`) tested three variants (`off` / `deny` / `steal`) and selected `steal` as the canonical rule because it both softens trader dominance (podium rate 15/20 ? 9/20 in the 50-match heuristic baseline) **and** creates a positive-sum strategic loop for the raider (avgVP 4.80 ? 5.60, +3.3 pp win-rate). Deny and off remain available via the `RR_BEAD_VULN_MODE` env var for regression / future A/B work but are not canonical. Known limitation: firing rate is modest (~0.26 beads stolen/match) and the mechanism actually bites banker harder than trader in raw bead-loss terms ? deferred to v0.8.1+ (candidates: 2-round pending window; raider heuristic that preferentially ambushes bead-earners' home regions). Canonical baseline: `simulations/batch_v0.8.jsonl`.
-- v0.7.4 ? rule change: **ambushes now persist up to 2 end-of-round ticks before expiring** (was 1). Motivation: in v0.7.3.1, 72% of ambushes expired before the target gathered that region, making the raider archetype structurally weak. The raider A/B experiment (`simulations/raider_ab/COMPARISON_raider_ab.md`) tested seven variants spanning yield multiplier, scrap cost, and persistence; persistence was the only lever that doubled raider hit-rate (11.8% ? 22.0%) without distorting other archetypes. Raider heuristic was also rewritten to bank a Scrap reserve, delegate gather-steering to `greedy_gather_action`, and throttle re-arming after a successful hit so stolen loot gets converted to higher-tier buildings (the v0.7.3.1 raider never reached `great_hall`; v0.7.4 now does). Raider avgVP climbs 4.13 ? 4.80. Open question deferred to v0.8: `diversified_trader` wins 55% with persist=2 because trade beads are immune to ambush pressure. Canonical baseline: `simulations/batch_v0.7.4.jsonl`.
-- v0.7.3.1 ? engine patch: fixes a Watchtower cost bug (`{k: 2, S: 1}` duplicate-key collapse when `k == "S"` let anyone with 1 Scrap buy a Watchtower for 1 Scrap). Rewrote `aggressive_raider` heuristic to build the full ladder (shack/den). See `RULES.md` revision history; no rule-text changes. Canonical baseline is now `simulations/batch_v0.7.3.1.jsonl`.
-- v0.7.3 ? Trade Beads: still **+1 Bead per qualifying trade** up to a **2 Bead per player per round** cap from trades (further trades that round complete without extra Beads); spend **2 Beads** per **+1 VP** (repeat loop). Relaxes v0.7.2's 1-Bead cap to restore **alliance**-style volume without reintroducing unlimited per-round Bead income.
-- v0.7.2 ? Trade Beads: still **+1 Bead per qualifying trade**, but **at most one Bead per player per round** from trades (extra trades complete without extra Beads); spend **2 Beads** per **+1 VP** (repeat loop). Paired with agent **leader-awareness** (decline feeding near-winners). Targets banker snowball without killing trade volume.
-- v0.7.1 ? Trade Beads: earn **+1 Bead every completed trade**; spend **2 Beads** per **+1 VP** (repeat loop). Fixes v0.7 where uncapped conversion barely fired because bead income stayed partner-limited.
-
-> *"From the ashes, a fox arose..."*
+**IP:** Rogues Universe � The Barren Lands
+**Companion document:** `RULES.md` (normative mechanics and numbers)
 
 ---
 
-## 1. Executive Summary
+## 0. Revision Notes
 
-Rogue Rivals is a turn-based, asynchronous multiplayer strategy game designed natively for messaging platforms (Jest SMS/RCS). 2?4 players lead rival fox tribes in the post-apocalyptic Barren Lands, competing to rebuild civilization after The Great Collapse by **scavenging**, **building**, **trading**, and **raiding**. Each turn is a single 30-second decision delivered as a text message ? the SMS thread itself becomes the living chronicle of the match.
+- **v2.0 (2026-04-18):** Ground-up pivot from synchronous hot-seat resource race to **asynchronous-on-submit territorial strategy**, in the spirit of *Neptune's Pride*. Worldbuilding and tribal identities from v0.x are preserved; the core mechanical loop is replaced. See �10 for what carries over.
 
-### Design Pillars
+---
 
-1. **One decision, 30 seconds** ? Every turn is a clear tactical choice, optimized for mobile micro-sessions.
-2. **The thread is the game** ? SMS/RCS isn't a notification layer; it is the primary UI for social context and narrative.
-3. **Trade or die** ? No tribe has all resources; negotiation with rivals is mandatory.
-4. **Viral by lore** ? Inviting a friend to play IS texting them, reinforced by the "Rogue" archetype in-universe.
-5. **Cosmetic-first monetization** ? Never pay-to-win; identity, style, and flair only.
+## 1. Design Statement
 
-### Design Targets (KPIs)
+Rogue Rivals v2 is an asynchronous turn-based strategy game for **4�8 tribes** contesting a regional map. Play advances in **ticks**, not turns. Every player submits a private **order packet** each tick; the engine resolves all orders simultaneously when the last packet arrives.
+
+The game is designed to produce three signature experiences:
+
+- **The order in flight.** You dispatch a host at tick 6, expected arrival tick 10. For four ticks you cannot recall it and cannot yet know the outcome. The gap is the game.
+- **The diplomatic double-life.** A non-aggression pact at tick 12, a caravan of goodwill at tick 14, a betrayal at tick 18. The board records both the pact and who broke it.
+- **The slow fog.** A neighbour goes dark for six ticks. Then their army appears in your rear.
+
+It is designed to be played equally well by **LLM agents in batch simulation** and by **humans dropping into a single slot** in an otherwise-agent-filled match. It is explicitly *not* a real-time product. There is no calendar clock, no scheduler, no account system.
+
+---
+
+## 2. Design Pillars
+
+1. **Async-on-submit ticks.** A tick resolves when every active player's packet has been received. LLMs respond in seconds; humans respond whenever. One engine, any pacing.
+2. **Orders in transit.** Every meaningful action � moving a force, sending a caravan, dispatching a scout � has a travel time measured in ticks. Orders in flight are un-recallable. Their outcomes arrive when they arrive.
+3. **Fog of war.** No player sees the full board. A player sees: regions they own, regions adjacent to those, and regions they are actively scouting. Observed forces are reported in **fuzzy tiers** (*a small warband, a large host*) � precise only to the owner.
+4. **Abstract forces.** No unit counts. A force has a tier (I�IV). Combat resolves tier vs. tier with positional and structural modifiers. Small decision space, big thematic weight.
+5. **Dual-channel diplomacy.** Structured proposals (NAP / Trade / Shared Vision / Declare War / Break Pact) are mechanical state. Free-text messages are bilateral prose. LLMs lean on structure; humans embellish.
+6. **Design-playground-first.** The primary cockpit is the simulation batch runner. Everything LLM-addressable must be expressible in a fixed JSON schema. Human UI is a secondary mode wrapped around the same engine.
+
+---
+
+## 3. The Experience, Told As A Match
+
+> *Tick 6.* Orange has held an NAP with Grey since tick 2, expiring tick 12. They dispatch a Tier III host from their Plains capital toward Grey's richest Mountain region. Expected arrival: tick 10. Grey cannot see the host � its path lies through plains terrain where Grey has no scouts.
+>
+> *Tick 7.* Orange messages Grey in free text: *"We honor our pact through the winter."* Grey receives this in their inbox alongside a new structured Trade Offer from Brown (20 Influence for a Shared Vision, 5 ticks).
+>
+> *Tick 8.* Grey, faintly suspicious that Orange hasn't acknowledged their outstanding Trade Offer, spends 3 Influence on a scout toward the Plains frontier. The scout is in transit; arrival tick 10.
+>
+> *Tick 9.* Red and Brown, two tribes away, sign a public NAP. Orange sees the event in their announcements feed.
+>
+> *Tick 10.* Grey's scout arrives and reports: **a large host in transit to your region, arriving next tick**. Grey has one tick to respond. They recruit an emergency Tier II warband in the threatened region (costing most of their reserve Influence) and send their existing garrison to reinforce. They also fire off a public **Break Pact** to Orange, followed by a **Declare War**. Every tribe on the map sees these events.
+>
+> *Tick 11.* Combat resolves. Orange's Tier III host vs. Grey's Tier II warband + Tier II reinforcement + Fort (+1 defending tier). Effective tiers: Orange III vs. Grey III (II reinforced by II peer = III, plus Fort = IV). Grey wins by one tier. Orange's host drops to Tier II and retreats.
+>
+> *Tick 12.* Brown, who held a Shared Vision pact with Grey, has watched the combat unfold. Brown proposes a three-way NAP with Grey and Red, implicitly ganging up on Orange. The screen names Orange as the pact-breaker; Orange's next diplomacy proposal to anyone incurs a reputation penalty.
+>
+> *Tick 14.* Orange, bleeding Influence and surrounded by closing NAPs, is effectively outplayed. They open free-text negotiations with Red, offering a relic in exchange for a backdoor alliance.
+
+None of the above required a central referee, a real-time clock, or a chat server. It required: structured proposals, transit delays, fuzzy fog of war, and the certainty that once an order is in the packet it cannot be recalled.
+
+The v0.8 design could not produce this scene. The v2 design is engineered to produce it.
+
+---
+
+## 4. World Model
+
+### 4.1 Map
+
+The world is a graph of **regions** connected by **trails**.
+
+- A region has: a **type** (plains / mountains / swamps / desert / ruins / forest / river-crossing), an **owner** (a tribe or unclaimed), up to 2 **structures**, at most one **garrison** force (owner's), and a **transit list** of forces currently moving through.
+- A trail has a **length in ticks**, biased by the terrain it connects. Roads (a structure) halve the trail length between their region and a chosen adjacent region.
+- Maps are **procedurally generated from a seed**. A handful of canonical seeds (`2026_alpha`, `2026_bravo`, `2026_charlie`, `2026_delta`) are reserved for regression testing. Map size is 15�25 regions; every tribe's home is at most 4 trails from every other.
+
+### 4.2 Tribes
+
+Four canonical tribes with asymmetric starts (keeping the v0.x personas):
+
+- **Orange** � Plains. Starts with **+1 Influence/tick** on Plains regions.
+- **Grey** � Mountains. Starts with one **Fort** pre-built in its home.
+- **Brown** � Swamps. Starts with one **Road** pre-built to its closest neighbour.
+- **Red** � Desert. Starts with a **Relic** (counts as � Shrine for cultural victory).
+
+For 5–8 player matches, additional asymmetric tribes will be defined in `RULES.md`.
+
+### 4.3 Resource
+
+Rogue Rivals v2 collapses the v0.x five-resource economy (Timber / Ore / Forage / Relic / Scrap) into a single unified currency:
+
+- **Influence.** Produced per tick by owned regions (base 1, modified by terrain and structures). Spent on: recruiting forces, building structures, funding scouts, sponsoring diplomatic proposals, paying trade-offer transfers.
+
+The old resources survive as **flavor** only: when you gather Influence from Mountains, the text says *"+2 Ore-rich Influence"*; when from Plains, *"+2 Timber-fat Influence"*. Mechanically they are interchangeable. This is a deliberate simplification � it keeps the decision space focused on *what you do* rather than *which bag you spend from*.
+
+### 4.4 Forces
+
+A **force** has a tier and a location.
+
+- **Tier I � Skirmishers.** Cheap (2 Influence), fast (travels at base trail length), weak in combat.
+- **Tier II � Warband.** Default (5 Influence), base travel, standard strength.
+- **Tier III � Host.** Heavy (12 Influence), +1 tick travel penalty, strong in combat.
+- **Tier IV � Massive.** Rare (30 Influence + requires **Forge** structure), +2 tick travel, devastating in combat.
+
+Combat is deterministic: **higher effective tier wins**. On tie, both sides drop a tier. Attacker whose force drops below Tier I is destroyed; defender whose force drops below Tier I loses the region to the attacker.
+
+Effective tier modifiers:
+
+- **+1** if defending a region you own
+- **+1** if defending from a Fort structure
+- **+1** if reinforcement arrives from an adjacent region owned by a tribe with a Shared Vision pact (once per combat)
+- **?1** if attacker was revealed by a successful scout this tick
+
+### 4.5 Structures
+
+Regions may hold up to 2 structures.
 
 
-| Metric                        | Target                        |
-| ----------------------------- | ----------------------------- |
-| Average turn time             | **30 seconds**                |
-| Daily return sessions per DAU | **8?12x**                     |
-| Viral coefficient (K-factor)  | **? 1.5**                     |
-| Match length                  | 20?30 rounds over a few hours |
-| Prototype delivery            | 6 weeks                       |
+| Structure      | Effect                                                 | Cost |
+| -------------- | ------------------------------------------------------ | ---- |
+| **Granary**    | +1 Influence/tick in this region                       | 8    |
+| **Fort**       | +1 defender tier in this region                        | 10   |
+| **Road**       | Halves trail length to one chosen adjacent region      | 6    |
+| **Watchtower** | Extends visibility: reveals adjacent regions each tick | 6    |
+| **Shrine**     | +1 Influence/tick AND counts toward Cultural victory   | 12   |
+| **Forge**      | Enables Tier IV recruiting in this region              | 15   |
 
 
 ---
 
-## 2. World & Narrative
+## 5. Tick Structure
 
-### 2.1 Setting
+Each tick is a strict sequence:
 
-Centuries after **The Great Collapse** shattered civilization, scattered fox tribes (Foxiz) have carved out survival in the harshest corners of the continent ? the **Barren Lands**. Resources are scarce, unevenly distributed, and every alliance is temporary.
+1. **Order phase.** Every active player submits an `OrderPacket` containing any combination of:
+  - `move` � dispatch a force from region A toward region B.
+  - `recruit` � raise a force of some tier in a region you own.
+  - `build` � build a structure in a region you own.
+  - `scout` � send a scout toward a target region.
+  - `diplomacy` � a structured proposal (NAP / Trade / Shared Vision / Declare War / Break Pact / Accept / Decline) or a free-text message.
+2. **Resolution phase** (engine, deterministic):
+  - a. Apply all `build` and `recruit` orders.
+  - b. Advance every transit by one tick.
+  - c. Resolve arrivals (forces, scouts).
+  - d. Resolve combats in any region now contested.
+  - e. Apply all diplomacy orders (pacts form, break, messages enqueue).
+  - f. Credit Influence production.
+  - g. Increment tick counter.
+3. **Projection phase.** For each player the engine projects the new state through their fog-of-war lens. Each player receives a `ProjectedView` � regions they can see, transits they can see (with fuzzy strengths), their inbox, their own precise state.
 
-### 2.2 Tone
-
-Quirky post-apocalyptic. Serious enough for strategic stakes; playful enough to invite cosmetic expression. Matches an existing visual language from *Outmine* and *World of Rogues*.
-
-### 2.3 Core Lore Hook ? "The Rogue"
-
-A *Rogue* is a fox with no tribe, one who crosses all borders. In-fiction, recruiting a new player = sending a Rogue across the desert to find a new tribe leader. **The invite IS the onboarding.**
-
-> *"Becoming territorial, suspicious and protective of their native culture ? Foxiz engaged with their own kin and rarely with others, only for essential trade."*
-
----
-
-## 3. Fox Tribes (Factions)
-
-Prototype ships with **four tribes**, each occupying a unique region with a unique home resource. (Tricoloured and Arctic Foxiz from the original pitch are planned post-launch content ? kept out of launch scope to keep balance surface tight.)
-
-
-| Tribe            | Region         | Home Resource |
-| ---------------- | -------------- | ------------- |
-| **Orange Foxiz** | Windy Plains   | Timber        |
-| **Grey Foxiz**   | High Mountains | Ore           |
-| **Brown Foxiz**  | Reeky Swamps   | Fiber         |
-| **Red Foxiz**    | Vast Desert    | Relics        |
-
-
-All four tribes share the neutral **Ruins** region, the only source of **Scrap**. The Scrap pool is finite and does not regenerate ? creating a natural pacing mechanism and an emergent race.
-
-**Design principle:** No tribe can win without trading. Endgame buildings require resource types a single tribe can never self-gather, forcing cross-tribe negotiation. Tribe asymmetry is **spatial/resource**, not statistical ? there are no combat or yield modifiers by tribe. This keeps the prototype balance tractable; flavor abilities return post-launch.
-
-### 3.1 Post-launch Tribes (Lore)
-
-The following tribes are **cosmetic / post-launch content** (see ?16 Premium Items). They do not add new regions or resources at launch; their lore seeds future expansions and Fox Skin drops.
-
-- **Blue Foxiz ? The Sharp Valleys.** Traversing the wasteland of the Sharp Valleys, amongst the razor-sharp rocks, the Blue Foxiz have learned not only to survive but also to prosper from their knowledge of the region.
-- **Pink Foxiz ? The Dim Caves.** Hidden in the dark, steam-filled Dim Caves, the Pink Foxiz learn to read the shadows on the wall. They were discovered by **Vulp The Great** ? the first Rogue ? who described their strange rituals.
-- **Cheetah Foxiz ? The Tropical Savannah.** Deep down, to the south of the Continent, on a small piece of land between the branches of the huge palms, one must pray not to see the eyes of the notorious Cheetah Foxiz who inhabit the Tropical Savannah.
-
-> Canon note: *Vulp The Great* is the **first Rogue** and the in-fiction origin of the Rogue archetype referenced in ?2.3.
+All randomness comes from the seeded PRNG introduced in v0.x (`mulberry32` or equivalent). Same seed + same orders = identical replay.
 
 ---
 
-## 4. Core Gameplay Loop (v0.7.3)
+## 6. Victory Conditions (Multi-Path)
 
-> **Canonical rules live in `RULES.md`.** This section is a design-level summary. Any conflict resolves in favor of `RULES.md`.
+A player wins if at the end of any tick one of the following is true:
 
-### 4.1 Turn structure
+- **Territorial dominance.** Controls ? 60% of regions for 3 consecutive ticks.
+- **Economic supremacy.** Controls regions producing ? 50% of total Influence for 3 consecutive ticks.
+- **Cultural ascendancy.** Owns 4 Shrines.
+- **Diplomatic hegemony.** Holds active NAPs with every other surviving tribe AND the plurality of regions, for 3 consecutive ticks.
+- **Last standing.** Is the only tribe with owned regions.
 
-On your turn you may, in any order:
-
-1. **Propose any number of trades** (free, expire at your next turn)
-2. **Accept any pending offers** addressed to you (free)
-3. **Take exactly ONE action:** Gather, Build, Ambush, or Scout
-
-That's it. 30 seconds, one action, plus as much free negotiation as you want.
-
-### 4.2 The four actions
-
-
-| Action     | What it does                                                                                                                             | Cost      |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| **Gather** | Send a Rogue to a region, receive resources immediately                                                                                  | ?         |
-| **Build**  | Pay resources to construct a structure; gain VP + passive effect                                                                         | Resources |
-| **Ambush** | Hidden from opponents. If another player Gathers that region this round, you intercept their yield (2?); otherwise your action is wasted | 1 Scrap   |
-| **Scout**  | Gather + bluff-call. Reveals any pending Ambush at that region (cancels both); otherwise small safe yield                                | ?         |
-
-
-### 4.3 Resources and regions
-
-Five resources, five regions:
-
-
-| Region         | Home tribe | Resource |
-| -------------- | ---------- | -------- |
-| Windy Plains   | Orange     | Timber   |
-| High Mountains | Grey       | Ore      |
-| Reeky Swamps   | Brown      | Fiber    |
-| Vast Desert    | Red        | Relics   |
-| The Ruins      | (neutral)  | Scrap    |
-
-
-- **Home yield:** +2 of home resource at your home region.
-- **Away yield:** +1 of target region's resource elsewhere.
-- **Ruins Scrap pool is finite** (5 ? player count, so 20 at 4P) and does not regenerate.
-- **Stacking modifiers:** +1 from own Shack, +1 from own Den, +1 from own Forge (global), +1 from Trailing Bonus.
-
-### 4.4 Buildings (VP engine)
-
-
-| Building   | Cost                         | VP  | Effect                                           |
-| ---------- | ---------------------------- | --- | ------------------------------------------------ |
-| Shack      | 1 home + 1 Scrap             | 1   | +1 Gather yield, home region                     |
-| Den        | 1 home + 1 foreign + 1 Scrap | 1   | +1 Gather yield, home region (stacks with Shack) |
-| Watchtower | 2 of same + 1 Scrap          | 2   | Immunity to 1 Ambush per round                   |
-| Forge      | 3 different + 1 Scrap        | 2   | +1 Gather yield, all regions                     |
-| Great Hall | 1T + 1O + 1F + 1Rel + 2S     | 4   | **Triggers match end**                           |
-
-
-Max 1 of each type per player. Great Hall still requires every home resource type plus Scrap; total cost is lower than v0.6.
-
-### 4.5 Trade Beads
-
-- **Up to +2 Beads per round from trades per player**: the first two trades that award you Beads in a round count; further completed trades in the **same round** still move resources and update partnership lists, but grant **no extra Beads** until the next round.
-- `**partners_traded`** still tracks unique partners for tiebreakers only (unaffected by the round cap).
-- **Spend 2 Beads for +1 VP**, repeating while you have **2+ Beads** (no once-per-match cap on conversions).
-- VP from Beads still rewards active trading, but **per-round Bead income from trades is capped** (v0.7.3: two grants per round) so uncapped trade-spam cannot convert into unbounded same-round bead VP.
-
-### 4.6 Trailing Bonus (comeback)
-
-If the VP gap between 1st and last ? 3 at the end of a round, the last-place player gets, for the next round:
-
-- **+1 Gather yield** (on top of all other modifiers)
-- Option to request a **Tribute Route** from any one other player: that player gives the trailer 1 chosen resource per round for 2 rounds. Trailer gains no Beads. Target gains a Bead only if it's their first trade with the trailer (see `RULES.md` ?6.3).
-
-### 4.7 Match end
-
-Match ends on the **first** of these to trigger:
-
-1. A player builds the **Great Hall** ? match ends at end of round
-2. A player reaches **8 VP** ? match ends at end of that turn
-3. **Round 15** completed ? match ends
-
-Highest VP wins. Ties break on: most buildings ? most unique trade partners ? shared victory.
-
-### 4.8 Turn Flow (30 seconds, on-device)
+If the tick counter reaches **60** (configurable) with no winner, victory is awarded on a weighted score:
 
 ```
-1. SMS/RCS notification arrives
-     ?
-2. Tap ? HTML5 Canvas loads in mobile browser
-     ?
-3. See settlement map, stockpile, pending offers, last-round events
-     ?
-4. (Optional) Tap a trade offer to accept / counter / reject
-     ?
-5. Choose action: Gather / Build / Ambush / Scout (1 tap) ? Confirm (1 tap)
-     ?
-6. Resolution animates ? Next tribe receives their text
+score = 0.4 � regions_owned_fraction
+      + 0.3 � influence_share
+      + 0.2 � shrines_owned / 4
+      + 0.1 � active_NAPs / (tribes_alive ? 1)
 ```
 
----
+Ties are shared victories.
 
-## 5. Resources & Economy
-
-### 5.1 Resource list (v0.7.3 prototype)
-
-Five resources total. Four home resources (one per tribe) plus Scrap (shared, finite).
-
-
-| Resource | Home tribe       | Scarcity driver                                |
-| -------- | ---------------- | ---------------------------------------------- |
-| Timber   | Orange           | ?                                              |
-| Ore      | Grey             | ?                                              |
-| Fiber    | Brown            | ?                                              |
-| Relics   | Red              | ?                                              |
-| Scrap    | (neutral, Ruins) | **Hard pool cap** (20 at 4P, non-regenerating) |
-
-
-### 5.2 Scarcity design
-
-- Each tribe starts with 2 home resource, 0 of all others. Every other resource must be imported.
-- **Every building above Watchtower requires Scrap**, so Scrap scarcity paces the whole tech tree.
-- Great Hall requires **one of each** home resource type plus **two Scrap** ? **no tribe can Great-Hall solo**. Must trade with other tribes to assemble the cost.
-
-### 5.3 Rogues (flavor, not mechanics)
-
-In v0.7 "Rogues" are purely narrative. Each player takes **exactly 1 action per turn**; the Rogue language ("send a Rogue to scavenge") is preserved for SMS flavor and world-building but has no mechanical cost, cap, or death-spiral risk. This removes a tracking burden and eliminates a failure mode surfaced in simulation (player lockout via building binds).
+The multi-path scheme gives distinct LLM personas (warlord, merchant prince, paranoid isolationist, kingmaker) distinct attractor goals. It also creates more pact-betrayal vectors � a rival near cultural victory is a crisis even for the territorial leader.
 
 ---
 
-## 6. Messaging Integration (The Thread)
+## 7. Diplomacy
 
-### 6.1 Principle
+Diplomacy has two channels and they interact.
 
-The SMS/RCS thread **is** the game log. It is not a notification feed ? it is the canonical record of the match.
-
-### 6.2 Message Types
+### 7.1 Structured proposals (mechanical state)
 
 
-| Message       | Example                                                                      |
-| ------------- | ---------------------------------------------------------------------------- |
-| Turn notice   | *"Your turn ? Red Foxiz. Brown has offered a trade."*                        |
-| Action result | *"Grey Foxiz scavenged 3 Ore from the Mountain Ruins"*                       |
-| Trade offer   | *"Grey Foxiz offer your tribe: 2 Ore ? 1 Relic ? Accept / Counter / Reject"* |
-| Raid alert    | *"Tricoloured Foxiz raided your scrap pile! Watchtower held."*               |
-| Standings     | *"Standings: Red (42) ? Grey (38) ? Brown (34) ? Tricolour (31)"*            |
-| Match end     | *"The Barren Lands bow to the Red Foxiz."*                                   |
+| Proposal                      | Semantics                                                                                                                                                                              | Breaking it                                                                                                                         |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **NAP (Non-Aggression Pact)** | For N ticks (default 8), neither tribe may `move` into the other's regions. Visible as active-pact state.                                                                              | Break fires a public event; breaker's next 3 proposals to anyone carry a reputation penalty (recipient sees "recent pact-breaker"). |
+| **Trade Offer**               | A one-off Influence transfer from tribe X to tribe Y, arriving in N ticks. The transfer is a *caravan* � in transit it can be intercepted by any force occupying a region on its path. | N/A (offers are one-shot).                                                                                                          |
+| **Shared Vision**             | For N ticks, each tribe sees regions visible to the other. Does not constrain attack.                                                                                                  | Unilateral cancellation; no penalty.                                                                                                |
+| **Declare War**               | Sets WAR state between two tribes; auto-cancels any pact between them; announced publicly.                                                                                             | N/A (war is the state).                                                                                                             |
+| **Break Pact**                | Ends any existing pact with specified tribe; may trigger reputation penalty per above.                                                                                                 | �                                                                                                                                   |
+| **Accept / Decline**          | Response to an outstanding proposal.                                                                                                                                                   | �                                                                                                                                   |
 
 
-#### Post-launch flavor (cosmetic tribes, see ?3.1 / ?16)
+### 7.2 Free-text messages
 
-These messages only appear when a Fox Skin is equipped; they do not alter mechanics.
+Any player may send a free-text message to any other, delivered to the recipient's inbox on resolution. Free text has **no mechanical effect** � it is advisory, persuasive, deceptive. LLMs can emit and consume it; humans can write prose.
 
+### 7.3 Public announcements
 
-| Message       | Example                                                                     |
-| ------------- | --------------------------------------------------------------------------- |
-| Turn notice   | *"Your turn ? Blue Foxiz. The valleys are quiet."*                          |
-| Action result | *"Pink Foxiz read the shadows; a pending Ambush was revealed in the Ruins."* |
-| Raid alert    | *"Cheetah Foxiz moved between the palms. Your scouts lost their trail."*    |
-
-
-### 6.3 Viral Onboarding
-
-- Starting a new match = texting a friend's phone number
-- Invitee receives a single opt-in text with a tribe slot pre-assigned
-- Zero-friction: no app install, no account creation required before first action
-- **Every match seeds new acquisition at zero marginal cost**
+Certain events are broadcast to all tribes: pact formed, pact broken, war declared, victory condition reached, tribe eliminated. These are the reputational spine of the game.
 
 ---
 
-## 7. Technical Architecture
+## 8. Designing For LLMs
 
-### 7.1 Stack
+This section is a design constraint, not afterthought.
 
-- **Client:** HTML5 Canvas (lightweight, instant mobile load)
-- **Rendering:** 2D canvas, pixel-art aesthetic consistent with Outmine / World of Rogues
-- **Backend:** Stateless turn resolver + persistent match store
-- **Messaging:** Jest SMS/RCS API integration for turn events and trade offers
-- **Auth:** Phone number as primary identity; session tokens per match link
-
-### 7.2 Performance Targets
-
-
-| Metric                 | Target                          |
-| ---------------------- | ------------------------------- |
-| Cold page load on 4G   | < 2s                            |
-| Turn action round-trip | < 500ms                         |
-| JS bundle (initial)    | < 300KB gzipped                 |
-| Canvas frame budget    | 60fps on mid-range 2022 Android |
-
-
-### 7.3 Key Systems
-
-- **Match State Machine:** Deterministic turn resolver to allow replays and dispute handling
-- **Trade Ledger:** Append-only record of all offers and resolutions
-- **Notification Router:** Batches and schedules SMS/RCS messages to respect carrier throttling
-- **Anti-grief:** Turn timers (e.g., 12h auto-skip), rage-quit penalties, host controls
+- Every player input is a single JSON object (`OrderPacket`). Every player output from the engine is a single JSON object (`ProjectedView` + inbox).
+- The structured-diplomacy channel ensures LLMs have reliable hooks � they don't need to negotiate entirely in free text (which drifts and loses coherence over long matches).
+- Personas (v1 had `greedy_builder`, `aggressive_raider`, etc.) translate to v2 personas: **warlord, merchant prince, paranoid isolationist, opportunist, kingmaker**. Each is biased toward one victory path and one diplomatic posture.
+- Prompts are built around the `ProjectedView` � the LLM sees only what its fog-of-war permits. This is both thematic and protective against prompt-overload on large maps.
+- The existing batch runner (`tools/run_llm_batch.py`) becomes the primary design-iteration cockpit. Pure-LLM 4-tribe matches at 30 ticks should complete in under 5 minutes of real time per match.
 
 ---
 
-## 8. UX & Interface
+## 9. User-Interface Modes
 
-### 8.1 Screens
+Three modes share the engine:
 
-1. **Settlement View** (home) ? Map, stockpile, last-turn summary, action buttons
-2. **Action Select** ? 4 buttons (Scavenge / Build / Trade / Raid), each expands to 2?3 sub-options
-3. **Trade Composer** ? Pick resources to offer, pick resources wanted, pick recipient tribe
-4. **Raid Target** ? Choose rival tribe, see estimated success odds
-5. **Match Thread** ? In-game mirror of the SMS log for players who prefer app context
-6. **Standings** ? Score breakdown across all tribes
-
-### 8.2 UX Principles
-
-- **Two taps max** to complete any turn
-- **Zero typing** required for core gameplay (trade offers use preset increments)
-- **Color-coded tribes** consistent across map, messages, and standings
-- **Glanceable state** ? every screen answers "what just happened" in <1 second
+- **Batch.** CLI runs N matches with M LLM agents, dumps full traces as JSONL. No UI.
+- **Human-in-the-loop web.** Browser client renders one player's `ProjectedView` as an interactive map. Player composes an `OrderPacket` in a side panel. Clicking "Submit" commits the packet; the engine then asks the remaining LLM players for theirs and resolves the tick. This is the v0.8 React shell repurposed � new main view, new composer panel, new inbox; layout and theme reuse.
+- **Replay.** Given a trace JSONL, the web client can scrub through ticks; fog-of-war can be toggled per player for post-match analysis.
 
 ---
 
-## 9. Monetization
+## 10. What Carries Over, What's Cut
 
-### 9.1 Model
+### Carries over from v0.x
 
-**Free-to-play, cosmetic + season pass.** Core gameplay is never gated. All IAP is identity, style, or convenience ? **no pay-to-win**.
+- Tribes: Orange / Grey / Brown / Red, with their climate and flavor.
+- Regions: Plains / Mountains / Swamps / Desert / Ruins as terrain types.
+- The existing monorepo (`packages/engine2`, `packages/web`, `tools/`).
+- Deterministic seeded PRNG pattern; replay-determinism test convention.
+- Batch runner architecture in `tools/` (parallel ProcessPool, resumable partial traces).
+- LLM client + persona infrastructure.
+- React shell styling, event log pattern, theme variables.
 
-### 9.2 Item Catalog
+### Cut outright
 
+- Five-resource bag (Timber / Ore / Forage / Relic / Scrap) ? collapsed into Influence.
+- Five-action turn structure (gather / build / ambush / scout / pass) ? replaced with the order types above.
+- VP ? 8 race and 15-round cap ? replaced with multi-path victory at 60 ticks.
+- Round-end bead-conversion economics ? replaced with direct-Influence economics.
+- Trade-bead pending / steal mechanic (v0.8) ? absorbed into caravan-in-transit interception.
+- Turn order, hot-seat handoff screens, pass-the-device UX ? replaced by simultaneous packet submission.
+- Current building ladder (Shack / Den / Watchtower / Forge / Great Hall ? partial retention: Watchtower, Forge, and a renamed Shrine survive; Shack and Den are cut; Fort / Granary / Road are new).
 
-| Item Type             | Description                                            | Price       |
-| --------------------- | ------------------------------------------------------ | ----------- |
-| **Fox Skins**         | Rare tribe variants ? Pink, Blue, Cheetah Foxiz        | $1.99?$4.99 |
-| **Settlement Themes** | Visual overhauls ? Dim Cave, Bamboo Maze, Arctic       | $2.99?$4.99 |
-| **Emote Packs**       | Quirky fox reactions ? taunt, howl, beg, celebrate     | $0.99       |
-| **Rogue Pass**        | Monthly: exclusive skins, new regions, bonus cosmetics | $4.99/mo    |
-| **Quick Match**       | Skip the queue ? instant matchmaking                   | $0.49       |
+### Historical simulations
 
-
-### 9.3 Economy Safeguards
-
-- No resource packs, no Rogue packs, no build accelerators
-- Emotes have a per-turn rate limit to prevent spam griefing
-- Rogue Pass grants cosmetics and **access** (new regions) but no gameplay advantage
-
----
-
-## 10. Jest Criteria Alignment
-
-
-| Criterion                 | How Rogue Rivals Delivers                                                                                   |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **Mobile Web Readiness**  | HTML5 Canvas; Rogues Studio ships browser-native games (Outmine: web + Telegram, 100K+ players, 21M+ games) |
-| **Messaging Fit**         | SMS thread IS the game loop; every core event is a native message                                           |
-| **Growth Capability**     | 1.4M+ downloads across prior titles; communities on Discord, Telegram, X, YouTube; tournament experience    |
-| **Monetization Strength** | Proven IAP economy from Outmine pets/items extends naturally to tribe cosmetics                             |
-| **Collaborative Mindset** | Ships weekly tournaments; comfortable with shared Slack, dashboards, and tight feedback loops               |
-| **Strategic Fit**         | Fills Jest's multiplayer strategy gap; established IP with cross-promo from Outmine & World of Rogues       |
-
+Older `simulations/*.jsonl` batches from pre-v2 engines may remain in-repo as archives; they are not replayable under v2 rules.
 
 ---
 
-## 11. Development Roadmap
+## 11. Deferred to RULES.md
 
-### Phase 1 ? Prototype (Weeks 1?6)
+The following are specified in `RULES.md` (normative numbers and schemas):
 
-- Core turn loop (Scavenge, Build, Trade, Raid)
-- 2-tribe vertical slice (Orange vs Grey)
-- SMS turn notifications + trade offers
-- 1 settlement map, placeholder art
-- Manual matchmaking via phone number invite
-- **Deliverable:** Playable 2-player match end-to-end
-
-### Phase 2 ? Alpha (Weeks 7?12)
-
-- All 6 tribes playable
-- Raid & fortification system
-- Full resource economy (10 resources)
-- Standings, match-end scoring
-- Basic cosmetics framework
-
-### Phase 3 ? Beta (Weeks 13?20)
-
-- 3-4 player matches
-- RCS rich media messages (inline trade buttons, score cards)
-- Rogue Pass v1
-- Analytics, A/B framework, anti-grief tooling
-- Closed beta with Outmine community
-
-### Phase 4 ? Launch & Live Ops
-
-- Public launch on Jest
-- Weekly events, seasonal regions
-- Tournament mode
-- Cross-promotion with Outmine & World of Rogues
+- Influence production per region type and per structure, per tick.
+- Recruit costs per tier (above are working estimates, not commitments).
+- Structure build costs (ditto).
+- Trail lengths per terrain pairing.
+- Exact order of PRNG draws during resolution (for replay determinism).
+- JSON schemas: `OrderPacket`, `GameState`, `ProjectedView`, `DiplomaticProposal`, `TraceEvent`.
+- Default NAP length, default Shared Vision length, default Trade Offer delay.
+- Reputation-penalty magnitude for pact breaking.
+- Starting Influence and starting garrison tier per tribe.
+- Map generation parameters (region count, trail density, resource distribution).
 
 ---
 
-## 12. Risks & Mitigations
+## 12. Success Criteria
 
+Before committing code, the design is considered healthy when:
 
-| Risk                                              | Mitigation                                                                 |
-| ------------------------------------------------- | -------------------------------------------------------------------------- |
-| SMS/RCS carrier delivery latency breaks 30s turns | Fallback in-app push; batch non-critical messages                          |
-| Player drops mid-match (async game)               | Generous 12h turn timers; auto-skip with partial action; host kick/replace |
-| Trade griefing or spam offers                     | Per-turn offer caps; rate-limited emotes; ignore-rival controls            |
-| Pay-to-win creep from designers                   | Hard policy: IAP review requires "no mechanical advantage" sign-off        |
-| IP consistency with Outmine / World of Rogues     | Shared art & lore bible; weekly cross-studio review                        |
-| Viral invites flagged as spam by carriers         | Opt-in double handshake; compliant invite templates                        |
-
+- A sample match can be narrated tick-by-tick by reading only this document and `RULES.md` (no engine required).
+- A 5-year-old persona description (*e.g., "paranoid isolationist: values survival, distrusts all proposals, prefers Forts over Roads"*) has obvious mechanical consequences.
+- At least one dramatic moment per 15-tick window is producible by the rules alone � not requiring free-text diplomacy to generate drama.
+- The old v0.8 dominant strategy ("gather home, build Shack, Den, Forge") has no v2 analogue. The optimal strategy must depend on map, neighbours, and their diplomatic posture.
 
 ---
 
-## 13. Success Metrics
-
-### Launch (Month 1)
-
-- 10,000+ matches started
-- K-factor ? 1.0
-- D1 retention ? 45%
-- Average match completion rate ? 70%
-
-### Growth (Month 3)
-
-- K-factor ? 1.5
-- 8?12x daily sessions per DAU
-- IAP ARPDAU ? industry benchmark for F2P strategy
-- Tournament participation ? 15% of MAU
-
----
-
-## 14. Studio ? Rogues Studio
-
-Founded 2022 by gaming and startup veterans with 10+ years of collaboration.
-
-- **1.4M+** downloads across titles
-- **21M+** Outmine games played
-- **100K+** active Outmine players
-- Portfolio: *Outmine* (dungeon survival, live on web + Telegram), *World of Rogues* (open-world MMO, in development)
-- Rich shared universe of fox lore, tribes, and post-apocalyptic world-building
-
----
-
-## 15. Appendix
-
-### 15.1 Glossary
-
-- **Foxiz** ? A fox tribe member
-- **Rogue** ? A tribeless fox; lore basis for viral invites; also the labor unit
-- **Barren Lands** ? The post-Collapse continent where matches take place
-- **The Great Collapse** ? The cataclysm that ended the prior civilization
-
-### 15.2 Resolved in v0.6 / v0.7
-
-- **Does Trade consume a turn?** No ? free side channel.
-- **Do raids steal home stockpile?** No ? reframed as Ambush on regions, targeting gather yields only.
-- **Is any resource gated to force trade?** Yes ? Great Hall requires all 4 home resource types (plus Scrap).
-- **How to avoid banker runaway?** v0.7.3 keeps a **per-round Bead cap** on trade income (two Beads per round from trades) and strategic agents decline trades that feed near-winners; v0.7.1-style unlimited same-round stacking remains ruled out.
-- **How to avoid action-lock on heavy builders?** Buildings no longer bind Rogues; 1 action per turn always.
-- **How to avoid attack-the-leader pile-ons?** Ordinal-only standings + Ambush costs 1 Scrap.
-- **Can trailing players come back?** Yes ? trailing bonus + Tribute Route at 3+ VP gap.
-
-### 15.3 Still open (stress-test in prototype & further simulation)
-
-- **Scrap pool sizing** ? is 5? player count correct, or should it scale with round cap?
-- **Ambush Scrap cost** ? 1 is enough to deter spam; is it too high to deter attempted bluffs on leaders?
-- **Tribute Route asymmetry** ? is "target gives resource, gains nothing material" acceptable or demotivating?
-- **3-player dynamics** ? simulations focused on 2P and 4P; 3P has classic kingmaker geometry that needs its own sim pass.
-- **Turn cadence in real async play** ? 4P ? 15 rounds = 60 turns; needs real-world timing data.
-- **Tribe flavor abilities** ? currently no per-tribe modifiers (pure spatial asymmetry); add in v1.x once balance baseline is confirmed.
-
----
-
-## 16. Rules Reference & Simulation (v0.7.3)
-
-This GDD is a design-intent document. Two companion specs make the design **executable and testable**:
-
-### 16.1 `RULES.md` ? canonical rule spec
-
-The authoritative, simulation-ready ruleset. Written to be followed by an AI (or human) without ambiguity so that independent simulation runs are comparable. It is the source of truth for any game-rule question ? if the GDD and `RULES.md` disagree, `RULES.md` wins. The GDD will be updated to match at each design revision.
-
-### 16.2 `SIMULATION_SCHEMA.md` ? data format for automated runs
-
-Every simulation run (human or AI) MUST emit its match log in the format specified in `SIMULATION_SCHEMA.md`. This enables:
-
-- Aggregation across hundreds of runs for balance analysis
-- Tribe win-rate tracking
-- Trade-network analysis (who trades with whom, how often)
-- Kingmaker / comeback / runaway-leader detection
-- Ambush and Scout efficacy metrics
-- Match-length distributions
-
-Design iteration cadence: any rules tweak bumps the `rules_version`; runs from different rules versions are segregated in analysis.
-
-### 16.3 How to run a simulation (for an AI agent)
-
-1. Read `RULES.md` start to finish.
-2. Read `SIMULATION_SCHEMA.md` for the required output shape.
-3. Pick a seed, a player count (2?4), and a **player agent** per seat (e.g., `greedy_builder`, `aggressive_raider`, `random`, `human`).
-4. Play a full match round-by-round, logging every turn, trade, and ambush as required by the schema.
-5. Write the resulting JSON object to a file named `sim_<match_id>.json` in the `simulations/` directory.
-
-Multiple runs can be concatenated as a JSONL file for bulk analysis.
-
----
-
-*End of document ? v0.7.3 Draft*
+*End of GDD.md.*

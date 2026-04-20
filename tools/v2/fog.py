@@ -1,4 +1,4 @@
-"""Fog-of-war projection (RULES_v2.md \u00a79).
+"""Fog-of-war projection (RULES.md \u00a79).
 
 Takes a fully-resolved GameState and a tribe; returns the data structure
 that tribe may see this tick. Never returns state beyond the rules of \u00a79.

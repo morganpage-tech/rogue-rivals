@@ -1,5 +1,5 @@
 /**
- * Normative constants from RULES_v2.md §4. Any implementation that disagrees
+ * Normative constants from RULES.md §4. Any implementation that disagrees
  * with these values is non-conformant.
  *
  * This file is imported by the future engine implementation, by the web

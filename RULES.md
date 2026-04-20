@@ -1,487 +1,768 @@
-# ROGUE RIVALS — Rules (v0.8)
+# ROGUE RIVALS — Simulation-Ready Ruleset v2.0
 
-> **Status:** Canonical, simulation-ready ruleset. If this document conflicts with `GDD.md`, this document is authoritative.
->
-> **Audience:** Humans, playtest tools, and AI agents running automated simulations.
->
-> **Determinism:** These rules are written to be followed deterministically. The only source of randomness is resource ties / tiebreakers (roll dice using a provided `seed`).
+**Version:** 2.0 (Draft, async engine)
+**Companion:** `GDD.md` §§1–12
+**Audience:** engine implementers (human or AI), agent authors, simulation runners.
 
-## Revision history
-
-- **v0.8 bead-in-transit / trader vulnerability (2026-04-18)** — directly addresses the v0.7.4 open question (`diversified_trader` at 55 % wins because trade beads were immune to ambush pressure). **New canonical rule:** a Trade Bead earned from a completed trade is now *pending* until end-of-round, and the 2-Bead → 1-VP conversion is deferred to the same end-of-round settlement (§3.4). If the earner was the victim of any successful ambush that same round (i.e. at least one `ambush_triggered` event against them that was **not** `watchtower_absorbed`), all of their pending beads are **transferred** to the first such ambusher, who banks them and runs the normal conversion (§3.4.3). Otherwise pending beads flow into `beads` as before and convert. Per-round bead cap (`beads_earned_this_round < 2`) still applies to the earning side. Rationale: the trader-vulnerability A/B (`simulations/trader_vuln/COMPARISON_trader_vuln.md`) tested three variants — `off` (canonical v0.7.4), `deny` (destroy pending beads on hit), and `steal` (transfer to ambusher). `steal` was selected because it (a) creates a new strategic loop — raiders can hunt bead-earners for VP payoff — rather than only nerfing trader, (b) cuts the `diversified_trader` "podium" rate (won OR within 1 VP of the leader) from 15/20 to 9/20 across the canonical 50-match baseline, and (c) lifts `aggressive_raider` avgVP 4.80 → 5.60. The fallback `deny` behaviour and the legacy `off` (v0.7.4) behaviour are both still available via the `RR_BEAD_VULN_MODE` env var in `tools/sim.py` for regression replays and future A/B work, but neither is canonical. `rules_version` bumps to `"v0.8"`. New canonical heuristic baseline: `simulations/batch_v0.8.jsonl` (50 matches). TS engine picks up the same rule via `PlayerState.pendingBeads` + per-round hit bookkeeping (`hitsThisRound` / `hitByThisRound`) wired through `trade.ts`, `actions.ts`, and `endOfRound.ts`; TS replay test retargets the new baseline and the suite adds two unit tests covering the steal path and the watchtower regression (watchtower-absorbed hits do **not** count as "victim" hits for bead theft). **Known limitation, deferred to v0.8.1+:** firing rate is modest (~0.26 beads stolen per 4-player match); the mechanism bites `banker` harder than `diversified_trader` in raw bead-loss terms. A raider heuristic update that specifically hunts bead-earners' home regions, or a 2-round pending window, are the two obvious follow-up experiments if further rebalance is needed.
-- **v0.7.4 ambush persistence + raider heuristic (2026-04-18)** ? **ambush actions now remain active for up to 2 end-of-round ticks instead of 1** (§4.3). Motivation: in the v0.7.3.1 baseline, 72 % of ambushes expired before any opponent gathered the targeted region, making the raider archetype structurally underpowered. The raider A/B experiment (`simulations/raider_ab/COMPARISON_raider_ab.md`) tested seven rule variants; persistence was the only lever that lifted raider hit-rate (11.8 % → 22.0 %) without distorting other archetypes' win distributions. Yield multiplier changes and scrap-cost removal were both rejected: multiplier is a cosmetic no-op because yield is not the binding constraint, and free ambush causes every agent with an ambush branch to spam the action, collapsing overall hit-rate and handing `diversified_trader` a 55 % win rate. The heuristic `aggressive_raider` was also rewritten: it now maintains a Scrap reserve sized for `ambush_cost + next_build_scrap_cost`, then delegates to `greedy_gather_action` so stolen loot can flow into higher-tier buildings; and it applies a mild post-hit throttle (0.85× after 1 hit, 0.70× after 2) so the raider spends some turns banking loot between raids rather than re-arming every turn. Raider avgVP lifts 4.13 → 4.80; raider build-mix now includes `forge` and `great_hall` (were absent in v0.7.3.1). New canonical heuristic baseline: `simulations/batch_v0.7.4.jsonl`. `rules_version` bumps to `"v0.7.4"`. TS engine picks up the same persistence rule via the new `PlayerState.ambushRoundsRemaining` TTL and `AMBUSH_PERSIST_ROUNDS = 2` constant in `packages/engine/src/rules.ts`; TS test suite adds two unit tests covering the TTL decrement and triggered-ambush early-clear paths. **Known open question** (deferred to v0.8): `diversified_trader`'s win rate surged 30 % → 55 % with persist=2 because trade beads are structurally immune to ambush pressure.
-- **v0.7.3.1 engine patch (2026-04-18)** ? no rule text change; fixes a Watchtower cost implementation bug in `compute_build_cost`. In both `tools/sim.py` and `packages/engine/src/actions.ts` the watchtower cost candidate was written as `{k: 2, S: 1}`. When the loop reached `k = "S"`, the dict-literal duplicate-key rule collapsed the cost to `{S: 1}`, letting any player with just **1 Scrap** (and no other resource in quantity 2) purchase a Watchtower for 1 Scrap, gaining 2 VP off-spec. Across the v0.7.3 50-match baseline this subsidised **43 of 213** Watchtowers (20%), most severely benefiting the trading/bead archetypes. The patch constructs the `k == "S"` case as `{S: 3}` (i.e. 2 + 1 = 3 Scrap) which matches ?4.2 as written. `rules_version` bumps to `"v0.7.3.1"`. The regenerated baseline is `simulations/batch_v0.7.3.1.jsonl`; the TS replay test now pins against that file. Heuristic `aggressive_raider` was also rewritten to build the full ladder (shack/den added); see `tools/sim.py`.
-- **v0.7.3 clarifications pass (2026-04-18)** ? no behavior change; surfaced during TS engine port. ?1.4 documents the narrow RNG scope (turn-order shuffle only; gameplay resolution uses no randomness). ?4.2 adds the Forge tie-break rule for choosing among equally-feasible 3-resource bundles. ?7.1 documents the match-end ordering when Great Hall and VP threshold fire on the same turn. `rules_version` remains `"v0.7.3"` ? existing simulation logs are unaffected.
-- **v0.7.3** ? Trade Beads: each player earns **at most 2 Beads per round** from completed trades (further trades in the same round still transfer resources and update `partners_traded`, but award **no** extra Bead once the cap is reached). *Rationale:* v0.7.2's **1 Bead/round** cap over-corrected and zeroed **alliance** viability; v0.7.3 relaxes to **2 Beads/round** to preserve the banker nerf while keeping volume-trading strategies alive.
-- **v0.7.2** ? Trade Beads: each player earns **at most 1 Bead per round** from completed trades (later trades in the same round still transfer resources and update `partners_traded`, but award **no** extra Bead). *Rationale:* v0.7.1 smart-agent batch showed **banker** snowballing via uncapped per-round bead income; the round cap preserves trading for resources while blunting pure trade-spam VP.
-- **v0.7.1** ? Trade Beads: **+1 Bead on every completed trade** (no longer first-new-partner only); conversion spends **2 Beads** per **+1 VP** (repeatable `while` loop, uncapped). *Rationale:* v0.7 uncapped bead-to-VP conversion had little room to operate because bead **earning** was still capped at **num_players ? 1** per match; v0.7.1 makes **trade volume** the bead VP engine while keeping `**partners_traded`** for tiebreakers (?7.2 #2).
-- **v0.7** ? Great Hall costs **6** resources (`1T+1O+1F+1Rel+2S`); match ends at `**vp >= 8`**; Trade Beads convert in a **repeatable loop** (spend **3 Beads** per **+1 VP**, no per-match cap).
-- **v0.6** ? Prior baseline: Great Hall **10** resources; `**vp >= 10`** threshold; at most **one** Bead-to-VP conversion per player per match (Beads above 3 had no extra effect).
+This document is the **canonical** rules specification for Rogue Rivals. Every number here is a working commitment; a human or AI reading this document should be able to implement the engine and run a valid match without reference to any other source except the companion GDD.
 
 ---
 
-## 0. Notation
+## 0. Revision Notes
 
-- Players are identified as `P1`, `P2`, `P3`, `P4`.
-- Resources are denoted by single letters in pseudocode: `T` (Timber), `O` (Ore), `F` (Fiber), `Rel` (Relics), `S` (Scrap).
-- Player state is always defined as a tuple: `(vp, resources, beads, pending_beads, beads_earned_this_round, partners_traded, buildings, active_ambush_region, hits_this_round, hit_by_this_round, trailing_bonus_active)`.
-- `resources = {T: int, O: int, F: int, Rel: int, S: int}`, all non-negative integers.
+- **v2.0 (2026-04-18):** Full async-pivot ruleset. Tick-based simultaneous resolution, fog of war, abstract force tiers, structured diplomacy. The retired synchronous v0.x hot-seat ruleset has been removed from the repository.
 
 ---
 
-## 1. Setup
+## 1. Determinism Contract
 
-### 1.1 Player count
-
-Matches support 2, 3, or 4 players. Each player chooses a unique tribe from:
-
-
-| Tribe    | Home Region | Home Resource |
-| -------- | ----------- | ------------- |
-| `orange` | `plains`    | `timber`      |
-| `grey`   | `mountains` | `ore`         |
-| `brown`  | `swamps`    | `fiber`       |
-| `red`    | `desert`    | `relics`      |
-
-
-Tribes not assigned to a player are **absent** from the match ? their home region is still gatherable (away yield only), their home resource is not available as a home yield for anyone.
-
-### 1.2 Initial state (per player)
-
-```
-vp                      = 0
-resources.T/O/F/Rel/S   = 0, 0, 0, 0, 0
-resources[home_resource]= 2
-beads                   = 0
-pending_beads           = 0   # v0.8: trade-bead-in-transit; settled at end-of-round (§3.4.3)
-beads_earned_this_round = 0   # resets end of each round; gates Bead income from trades (§3.4.1)
-partners_traded         = [] (empty list)
-buildings               = [] (empty list)
-active_ambush_region    = null
-hits_this_round         = 0   # v0.8: count of non-absorbed ambush hits suffered this round (§3.4.3)
-hit_by_this_round       = [] (empty list)  # v0.8: ambusher ids in hit order
-trailing_bonus_active   = false
-```
-
-### 1.3 Shared state
-
-```
-scrap_pool              = 5 * num_players
-round                   = 0
-turn_order              = a random permutation of player ids (fixed for the match)
-match_ended             = false
-match_end_trigger       = null
-```
-
-### 1.4 Seed
-
-Every match takes an integer `seed`. All pseudorandom events (tiebreakers, agent stochastic decisions if any) derive from this seed. Two runs with the same seed, same agent set, and same turn order MUST produce identical match logs.
-
-**Scope of randomness (clarification).** In the current v0.7.3 ruleset, *gameplay resolution uses no randomness at all*. The seed only feeds (a) the initial turn-order shuffle, if `turn_order` was not supplied explicitly, and (b) any agent-internal stochastic choices. Every rule-enforced outcome ? gather yields, trade resolution, ambush resolution, scouting, end-of-round standings ? is fully deterministic given the current `MatchState` and the next command. Implementations MAY omit a PRNG entirely if `turn_order` is always passed in. This means replay from a command log is exact and does not require reproducing any PRNG state.
+1. All in-match randomness comes from a single seeded PRNG (`mulberry32(seed)`).
+2. **Map generation** consumes PRNG draws at match init.
+3. **Tick resolution is deterministic.** It makes no PRNG draws. Given the same `GameState` and the same set of `OrderPacket`s from every player, the resulting state is byte-identical.
+4. All tie-breaks during resolution use **deterministic rules** over player identifiers, region identifiers, and insertion order, never the PRNG.
+5. Implementations must emit a per-tick `state_hash` and a per-match `final_hash`. Two implementations conform if, on identical seed + identical packet sequences, they produce identical hashes at every tick.
 
 ---
 
-## 2. Round structure
+## 2. Match Configuration
 
-A round consists of exactly one turn per player, in `turn_order`.
+A match is specified by a `MatchConfig`:
 
-### 2.1 Round sequence
-
-```
-for each round in 1..15:
-    round += 1
-    for each player in turn_order:
-        run_turn(player)
-        if match_end_check(): break
-    end_of_round_resolution()
-    update_trailing_bonus()
-    if match_end_check(): break
-```
-
-### 2.2 `run_turn(player)`
-
-On your turn, resolve in this order:
-
-1. **Refresh state:** Reset `active_ambush_region` from *previous* round is NOT reset here ? ambushes persist through the round they were set in; see ?4.3.
-2. **Expire stale offers:** Any trade offer YOU made on your previous turn that is still pending is cancelled now.
-3. **Free phase (any order, any number of times):**
-  - Propose trade offers (?3)
-  - Accept/reject/counter pending offers addressed to you
-4. **Action phase (exactly once):** Execute one of:
-  - `Gather(region)` (?4.1)
-  - `Build(building_type)` (?4.2)
-  - `Ambush(region)` (?4.3)
-  - `Scout(region)` (?4.4)
-  - `Pass` ? no action; allowed but agents should only use it if genuinely no legal action exists.
-5. **Log turn:** Write the turn event to the match log (see `SIMULATION_SCHEMA.md`).
-
----
-
-## 3. Trading
-
-### 3.1 Offer format
-
-```
-offer = {
-    id: unique_string,
-    offerer: player_id,
-    recipient: player_id,
-    offered:   {T?, O?, F?, Rel?, S?},   # resources offerer will give
-    requested: {T?, O?, F?, Rel?, S?},   # resources recipient will give
-    created_turn: int,                    # the turn number it was made on
+```json
+{
+  "seed": 2026001,
+  "rules_version": "v2.0",
+  "tribes": ["orange", "grey", "brown", "red"],
+  "map_preset": "procedural",
+  "region_count": 20,
+  "tick_limit": 60,
+  "victory_sustain_ticks": 3,
+  "nap_default_length": 8,
+  "shared_vision_default_length": 5,
+  "caravan_travel_ticks": 2
 }
 ```
 
-### 3.2 Offer rules
+Default `MatchConfig`:
 
-- An offer is made in the Free Phase. It costs no action.
-- There is no limit to the number of pending offers you can have.
-- An offer stays pending until one of:
-  - Recipient accepts ? resolve (?3.3)
-  - Recipient rejects ? remove, no effect
-  - Recipient counters ? the counter becomes a new offer (roles flip); original is removed
-  - Offerer's next turn begins ? auto-expire
-- You MUST have the resources you're offering **at the time of acceptance**, not at the time of offer. If you don't, the acceptance fails silently, offer is cancelled.
 
-### 3.3 Offer resolution
+| Field                          | Default                    |
+| ------------------------------ | -------------------------- |
+| `region_count`                 | 20 (range 15–25)           |
+| `tick_limit`                   | 60                         |
+| `victory_sustain_ticks`        | 3                          |
+| `nap_default_length`           | 8                          |
+| `shared_vision_default_length` | 5                          |
+| `caravan_travel_ticks`         | 2                          |
+| `map_preset`                   | `"procedural"` (uses seed) |
 
-When accepted:
 
-1. Verify offerer has `offered` resources. If not, cancel offer, no effect.
-2. Verify recipient has `requested` resources. If not, cancel offer, no effect.
-3. Transfer resources: offerer loses `offered`, gains `requested`; recipient loses `requested`, gains `offered`.
-4. Apply Bead rule (?3.4) to both parties.
-5. Log `trade_resolved` event.
-
-### 3.4 Trade Beads
-
-After resources transfer (§3.3), update `partners_traded` for both parties (unique partner bookkeeping for tiebreakers §7.2 #2 only).
-
-#### 3.4.1 Earn (pending until end-of-round)
-
-Then for each party `X` in the trade:
-
-```
-if X.beads_earned_this_round < 2:
-    X.pending_beads += 1
-    X.beads_earned_this_round += 1
-    log bead_earned event
-# else: trade still completed; no Bead for X this round
-# optionally log bead_capped for visibility
-```
-
-Each player may earn at most **2 Beads per round** from trades.
-
-**v0.8:** Beads earned from a trade do **not** enter `X.beads` immediately. They sit in a per-player `pending_beads` accumulator until end-of-round (§3.4.3). **Bead → VP conversion is likewise deferred to end-of-round**; no conversion runs inside `trade_resolved`.
-
-#### 3.4.2 Per-round counter reset
-
-`beads_earned_this_round` resets to **0** for every player at end of each round (step §3.4.3 below), **before** the next round begins.
-
-#### 3.4.3 End-of-round settlement (Beads-in-transit rule; canonical v0.8)
-
-At the end of each round, before any other end-of-round housekeeping, iterate players in `turn_order` and resolve their `pending_beads` as follows:
-
-```
-for each player X in turn_order:
-    pending = X.pending_beads
-    X.pending_beads = 0
-    if pending == 0:
-        continue
-    if X.hits_this_round > 0:
-        # X was the victim of at least one ambush_triggered event this round
-        # (watchtower_absorbed hits do NOT count here). Pending beads are
-        # transferred to the primary ambusher = X.hit_by_this_round[0].
-        A = X.hit_by_this_round[0]
-        A.beads += pending
-        log bead_stolen event {victim: X, ambusher: A, beads: pending}
-        # A immediately runs the standard 2-bead -> 1-VP conversion:
-        while A.beads >= 2:
-            A.beads -= 2
-            A.vp += 1
-            log bead_converted event
-    else:
-        # Safe delivery -> bank and convert on X.
-        X.beads += pending
-        while X.beads >= 2:
-            X.beads -= 2
-            X.vp += 1
-            log bead_converted event
-
-# After settlement, reset per-round hit bookkeeping for every player:
-for each player X:
-    X.beads_earned_this_round = 0
-    X.hits_this_round = 0
-    X.hit_by_this_round = []
-```
-
-`hits_this_round` increments on every `ambush_triggered` event where the victim is `X` and `watchtower_absorbed == false`. `hit_by_this_round` records the ambuser ids in the order the hits occurred; the first entry is the "primary" ambusher and wins any stolen beads.
-
-Stolen beads bypass the 2/round earn cap on the ambusher's side (they are loot, not trade earnings) — they enter `ambusher.beads` directly. The ambusher's own conversion loop then fires as usual.
-
-> **Rule variants.** Two non-canonical fallbacks exist in `tools/sim.py` under the `RR_BEAD_VULN_MODE` env var for regression / experimentation:
->
-> - `deny`: on-hit, pending beads are destroyed (no transfer, no event beyond `bead_denied`). Produces the same trader nerf as `steal` but without the raider upside.
-> - `off`: legacy v0.7.4 behaviour — beads award + convert inside `trade_resolved`, pending_beads is unused. Used only to replay pre-v0.8 batches byte-identically.
-> Neither variant is part of the v0.8 rule set; batches run with either must record `RR_BEAD_VULN_MODE` in `run_metadata.notes`.
+Canonical test seeds: `2026_alpha`, `2026_bravo`, `2026_charlie`, `2026_delta` (hash to fixed integers in implementation).
 
 ---
 
-## 4. Actions
+## 3. Core Types
 
-### 4.1 `Gather(region)`
+Types are specified as JSON schemas. Implementations may use native structs, but the wire-level (JSON) representation is authoritative for LLM prompts and trace files.
 
-**Preconditions:** Region is one of `plains | mountains | swamps | desert | ruins`.
+### 3.1 `GameState`
 
-**Resolution:**
-
-```python
-base_yield = compute_base_yield(player, region)
-yield_amount = base_yield
-if player has Shack AND region == player.home_region:   yield_amount += 1
-if player has Den   AND region == player.home_region:   yield_amount += 1
-if player has Forge:                                    yield_amount += 1
-if player.trailing_bonus_active:                        yield_amount += 1
-
-resource_type = region_to_resource(region)  # e.g. plains -> timber
-
-# RUINS SPECIAL:
-if region == 'ruins':
-    yield_amount = min(yield_amount, scrap_pool)
-    scrap_pool -= yield_amount
-
-# AMBUSH CHECK:
-for other in players_with_active_ambush_at(region):
-    if player has Watchtower AND not used_this_round:
-        # Watchtower absorbs 1 ambush per round
-        mark Watchtower used this round
-        continue  # ambush fails, you gather normally
-    # Ambush triggers:
-    ambusher = other
-    stolen = yield_amount * 2
-    ambusher.resources[resource_type] += stolen
-    clear ambusher's active_ambush_region
-    log ambush_triggered event
-    return  # player gets NOTHING, ambush yield is 2? the pre-ambush yield
-    # (If multiple ambushes on same region, resolve in turn_order precedence; first applies, rest expire.)
-
-# No ambush intercepted -> yield normally
-player.resources[resource_type] += yield_amount
+```json
+{
+  "tick": 0,
+  "rules_version": "v2.0",
+  "seed": 2026001,
+  "tribes_alive": ["orange", "grey", "brown", "red"],
+  "regions": { "<region_id>": Region, ... },
+  "trails": [ Trail, ... ],
+  "forces": { "<force_id>": Force, ... },
+  "scouts": { "<scout_id>": Scout, ... },
+  "caravans": { "<caravan_id>": Caravan, ... },
+  "players": { "<tribe>": PlayerState, ... },
+  "pacts": [ Pact, ... ],
+  "announcements": [ Announcement, ... ],
+  "victory_counters": { "<tribe>": { "<condition>": int, ... }, ... },
+  "winner": null | "<tribe>" | ["<tribe>", ...]
+}
 ```
 
-**Base yield table:**
+### 3.2 `Region`
 
-
-| Region                               | Home player        | Away player        |
-| ------------------------------------ | ------------------ | ------------------ |
-| plains / mountains / swamps / desert | 2 of home resource | 1 of that resource |
-| ruins                                | 1 Scrap            | 1 Scrap            |
-
-
-### 4.2 `Build(building_type)`
-
-**Preconditions:**
-
-- Building type is one of `shack | den | watchtower | forge | great_hall`.
-- Player does not already own this building type.
-- Player has the required resources.
-
-**Resolution:** Deduct resources, add building to player's list, apply VP and effect.
-
-#### Building catalog
-
-
-| Type         | Cost (exact)                                                             | VP  | Effect                                                |
-| ------------ | ------------------------------------------------------------------------ | --- | ----------------------------------------------------- |
-| `shack`      | 1 of home resource + 1 Scrap                                             | 1   | `+1` Gather yield at home region                      |
-| `den`        | 1 home + 1 non-home (any 1 of T/O/F/Rel that is not your home) + 1 Scrap | 1   | `+1` Gather yield at home region (stacks with Shack)  |
-| `watchtower` | 2 of any single resource + 1 Scrap                                       | 2   | Immunity to 1 Ambush per round at any of your Gathers |
-| `forge`      | 1 each of any 3 different resources (any 3 of T/O/F/Rel/S) + 1 Scrap     | 2   | `+1` Gather yield at every region                     |
-| `great_hall` | 1T + 1O + 1F + 1Rel + 2S                                                 | 4   | Triggers match end                                    |
-
-
-Notes:
-
-- `watchtower` resource does NOT need to be home. 2 of any resource works.
-- `forge` 3-different requirement is INCLUSIVE of Scrap, then the building itself costs another 1 Scrap on top. In other words: pick 3 different resources from {T,O,F,Rel,S}, pay 1 of each, plus 1 additional Scrap (so if one of the 3 was Scrap, total Scrap cost = 2). Simpler restatement: `forge = pick 3 different resources, pay 1 each, then pay 1 Scrap`.
-- **Forge triple tie-break (determinism requirement).** When a player can afford multiple valid 3-resource bundles, the engine MUST choose the lexicographically smallest feasible triple under the canonical resource ordering `(T, O, F, Rel, S)`. Generate candidate triples with nested index loops `i < j < k` over that ordering, filter to those the player can actually pay (accounting for the extra 1 Scrap), then take the first. This matches the reference Python simulator (`tools/sim.py`) and ensures byte-identical replay across implementations.
-- `great_hall` cost is exactly as listed (6 resources total: one of each home type plus two Scrap) and does not allow substitutions.
-
-### 4.3 `Ambush(region)`
-
-**Preconditions:**
-
-- Region is one of `plains | mountains | swamps | desert | ruins`.
-- Player has `resources.S >= 1`.
-- Player has no `active_ambush_region` already set (max 1 pending ambush).
-
-**Resolution:**
-
-1. `player.resources.S -= 1` (paid regardless of outcome).
-2. `player.active_ambush_region = region`.
-3. Log `ambush_set` event with `hidden: true` ? other players see only a generic "moved in secret" message in the public log.
-4. The ambush persists **across up to 2 end-of-round ticks** before expiring (v0.7.4; was 1 in v0.7.3.1):
-  - If another player `Gather`s this region at any time while the ambush is active, resolve per ?4.1's ambush check; a triggered ambush clears immediately (the TTL is set to 0 regardless of how many ticks remain).
-  - If a player `Scout`s this region while the ambush is active, resolve per ?4.4; the ambush is cleared immediately.
-  - Otherwise, at each `end_of_round_resolution()` the ambush's TTL is decremented; the ambush expires (and logs `ambush_expired`) only when the TTL reaches 0. A freshly-set ambush therefore survives the round in which it was set **and** the following round before auto-expiry.
-  - An ambusher has at most **one** active ambush at a time, regardless of TTL state; this is unchanged from v0.7.3.1.
-
-### 4.4 `Scout(region)`
-
-**Preconditions:** Region is valid.
-
-**Resolution:**
-
-```python
-ambushes_here = players_with_active_ambush_at(region)
-if ambushes_here is non-empty:
-    # Ambushes revealed. All are cancelled.
-    for ambusher in ambushes_here:
-        clear ambusher.active_ambush_region
-    log ambush_scouted event (PUBLIC)
-    # Scout gets NO yield.
-else:
-    # Safe scout: yields 1 resource of the region type (no modifiers apply).
-    resource_type = region_to_resource(region)
-    if region == 'ruins':
-        take = min(1, scrap_pool)
-        scrap_pool -= take
-        player.resources.S += take
-    else:
-        player.resources[resource_type] += 1
+```json
+{
+  "id": "r_03",
+  "type": "plains | mountains | swamps | desert | ruins | forest | river_crossing",
+  "owner": null | "<tribe>",
+  "structures": ["granary" | "fort" | "road" | "watchtower" | "shrine" | "forge", ...],
+  "road_targets": { "<structure_index>": "<adjacent_region_id>" },
+  "garrison_force_id": null | "<force_id>"
+}
 ```
 
-Note: Scout is strictly weaker than Gather in yield when no ambush is present. Its power is revealing ambushes cheaply.
+A region's `structures` list has length 0–2. If a `road` structure is present, its target adjacent region is recorded in `road_targets` keyed by its index in `structures`.
 
----
+### 3.3 `Trail`
 
-## 5. End of round resolution
-
-After all players have taken their turn in a round, resolve in this order:
-
-1. **Settle pending trade beads** (§3.4.3). For each player with `pending_beads > 0`, either transfer to the primary ambusher (if `hits_this_round > 0`) or bank into the earner's `beads` and run the 2-Bead → 1-VP conversion loop. Emit `bead_stolen` / `bead_converted` events as applicable.
-2. Reset per-round bead/hit bookkeeping: `beads_earned_this_round = 0`, `hits_this_round = 0`, `hit_by_this_round = []`, `pending_beads = 0` (already zeroed in step 1).
-3. Decrement each `active_ambush_region` TTL by 1 (v0.7.4: ambushes persist for up to 2 end-of-round ticks). Clear the region and emit `ambush_expired` when the TTL reaches 0.
-4. Reset Watchtower "used this round" flags.
-5. Compute standings (§6.1).
-6. Update trailing bonus (§6.2).
-7. Increment round counter (if not ending).
-
-> **Why bead settlement runs first.** Pending beads that are stolen become VP on the ambusher's side via `bead_converted`. Because VP threshold (§7.1) is a match-end trigger and this is the last chance in the round to award VP, settlement MUST complete before the round-end `vp_reached` / `round_limit` check. Implementations that invert the order (e.g. reset bookkeeping first) will lose the hit attribution and silently skip all bead transfers for the round.
-
----
-
-## 6. Standings and trailing bonus
-
-### 6.1 Standings
-
-Standings are computed as ordinal ranks:
-
-```python
-sorted_players = sort(players, by=vp, desc=true)
-# Handle ties: same VP -> same rank (dense or competition ranking; use competition ranking: 1, 2, 2, 4)
+```json
+{
+  "a": "<region_id>",
+  "b": "<region_id>",
+  "base_length_ticks": 2
+}
 ```
 
-**Public view:** Thread shows only ordinal rank (1st, 2nd, T-3rd, etc). Exact VP numbers are visible only in private view and at match end.
+Effective trail length for a specific traversal is computed at move-order resolution time — see §6.1.
 
-### 6.2 Trailing bonus
+### 3.4 `Force`
 
-After each round's standings computed:
-
-```python
-vp_gap = max(vp) - min(vp)
-last_place_players = [p for p in players if p.vp == min(vp)]
-for p in players:
-    p.trailing_bonus_active = (p in last_place_players) and (vp_gap >= 3)
+```json
+{
+  "id": "f_orange_01",
+  "owner": "orange",
+  "tier": 1 | 2 | 3 | 4,
+  "location": {
+    "kind": "garrison",
+    "region_id": "r_05"
+  } | {
+    "kind": "transit",
+    "trail_index": 7,
+    "direction_from": "r_05",
+    "direction_to": "r_06",
+    "ticks_remaining": 2
+  }
+}
 ```
 
-Additionally, each `trailing_bonus_active` player may, at the start of their next turn, request ONE **Tribute Route** (?6.3). They may only have one active route at a time.
+### 3.5 `Scout`
 
-### 6.3 Tribute Route
+```json
+{
+  "id": "s_grey_04",
+  "owner": "grey",
+  "target_region_id": "r_11",
+  "location": {
+    "kind": "transit",
+    "trail_index": 3,
+    "direction_from": "r_02",
+    "direction_to": "r_11",
+    "ticks_remaining": 2
+  } | {
+    "kind": "arrived",
+    "region_id": "r_11",
+    "expires_tick": 14
+  }
+}
+```
 
-- Initiated by a trailing player targeting any other player.
-- Target player must consent (accept).
-- Lasts 2 rounds from the round of initiation.
-- Each round of the route, at the **end of the target's turn**, the target gives 1 resource of the target's choice to the trailing player.
-- The target gains 0 Beads unless it's their first trade with the trailing player (then standard Bead rule applies).
-- The trailing player gains 0 Beads, period.
-- If the target cannot give a resource (no resources), the route pauses that round but continues.
+### 3.6 `Caravan`
 
----
+```json
+{
+  "id": "c_brown_02",
+  "owner": "brown",
+  "recipient": "red",
+  "amount_influence": 20,
+  "path": ["r_08", "r_09", "r_10"],
+  "current_index": 1,
+  "ticks_to_next_region": 1
+}
+```
 
-## 7. Match end
+### 3.7 `PlayerState`
 
-### 7.1 Triggers
+```json
+{
+  "tribe": "orange",
+  "influence": 12,
+  "reputation_penalty_expires_tick": 9,
+  "inbox": [ InboxMessage, ... ],
+  "outstanding_proposals": [ Proposal, ... ]
+}
+```
 
-Match ends at the *first* of the following:
+### 3.8 `Pact`
 
-1. **Great Hall built:** At end of the round in which any player builds a Great Hall.
-2. **VP threshold:** Any player has `vp >= 8` at end of their turn.
-3. **Round 15 complete.**
+```json
+{
+  "kind": "nap" | "shared_vision",
+  "parties": ["orange", "grey"],
+  "formed_tick": 4,
+  "expires_tick": 12
+}
+```
 
-**Ordering clarification.** Triggers (1) and (2) can fire on the same turn ? e.g., a player's build action both constructs Great Hall (+4 VP) and pushes them from 4 VP to 8 VP. In this case the **VP threshold fires first** because it is checked at **end of turn**, whereas the Great Hall trigger is checked at **end of round**. The match-end log records `end_trigger: "vp_threshold"` in this scenario, not `"great_hall"`. Implementations MUST check VP threshold at the end of every turn (including after trade resolutions that yield Bead conversions) and Great Hall only during end-of-round resolution.
+Wars are represented as the **absence** of a pact and the presence of a `"war"` entry:
 
-### 7.2 Winner determination
+```json
+{
+  "kind": "war",
+  "parties": ["orange", "grey"],
+  "declared_tick": 14
+}
+```
 
-At match end:
+### 3.9 `Announcement`
 
-```python
-sorted_final = sort(players, by=vp, desc=true)
-top_vp = sorted_final[0].vp
-tied = [p for p in players if p.vp == top_vp]
-if len(tied) == 1: winner = tied[0]
-else: apply tiebreakers in order:
-    1. Most buildings (count of unique building types owned).
-    2. Most unique trade partners (len(partners_traded)).
-    3. Shared victory (all tied players are co-winners).
+```json
+{
+  "tick": 6,
+  "kind": "pact_formed" | "pact_broken" | "war_declared" | "tribe_eliminated" | "victory",
+  "parties": ["orange", "grey"],
+  "detail": "optional string"
+}
+```
+
+### 3.10 `OrderPacket`
+
+```json
+{
+  "tribe": "orange",
+  "tick": 6,
+  "orders": [
+    { "kind": "move", "force_id": "f_orange_01", "destination_region_id": "r_11" },
+    { "kind": "recruit", "region_id": "r_02", "tier": 2 },
+    { "kind": "build", "region_id": "r_05", "structure": "fort" },
+    { "kind": "scout", "from_region_id": "r_02", "target_region_id": "r_11" },
+    { "kind": "propose", "proposal": Proposal },
+    { "kind": "respond", "proposal_id": "p_041", "response": "accept" | "decline" },
+    { "kind": "message", "to": "grey", "text": "We honor our pact through the winter." }
+  ]
+}
+```
+
+### 3.11 `Proposal`
+
+```json
+{
+  "id": "p_041",
+  "kind": "nap" | "trade_offer" | "shared_vision" | "declare_war" | "break_pact",
+  "from": "orange",
+  "to": "grey",
+  "length_ticks": 8,
+  "amount_influence": 0,
+  "expires_tick": 7
+}
+```
+
+For `trade_offer`, `amount_influence` is the Influence the sender will dispatch on acceptance. For `nap` and `shared_vision`, `length_ticks` is the pact duration. `declare_war` and `break_pact` ignore the length/amount fields.
+
+### 3.12 `ProjectedView`
+
+What a player receives at end of every tick. Fog-of-war applied.
+
+```json
+{
+  "tick": 7,
+  "for_tribe": "orange",
+  "visible_regions": { "<region_id>": Region, ... },
+  "visible_forces": [ VisibleForce, ... ],
+  "visible_transits": [ VisibleTransit, ... ],
+  "my_player_state": PlayerState,
+  "my_forces": [ Force, ... ],
+  "my_scouts": [ Scout, ... ],
+  "my_caravans": [ Caravan, ... ],
+  "inbox": [ InboxMessage, ... ],
+  "announcements_since_last_tick": [ Announcement, ... ],
+  "pacts_involving_me": [ Pact, ... ],
+  "tribes_alive": ["orange", "grey", ...]
+}
+```
+
+### 3.13 `VisibleForce`
+
+An *observed* force — precise tier obscured:
+
+```json
+{
+  "region_id": "r_09",
+  "owner": "grey",
+  "fuzzy_tier": "raiding_party" | "warband" | "large_host" | "massive_army"
+}
+```
+
+### 3.14 `VisibleTransit`
+
+```json
+{
+  "trail_index": 7,
+  "observed_in_region_id": "r_08",
+  "owner": "orange",
+  "fuzzy_tier": "warband",
+  "direction_from": "r_05",
+  "direction_to": "r_06"
+}
 ```
 
 ---
 
-## 8. Glossary of public events (for SMS-thread and simulation logs)
+## 4. Constants
+
+All numbers below are normative. Implementations that disagree are not conformant.
+
+### 4.1 Influence production (per tick, per owned region)
 
 
-| Event                    | Description                                                                                    | Public?                      |
-| ------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------- |
-| `turn_start`             | Player X begins their turn                                                                     | yes                          |
-| `trade_proposed`         | Player X offers Player Y                                                                       | yes                          |
-| `trade_resolved`         | Trade between X and Y completed                                                                | yes                          |
-| `trade_rejected`         | Y rejected X's offer                                                                           | yes                          |
-| `trade_countered`        | Y countered X's offer                                                                          | yes                          |
-| `trade_expired`          | X's offer to Y expired                                                                         | yes                          |
-| `action_gather`          | X gathered at region                                                                           | yes (reveals region + yield) |
-| `action_build`           | X built a building                                                                             | yes                          |
-| `action_ambush_set`      | X moved in secret                                                                              | yes (region hidden)          |
-| `action_scout`           | X scouted a region                                                                             | yes                          |
-| `ambush_triggered`       | X ambushed Y at region                                                                         | yes                          |
-| `ambush_scouted`         | Z scouted X's ambush at region                                                                 | yes                          |
-| `ambush_expired`         | X's ambush at region expired with no effect                                                    | yes (but retroactively)      |
-| `bead_earned`            | X earned Bead from trade with Y (goes to `pending_beads` under v0.8)                           | yes                          |
-| `bead_capped`            | X completed a trade but earned no Bead (already at the per-round trade Bead cap)               | yes                          |
-| `bead_stolen`            | v0.8: X was ambushed this round; their pending Beads transferred to ambusher A at end-of-round | yes                          |
-| `bead_denied`            | v0.8 (deny variant only): X was ambushed this round; pending Beads destroyed at end-of-round   | yes                          |
-| `bead_converted`         | X (or an ambusher who just stole beads) converted 2 Beads to +1 VP                             | yes                          |
-| `trailing_bonus_applied` | X is trailing, +1 Gather next round                                                            | yes                          |
-| `tribute_route_proposed` | X requests tribute from Y                                                                      | yes                          |
-| `tribute_route_accepted` | Y accepted tribute route                                                                       | yes                          |
-| `tribute_route_payment`  | Y sends 1 resource to X                                                                        | yes                          |
-| `round_end`              | Round N ended, standings updated                                                               | yes                          |
-| `match_end`              | Match ended, winner announced                                                                  | yes                          |
+| Region type    | Base production |
+| -------------- | --------------- |
+| plains         | 2               |
+| mountains      | 2               |
+| swamps         | 1               |
+| desert         | 1               |
+| ruins          | 3               |
+| forest         | 1               |
+| river_crossing | 2               |
 
+
+Structure bonuses (cumulative, applied on top of base):
+
+- `granary`: +1
+- `shrine`: +1
+
+### 4.2 Force recruit costs (Influence)
+
+
+| Tier            | Cost | Travel penalty (ticks added to every trail) | Special                               |
+| --------------- | ---- | ------------------------------------------- | ------------------------------------- |
+| I (skirmishers) | 2    | 0                                           | —                                     |
+| II (warband)    | 5    | 0                                           | —                                     |
+| III (host)      | 12   | +1                                          | —                                     |
+| IV (massive)    | 30   | +2                                          | Requires `forge` in recruiting region |
+
+
+A tribe may hold at most **one force per owned region** (garrison limit). Recruiting into a region that already has a garrison fails silently (Influence refunded; engine logs `recruit_failed_garrison_present` event).
+
+### 4.3 Structure build costs (Influence)
+
+
+| Structure  | Cost | Max per region |
+| ---------- | ---- | -------------- |
+| granary    | 8    | 1              |
+| fort       | 10   | 1              |
+| road       | 6    | 1              |
+| watchtower | 6    | 1              |
+| shrine     | 12   | 1              |
+| forge      | 15   | 1              |
+
+
+A region holds at most **2 structures**. Attempting to build a 3rd fails silently (Influence refunded).
+
+### 4.4 Trail lengths (base, in ticks)
+
+Base length by terrain pair (symmetric):
+
+
+| Pair                    | Length |
+| ----------------------- | ------ |
+| plains–plains           | 1      |
+| plains–river_crossing   | 1      |
+| plains–anything_else    | 2      |
+| mountains–mountains     | 3      |
+| mountains–anything_else | 2      |
+| swamps–swamps           | 3      |
+| swamps–anything_else    | 2      |
+| ruins–anything          | 2      |
+| forest–anything         | 2      |
+| desert–desert           | 2      |
+| desert–anything_else    | 2      |
+
+
+Road modifier: if a `road` structure in region A targets region B, the trail A↔B length is `max(1, floor(base_length / 2))`.
+
+### 4.5 Force tier combat modifiers
+
+Effective combat tier = base tier + modifiers:
+
+- **+1** — defender is in a region they own
+- **+1** — defender benefits from a `fort` in the contested region
+- **+1** — for each adjacent region owned by a Shared-Vision partner that holds a Tier ≥ II garrison (cap +2 total from reinforcements)
+- **−1** — attacker was revealed by a successful scout that *arrived in the same tick* as the attacker
+
+### 4.6 Scouts
+
+- **Cost:** 3 Influence.
+- **Travel:** same as Tier I force (trail base length, no penalty).
+- **Dwell:** scout persists in target region for 1 tick after arrival, revealing the target and all regions adjacent to it, then expires.
+- **Combat:** scouts have no combat tier; they cannot fight and cannot be attacked. They occupy no garrison slot. Observers see scouts as `"a scout"` (always revealed if seen).
+
+### 4.7 Caravans
+
+- **Travel time:** `caravan_travel_ticks` ticks (default 2). Independent of map distance — this is a deliberate simplification for LLM tractability.
+- **Path:** engine computes shortest path from sender's nearest owned region to recipient's nearest owned region at time of dispatch. Path is frozen.
+- **Interception:** if at any tick during transit the caravan's current region is occupied by a hostile force of Tier II or higher, the caravan is intercepted. Its `amount_influence` is awarded to the interceptor. An `announcement` of kind `caravan_intercepted` is emitted publicly.
+- **Cancellation:** if the recipient `decline`s the originating proposal while the caravan is in flight, the caravan is cancelled; sender refunded 50% (floor).
+
+### 4.8 Reputation
+
+When a tribe breaks a pact (fires a `break_pact` proposal or dispatches a `move` order into a region owned by an NAP partner):
+
+- If broken within the first 3 ticks of the pact: set `reputation_penalty_expires_tick` = `current_tick + 4`.
+- If broken after 3 ticks but before expiry: set `reputation_penalty_expires_tick` = `current_tick + 2`.
+- If the pact had already expired or was never formed, no penalty.
+
+While penalized, all outgoing `propose` orders are tagged `reputation_penalty = true` in the recipient's inbox. The engine applies no mechanical penalty beyond this tag — the penalty is social pressure, read by LLM personas and shown in the UI for humans.
+
+### 4.9 Starting conditions (per tribe)
+
+
+| Tribe  | Home terrain | Starting bonus                                                                  |
+| ------ | ------------ | ------------------------------------------------------------------------------- |
+| orange | plains       | +1 Influence/tick on all owned plains regions, permanently                      |
+| grey   | mountains    | home region starts with one pre-built `fort`                                    |
+| brown  | swamps       | home region starts with one pre-built `road` targeting a random adjacent region |
+| red    | desert       | start with 5 bonus Influence in the bank                                        |
+
+
+All tribes start with:
+
+- 2 owned regions (home + one adjacent)
+- 1 Tier II force garrisoning their home region
+- 0 Tier I, III, IV forces
+- 5 Influence in the bank (Red starts with 10 per above)
+
+5–8 player configurations use additional tribes specified in a future appendix (out of scope for v2.0 draft).
 
 ---
 
-## 9. Simulation conformance
+## 5. Tick Resolution Algorithm
 
-Any simulation run (human-played, AI-agent-played, or scripted) MUST:
+A tick proceeds in exactly this sequence. All steps are deterministic.
 
-1. Follow these rules exactly.
-2. Emit a match log conforming to `SIMULATION_SCHEMA.md`.
-3. Set `rules_version: "v0.8"` in the log.
-4. Use the provided `seed` deterministically.
+```
+function resolve_tick(state, packets_by_tribe):
+  # 5.1 - Immediate orders (no travel time)
+  for each tribe in stable tribe order (alphabetical):
+    packet = packets_by_tribe[tribe]
+    for each order in packet.orders in submitted order:
+      if order.kind == "build":    apply_build(state, tribe, order)
+      elif order.kind == "recruit": apply_recruit(state, tribe, order)
+      elif order.kind == "respond": apply_response(state, tribe, order)
+      elif order.kind == "propose": apply_proposal(state, tribe, order)
+      elif order.kind == "message": apply_message(state, tribe, order)
 
-Agents may vary in decision-making (e.g. `greedy_builder`, `aggressive_raider`, `diversified_trader`, `random`, `human`), but the rule enforcement must be identical. Analysis across runs depends on rule determinism ? any divergence invalidates the comparison.
+  # 5.2 - Dispatch orders (adds to in-transit state)
+  for each tribe in stable tribe order:
+    packet = packets_by_tribe[tribe]
+    for each order in packet.orders in submitted order:
+      if order.kind == "move":   apply_dispatch_move(state, tribe, order)
+      elif order.kind == "scout": apply_dispatch_scout(state, tribe, order)
+
+  # 5.3 - Advance transits
+  for each force f in state.forces:
+    if f.location.kind == "transit":
+      f.location.ticks_remaining -= 1
+  for each scout s in state.scouts:
+    if s.location.kind == "transit":
+      s.location.ticks_remaining -= 1
+  for each caravan c in state.caravans:
+    c.ticks_to_next_region -= 1
+    if c.ticks_to_next_region == 0 and c.current_index < len(c.path) - 1:
+      c.current_index += 1
+      c.ticks_to_next_region = trail_length_at(c.path, c.current_index)
+
+  # 5.4 - Resolve arrivals
+  for each force f with location.kind == "transit" and ticks_remaining == 0:
+    f.location = { kind: "garrison", region_id: destination }
+  for each scout s with location.kind == "transit" and ticks_remaining == 0:
+    s.location = { kind: "arrived", region_id: target, expires_tick: state.tick + 2 }
+  for each caravan c where c.current_index == len(c.path) - 1 and c.ticks_to_next_region == 0:
+    deliver_caravan(state, c)    # transfers influence or intercepts if hostile force is present
+
+  # 5.5 - Resolve combats
+  for each region r in stable region order:
+    forces_here = [f for f in state.forces if f.location.kind == "garrison" and f.location.region_id == r.id]
+    if distinct_owners(forces_here) >= 2:
+      resolve_combat(state, r, forces_here)    # see Section 7
+
+  # 5.6 - Apply pact expiries and war flags
+  for each pact p where p.expires_tick <= state.tick: remove p
+  purge expired reputation penalties
+
+  # 5.7 - Influence production
+  for each tribe t:
+    for each region r owned by t:
+      t.influence += production(r)
+
+  # 5.8 - Scout expiry
+  for each scout s where s.location.kind == "arrived" and s.location.expires_tick <= state.tick:
+    remove s
+
+  # 5.9 - Announcements flushed at end-of-tick boundary
+  state.tick += 1
+
+  # 5.10 - Victory check (see Section 8)
+  check_victory(state)
+
+  return state
+```
+
+Edge notes:
+
+- **Intra-tribe order ordering.** Within a single tribe's packet, orders are applied in the order the tribe submitted them. A tribe may `build` then `recruit` in the same tick and both succeed if Influence permits.
+- **Cross-tribe order ordering.** Between tribes, orders are applied in stable alphabetical tribe order within each sub-phase (5.1, 5.2, etc.). This determinism is what makes replays exact.
+- **Garrison collision on dispatch.** If a tribe dispatches a force from region A while a pending `recruit` in the same packet would fill A's garrison, the dispatch happens first (garrison empty), then the recruit fills it.
+- **Invalid orders** (e.g., move a force you don't own, recruit without Influence) fail silently and emit a trace event. No exception is thrown.
 
 ---
 
-*End of RULES.md — v0.8*
+## 6. Movement
+
+### 6.1 Dispatching a move
+
+When tribe T submits `move { force_id, destination_region_id }`:
+
+1. Validate: `force_id` is a force T owns AND `location.kind == "garrison"`.
+2. Let `from = f.location.region_id`. Find the trail connecting `from` and `destination`. If no direct trail, **fail silently** (LLMs/humans must only move to adjacent regions; multi-hop movement is a sequence of single-hop orders across ticks).
+3. Compute effective trail length: `base_length + force.tier_travel_penalty`.
+4. Set `f.location = { kind: "transit", trail_index: <index>, direction_from: from, direction_to: destination, ticks_remaining: effective_length }`.
+5. Clear the origin region's `garrison_force_id` (the force is no longer garrisoning it).
+
+### 6.2 NAP enforcement on dispatch
+
+If a `move` targets a region owned by an NAP partner:
+
+- The move is **permitted** (NAPs don't lock movement at the engine level), but:
+- Breaks the NAP immediately. Emit `pact_broken` announcement. Apply reputation penalty per §4.8.
+
+This is intentional: a tribe can always *choose* to break a pact. The game records that they did.
+
+### 6.3 Transit visibility
+
+A transit is visible to an observer tribe O if and only if **any** of `direction_from` or `direction_to` regions is within O's fog-of-war visibility at the moment of the projection (see §9).
+
+---
+
+## 7. Combat Resolution
+
+When ≥ 2 distinct tribes have forces in a region r after §5.4:
+
+1. Identify the **defender** D: the region's owner, if that owner has a force present.
+2. Identify **attackers**: all other owners with forces in r. If multiple, process attackers in alphabetical tribe order. (Attackers do not coalesce.)
+3. For each attacker A in order:
+  - Compute D's **effective tier** = `D.force.tier + own_region_bonus(+1) + fort_bonus(+1 if fort) + reinforcement_bonus(up to +2)`.
+  - Compute A's **effective tier** = `A.force.tier + scout_reveal_penalty(-1 if applicable)`.
+  - If `A_eff > D_eff`: A wins. `D.force.tier -= 1`. If D's tier < 1: D.force is destroyed, A now garrisons r, region ownership changes to A's tribe. If D's tier >= 1: D retreats to an adjacent friendly region with available garrison slot, chosen alphabetically; if none, D is destroyed. A's force tier unchanged.
+  - If `A_eff < D_eff`: D wins. `A.force.tier -= 1`. A retreats similarly or is destroyed. D's tier unchanged.
+  - If `A_eff == D_eff`: both drop one tier. Both retreat (or destroyed). Region ownership unchanged.
+4. If the defender is eliminated and there are remaining attackers, the next attacker fights the now-unoccupied region (effectively an uncontested occupation: they become the new garrison without combat).
+
+### 7.1 Reinforcement bonus
+
+For each adjacent region r' where:
+
+- `r'.owner` is a tribe with an active `shared_vision` pact with D
+- `r'.garrison_force_id` is non-null AND that force has tier ≥ II
+
+D gains +1 effective tier, capped at +2 total from reinforcement.
+
+This is computed at combat-resolution time, not at packet-submission time.
+
+### 7.2 Region ownership transfer
+
+Ownership transfers when a non-owner garrisons a region after combat. Structures **remain in place** under new ownership. Influence production credit at §5.7 goes to the new owner from this tick onward.
+
+---
+
+## 8. Victory Conditions
+
+Checked at the end of §5.10. Conditions evaluated in this order; the first match wins:
+
+1. **Last standing.** Only one tribe has any owned regions. That tribe wins immediately.
+2. **Cultural ascendancy.** A tribe owns ≥ 4 `shrine` structures. Wins immediately (no sustain).
+3. **Diplomatic hegemony.** A tribe has active NAPs with every other tribe in `tribes_alive` AND holds a plurality of regions (strictly more than any other tribe). Sustained `victory_sustain_ticks` (default 3) ticks.
+4. **Economic supremacy.** A tribe's regions produce ≥ 50% of total current Influence/tick production. Sustained `victory_sustain_ticks` ticks.
+5. **Territorial dominance.** A tribe owns ≥ 60% of all regions. Sustained `victory_sustain_ticks` ticks.
+6. **Tick limit.** At `tick == tick_limit`, compute weighted score for each tribe:
+  ```
+   score = 0.40 × (regions_owned / total_regions)
+         + 0.30 × (influence_share)
+         + 0.20 × (shrines_owned / 4)
+         + 0.10 × (active_naps / max(1, tribes_alive - 1))
+  ```
+   Highest score wins. Ties are shared victories (all tied tribes listed in `state.winner` as array).
+
+### 8.1 Sustain counters
+
+For each *sustained* condition, each tribe has a counter in `state.victory_counters`. If the condition holds at end of tick N, increment; if it doesn't, reset to 0. Trigger victory when counter hits `victory_sustain_ticks`.
+
+### 8.2 Simultaneous victory
+
+If multiple tribes satisfy different conditions at the same tick, the condition higher in the list wins. If multiple tribes satisfy the *same* condition at the same tick (possible only for 6/tick-limit), it's a shared victory.
+
+---
+
+## 9. Fog of War Projection
+
+After each tick's §5.10, the engine computes for every living tribe a `ProjectedView`.
+
+### 9.1 Visible regions
+
+For tribe T, the set of visible region IDs is the union of:
+
+- Every region T owns.
+- Every region adjacent (one trail hop) to a region T owns.
+- Every region adjacent (one or two trail hops) to a region T owns **AND** has a `watchtower` structure.
+- Every region where T has a scout in `location.kind == "arrived"` state, plus every region adjacent to that one.
+- Every region visible to any tribe P where T has an active `shared_vision` pact with P (recursively applied: T sees what P sees directly, not what P sees through their own shared visions).
+
+### 9.2 Visible forces
+
+For each garrison force F in a visible region:
+
+- If `F.owner == T`: T sees F with full precision (tier visible).
+- Otherwise: T sees a `VisibleForce` with fuzzy tier (§3.13 mapping).
+
+### 9.3 Visible transits
+
+For each transit in `state.forces | state.scouts`:
+
+- If owner == T: precise.
+- Otherwise: T sees it only if either its `direction_from` or `direction_to` region is in T's visible region set. Fuzzy tier rendering applies.
+
+Scouts are always revealed as `"a scout"` when visible — their tier is not fuzzed.
+
+### 9.4 Caravans
+
+Caravans in transit are **not visible** to any tribe other than their owner and recipient. (They are diplomatic instruments, not military.) Interception is still mechanically possible because it's driven by whether a hostile force happens to occupy the caravan's current path region — not by observation.
+
+### 9.5 Inbox and announcements
+
+- `inbox` contains: structured proposals addressed to T (pending T's response), free-text messages to T, scout reports for scouts T owns that arrived this tick, combat reports for combats T participated in.
+- `announcements_since_last_tick` contains all public announcements from this tick.
+
+---
+
+## 10. PRNG Usage Schedule
+
+(Informational — confirms determinism contract.)
+
+- **Match init:**
+  1. Seed PRNG with `seed`.
+  2. Generate map: region placements, terrain assignments, trail topology. Consumes ~N draws where N = region_count × 4.
+  3. Randomize tribe home positions: consumes tribes_count draws.
+  4. Apply Brown's starting road target (random adjacent): 1 draw.
+  5. Finalize PRNG state. **Discard.** No further draws are made at any point during the match.
+- **Tick resolution:** zero PRNG draws.
+
+This is a strict requirement. Any implementation that consumes a PRNG draw during tick resolution is non-conformant.
+
+---
+
+## 11. Map Generation
+
+### 11.1 Topology
+
+1. Place `region_count` region-centres on a unit square using seeded Poisson-disc sampling (minimum distance ≈ `1 / sqrt(region_count)`).
+2. Connect regions using Delaunay triangulation; prune edges longer than 1.5× median to avoid cross-map shortcuts.
+3. Each retained Delaunay edge becomes a `Trail`.
+4. Assign region types by a weighted random draw:
+  - plains: 0.30, mountains: 0.18, swamps: 0.13, desert: 0.13, ruins: 0.10, forest: 0.10, river_crossing: 0.06.
+5. Place tribe homes: one per tribe on a region matching the tribe's home terrain. If no matching region exists (small map edge case), fall back to alphabetical first unclaimed region.
+6. Ensure no pair of tribe homes is more than 4 trails apart (shortest-path distance in trail-count, ignoring tick length). If violated, regenerate from step 1 with the next PRNG state until satisfied (max 10 attempts; then relax to 5 trails).
+
+### 11.2 Compute trail base lengths
+
+For each trail, compute `base_length_ticks` per §4.4.
+
+### 11.3 Starting region assignment
+
+Each tribe receives their home region plus one adjacent region (chosen alphabetically by region ID for determinism). Garrison forces placed per §4.9.
+
+---
+
+## 12. Simulation Conformance
+
+A compliant implementation must, on running a match, emit to a `.jsonl` trace file **one event per tick**, structured as:
+
+```json
+{
+  "tick": 7,
+  "state_hash": "sha256:...",
+  "orders_by_tribe": { "<tribe>": OrderPacket, ... },
+  "resolution_events": [
+    { "kind": "build", "tribe": "grey", "region_id": "r_04", "structure": "fort" },
+    { "kind": "recruit", "tribe": "orange", "region_id": "r_02", "tier": 2 },
+    { "kind": "dispatch_move", "tribe": "orange", "force_id": "f_orange_01", "to": "r_06", "ticks": 3 },
+    { "kind": "arrive", "actor": "force_id_or_scout_id", "region_id": "r_11" },
+    { "kind": "combat", "region_id": "r_11", "defender": "grey", "attacker": "orange", "result": "defender_wins", "effective_tiers": [4, 3] },
+    { "kind": "pact_formed", "parties": ["orange","grey"], "expires_tick": 14 },
+    { "kind": "pact_broken", "parties": ["orange","grey"], "breaker": "orange" },
+    { "kind": "caravan_intercepted", "caravan_id": "c_brown_02", "interceptor": "red", "amount": 20 },
+    { "kind": "victory", "tribe": "grey", "condition": "territorial_dominance" }
+  ],
+  "projected_views": { "<tribe>": ProjectedView, ... }
+}
+```
+
+Additionally, at match end, emit a single `match_summary` record with `final_hash`, `winner`, `tick_final`, and `tribes_alive_at_end`.
+
+---
+
+## 13. Sample Worked Tick
+
+Given:
+
+- `state.tick` = 6 (about to resolve to 7)
+- Orange force `f_orange_01` (Tier III host) currently in region `r_02` (Orange home, plains).
+- Grey garrison `f_grey_01` (Tier II warband) in region `r_07` (Grey home, mountains, has pre-built `fort`).
+- Active NAP between orange and grey, expires tick 12.
+- Trail `r_02 ↔ r_07` base length 2 (plains-mountains).
+
+Packets for tick 6→7:
+
+- **Orange:** `[{ kind: "move", force_id: "f_orange_01", destination_region_id: "r_07" }]`
+- **Grey:** `[{ kind: "scout", from_region_id: "r_07", target_region_id: "r_02" }]`
+- **Brown:** `[{ kind: "build", region_id: "r_12", structure: "granary" }]`
+- **Red:** `[{ kind: "message", to: "grey", text: "Suspicious silence from Plains?" }]`
+
+Resolution:
+
+- **5.1**: Brown builds Granary in r_12 (cost 8 Influence). Red's message enqueued to grey's inbox.
+- **5.2**: Orange dispatches `f_orange_01` into transit, trail r_02↔r_07, ticks_remaining = 2 + 1 (Tier III penalty) = 3. Orange's NAP with Grey is broken on dispatch into NAP partner's region. Announce `pact_broken { parties: [orange, grey], breaker: orange }`. Orange's reputation_penalty_expires_tick = 6 + 4 = 10.
+- **5.2**: Grey dispatches scout, target r_02, ticks_remaining = 2.
+- **5.3**: All existing transits decrement (there are none prior to this tick for this example).
+- **5.4**: No arrivals yet.
+- **5.5**: No combats.
+- **5.6**: No pact expiries.
+- **5.7**: Influence credited. Orange: +2 from r_02 (plains) × 2 = +4 (owns 2 plains regions). Grey: +2 (mountains) × 2 = +4. Etc.
+- **5.8**: No expiring scouts.
+- **5.9**: Announcements list: `[{ tick: 7, kind: "pact_broken", parties: [orange, grey], breaker: orange }]`
+- **5.10**: `state.tick = 7`.
+
+Projections (abbreviated):
+
+- **Grey's ProjectedView**: can see r_07 (own) + adjacent. Sees a transit on trail r_02↔r_07 with `direction_from: r_02, direction_to: r_07, owner: orange, fuzzy_tier: "large_host"`. Grey's inbox: new message from Red + pact-broken announcement.
+- **Orange's ProjectedView**: can see r_02 + adjacent. Does not see Grey's scout (it's currently in transit from r_07 side; neither endpoint region is orange-visible unless r_07 is adjacent to an orange region, which in this example it is — orange sees the scout-transit too).
+- **Brown's and Red's ProjectedView**: get the pact_broken announcement. Their own local state updates.
+
+Tick 8 and onward proceed similarly. Grey's scout arrives at r_02 on tick 8; the transiting host is revealed with `scout_revealed_ambush = true`. On tick 9 the host arrives at r_07 and combat resolves — Orange Tier III vs. Grey Tier II + defender-in-own(+1) + fort(+1) = 3 vs. 4; Grey wins; Orange's host drops to Tier II and retreats to an adjacent Orange-owned region.
+
+---
+
+## 14. Open Items for v2.1
+
+These are acknowledged incomplete and scheduled for a v2.1 revision after the first playable batch:
+
+- 5–8 player tribe definitions (currently 4 canonical only).
+- Recruitment delay ticks: currently zero — a recruited force is available the same tick. Consider adding a 1-tick delay for higher tiers.
+- Pact-breaker reputation mechanics: currently tag-only (no mechanical penalty). Consider adding a proposal-rejection probability for LLM personas.
+- Caravan path recomputation: currently frozen at dispatch. Consider recomputing if path regions change ownership mid-flight.
+- Ruins relics: GDD mentions Red starts with a relic (counts ½ Shrine). The mechanics of picking up relics from ruins regions is not yet specified — currently Red's bonus is Influence-only.
+- Forge as Tier IV gate: clarify whether Tier IV can *move through* regions without a forge (current spec: yes, the forge is only a recruitment gate, not a maintenance gate).
+
+---
+
+## 15. Conformance Checklist
+
+An implementation is v2.0-conformant if it passes all of:
+
+- Seeded-replay test: run the same seed + same packet sequence twice; all per-tick `state_hash` values match.
+- Zero-RNG-during-tick test: assert PRNG state is unchanged across any tick resolution.
+- Fog-of-war non-leak test: assert no `ProjectedView` contains state outside the per-tribe visibility rules of §9.
+- Victory check ordering test: construct synthetic states where multiple conditions trigger simultaneously; verify higher-priority condition wins per §8.
+- Combat modifier test: synthetic tier-3 attacker vs. tier-2 defender in own region + fort + one adjacent shared-vision ally with tier II = 3 vs 5; defender wins; attacker retreats or destroyed per §7.
+- Caravan interception test: hostile tier II in caravan path at delivery-tick → caravan diverted to interceptor; `caravan_intercepted` announcement emitted.
+- NAP-break reputation test: tribe breaks NAP on tick 5 (NAP formed tick 3, i.e., within 3 ticks of formation); `reputation_penalty_expires_tick` set to 9.
+
+---
+
+*End of RULES.md. JSON schema files and the reference Python oracle (`tools/v2/`) follow in-repo.*

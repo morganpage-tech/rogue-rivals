@@ -1,4 +1,4 @@
-"""Tick resolution engine (RULES_v2.md \u00a75).
+"""Tick resolution engine (RULES.md \u00a75).
 
 Deterministic. No PRNG draws during tick resolution (\u00a71, \u00a710). All
 tie-breaks use stable tribe-alphabetical ordering.

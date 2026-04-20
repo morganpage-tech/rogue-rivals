@@ -8,7 +8,7 @@ Usage:
     python -m tools.v2.sim_v2                          # stdout summary
     python -m tools.v2.sim_v2 --trace out.jsonl        # write JSONL trace
 
-The JSONL trace format is documented in RULES_v2.md \u00a712.
+The JSONL trace format is documented in RULES.md \u00a712.
 """
 
 from __future__ import annotations

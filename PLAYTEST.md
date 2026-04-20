@@ -441,7 +441,7 @@ Exceptions:
 1. Draft the change with rationale
 2. Update `RULES.md` with version bump (v0.7.4+)
 3. Run the full 50-match simulation batch with updated rules before next playtest ? confirm no regression on balance metrics (`COMPARISON_v*.md` template)
-4. Update `tools/sim.py` and `packages/engine` in lockstep
+4. Update `tools/sim.py` (legacy) and `packages/engine2` / `tools/v2/` in lockstep for v2 parity
 5. Playtest again
 
 ## 9. Sample session schedule (first 3 paper sessions)

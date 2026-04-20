@@ -1,6 +1,6 @@
 # Rogue Rivals (v2)
 
-Browser client and tooling for **rules v2** (`RULES_v2.md`): 6‑player continent map, diplomacy, and optional **LLM opponents**.
+Browser client and tooling for **v2** (`RULES.md`, `GDD.md`): 6‑player continent map, diplomacy, and optional **LLM opponents**.
 
 ## Run the game (local)
 
@@ -45,4 +45,4 @@ python -m tools.v2.render_replay \
 | **`packages/web`** | React UI (v2 only) |
 | **`tools/v2`** | Python oracle, batch runner (`run_batch.py`), LLM agents, replay renderer |
 
-Legacy **v0.8** hot‑seat lived in `@rr/engine`; it has been removed from the web app but the package remains for older tests if needed.
+**Canonical rules** live in `RULES.md` and `GDD.md`. A legacy Python v0.7 reference simulator remains as `tools/sim.py` for older batch tooling and archived JSONL; new work should use `tools/v2/` and `@rr/engine2`.

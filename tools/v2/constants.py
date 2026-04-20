@@ -1,6 +1,6 @@
 """Normative constants mirroring packages/engine2/src/constants.ts.
 
-Single source of truth is RULES_v2.md \u00a74. Any divergence from the TS
+Single source of truth is RULES.md \u00a74. Any divergence from the TS
 package is a bug in whichever came last.
 """
 

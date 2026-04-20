@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-# Distilled from RULES.md v0.7.3 — keep in sync conceptually (do not edit RULES.md here).
+# Legacy v0.7.3 snapshot for `tools/sim.py` / `run_llm_batch.py` (synchronous rules).
+# Canonical v2 rules: `RULES.md`; v2 LLM agents use `tools/v2/llm_agent.py` + `tools/v2/compact_rules.py`.
 COMPACT_RULES_SUMMARY = """
 ## Rogue Rivals core (v0.7.3 snapshot)
 

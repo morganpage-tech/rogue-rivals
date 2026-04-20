@@ -4,7 +4,7 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "test": "pnpm -r test",
-    "build": "pnpm -F @rr/engine build"
+    "build": "pnpm -F @rr/engine2 build"
   },
   "packageManager": "pnpm@9.15.4"
 }

@@ -1,6 +1,6 @@
 """Compact rules reminder for LLM prompts.
 
-Derived from RULES_v2.md but re-organised for token efficiency. Aim: the
+Derived from RULES.md but re-organised for token efficiency. Aim: the
 LLM has enough to make decisions without wading through the full spec.
 Max ~80 lines of prose.
 """

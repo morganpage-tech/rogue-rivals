@@ -24,7 +24,7 @@ and border wars that can pivot into central races.
 Each tribe gets:
 
 1. **Home region** (owned at start, contains starting garrison)
-2. **One adjacent owned region** (owned at start, per current `RULES_v2.md`)
+2. **One adjacent owned region** (owned at start, per current `RULES.md`)
 3. **One neutral frontier region** in its own wedge
 
 This gives every tribe **three expansion lanes**:

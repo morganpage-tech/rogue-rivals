@@ -20,7 +20,7 @@ Three hand-built maps:
   positions for `CONTINENT_6P_SCHEMATIC_LAYOUT` follow the schematic wedge /
   border ring / core triangle (visualization only; trail graph is unchanged).
 
-Procedural map generation per RULES_v2.md \u00a711 is still deferred; both
+Procedural map generation per RULES.md \u00a711 is still deferred; both
 maps below are hand-authored.
 
 ### Expanded map layout (ASCII)
@@ -425,7 +425,7 @@ def _place_tribes_core(
     """Assign home regions, starting influence, starting garrisons, and
     tribe-specific asymmetric bonuses (grey fort, brown road).
 
-    Per RULES_v2.md \u00a74.9 / \u00a711.3 every tribe starts with 2 owned regions:
+    Per RULES.md \u00a74.9 / \u00a711.3 every tribe starts with 2 owned regions:
     home + one adjacent region (alphabetically first unclaimed). The
     adjacent-claim pass runs in alphabetical tribe order so any collision
     resolves deterministically. On dense hand-maps where every adjacent
@@ -532,6 +532,6 @@ def _place_tribes_core(
 
 def procedural_map(state: GameState, seed: int) -> None:
     raise NotImplementedError(
-        "Procedural map generation (RULES_v2.md \u00a711) deferred to v2.1; "
+        "Procedural map generation (RULES.md \u00a711) deferred to v2.1; "
         "use build_hand_map, build_expanded_map, or build_continent_map_6p."
     )

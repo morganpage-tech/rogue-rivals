@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
-Rogue Rivals deterministic simulator -- RULES.md v0.7.3, SIMULATION_SCHEMA.md v1.0.
+**Legacy** synchronous-turn simulator (v0.7.x resource economy). Not the canonical v2 ruleset.
+
+Canonical design and engine: `RULES.md`, `GDD.md`, `packages/engine2`, `tools/v2/`.
+This file remains for `run_llm_batch.py`, `llm_agent.py`, and validating archived v0.7 JSONL.
+
+Original docstring — RULES v0.7.3 era, SIMULATION_SCHEMA.md v1.0.
 
 Ambiguities (also noted in simulations/SUMMARY_v0.6_initial.md):
 - VP>=8 ends immediately after that turn; remaining seats that round are skipped.
