@@ -16,8 +16,11 @@ import {
   buildInitialReplayFrame,
   buildReplayFrameFromTs,
   makeLiveReplayPayload,
+  parsedReplayStateFromGameState,
   ReplayFileLoader,
+  ReplayScoreboard,
   ReplayViewer,
+  trailBaseTicksMap,
   type ReplayFrame,
   type ReplayPayload,
 } from "../replay/index.js";
@@ -71,6 +74,15 @@ export function V2Shell() {
   const view = useMemo(
     () => projectForPlayer(state, playTribe),
     [state, playTribe, bump],
+  );
+
+  const liveParsedState = useMemo(
+    () => parsedReplayStateFromGameState(state),
+    [state, bump],
+  );
+  const liveTrailTicks = useMemo(
+    () => trailBaseTicksMap(liveParsedState),
+    [liveParsedState],
   );
 
   const ps = view.myPlayerState;
@@ -318,13 +330,16 @@ export function V2Shell() {
             <h3>Map</h3>
             <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
               Fog of war: only your visible regions are drawn. Select a region for context (orders
-              use the legal list below). Use +/− to zoom; drag the dark map background to pan; Fit
-              resets the view.
+              use the legal list below). Use +/− to zoom; drag the map background to pan;
+              double-click or Fit resets the view. Transits, scouts, caravans, and structures match
+              the replay map.
             </p>
             <V2Map
               view={view}
               selectedRegionId={selectedRegionId}
               onSelectRegion={setSelectedRegionId}
+              trailBaseTicks={liveTrailTicks}
+              showUnitGlyphs
             />
             {selectedRegionId && (
               <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
@@ -359,6 +374,11 @@ export function V2Shell() {
         </div>
 
         <div className="col">
+          <div className="card">
+            <h3>Scoreboard</h3>
+            <ReplayScoreboard state={liveParsedState} />
+          </div>
+
           <div className="card">
             <h3>Forces &amp; sightings</h3>
             <ul className="v2-force-list">
