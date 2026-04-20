@@ -210,7 +210,7 @@ This section is a design constraint, not afterthought.
 - The structured-diplomacy channel ensures LLMs have reliable hooks � they don't need to negotiate entirely in free text (which drifts and loses coherence over long matches).
 - Personas (v1 had `greedy_builder`, `aggressive_raider`, etc.) translate to v2 personas: **warlord, merchant prince, paranoid isolationist, opportunist, kingmaker**. Each is biased toward one victory path and one diplomatic posture.
 - Prompts are built around the `ProjectedView` � the LLM sees only what its fog-of-war permits. This is both thematic and protective against prompt-overload on large maps.
-- The existing batch runner (`tools/run_llm_batch.py`) becomes the primary design-iteration cockpit. Pure-LLM 4-tribe matches at 30 ticks should complete in under 5 minutes of real time per match.
+- The batch runner (`tools/v2/run_batch.py` and `pnpm --filter @rr/engine2 batch:llm`) is the primary design-iteration cockpit for v2.
 
 ---
 

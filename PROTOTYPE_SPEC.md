@@ -2,7 +2,7 @@
 
 **Target ruleset:** `RULES.md` v0.7.3
 **Status:** Draft for implementation handoff
-**Companion docs:** `GDD.md` (design intent), `RULES.md` (canonical mechanics), `SIMULATION_SCHEMA.md` (event format), `tools/sim.py` (reference engine)
+**Companion docs:** `GDD.md` (design intent), `RULES.md` (canonical mechanics), `SIMULATION_SCHEMA.md` (legacy v0 event format), `tools/v2/` + `packages/engine2` (v2 engines)
 
 > **Authority:** If this document conflicts with `RULES.md`, `RULES.md` wins. This spec is **how to build**; the rules are **what to build**.
 
@@ -260,7 +260,7 @@ Snapshot of current engine state for O(1) load. Can be rebuilt from `actions_log
 
 ## 6. Engine (the heart)
 
-The engine is **pure**, **deterministic**, and mirrors `tools/sim.py` semantically. Port, don't re-invent.
+The v2 engine is **pure** and **deterministic**; Python (`tools/v2/`) and TypeScript (`packages/engine2`) are parity-tested. Port, don't re-invent.
 
 ### 6.1 Core types (TypeScript)
 
@@ -699,14 +699,14 @@ cd ../web
 - `/PLAYTEST.md` (for M3)
 
 **Files NOT to touch during MVP:**
-- `tools/sim.py` ? kept as design-iteration tool
+- `tools/v2/` ù Python oracle for v2
 - `simulations/*` ? immutable baselines for engine correctness testing
 - `RULES.md`, `GDD.md`, `SIMULATION_SCHEMA.md` ? canonical docs
 
 **Files to reference constantly:**
 - `RULES.md` ? every engine change must cite a rule section
 - `SIMULATION_SCHEMA.md` ? every log event must conform
-- `tools/sim.py` ? the Python reference implementation; when in doubt, port behavior 1:1
+- `RULES.md` + `tools/v2/` ó when in doubt, match Python oracle behavior
 
 ---
 

@@ -45,4 +45,4 @@ python -m tools.v2.render_replay \
 | **`packages/web`** | React UI (v2 only) |
 | **`tools/v2`** | Python oracle, batch runner (`run_batch.py`), LLM agents, replay renderer |
 
-**Canonical rules** live in `RULES.md` and `GDD.md`. A legacy Python v0.7 reference simulator remains as `tools/sim.py` for older batch tooling and archived JSONL; new work should use `tools/v2/` and `@rr/engine2`.
+**Canonical rules** live in `RULES.md` and `GDD.md`. Simulation uses `tools/v2/` (Python oracle) and `@rr/engine2` (TypeScript).
