@@ -24,7 +24,8 @@ export function OrderQueue({ view, chosenIds, canAdd, onToggle, onClear }: Order
       <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
         Toggle legal actions for this tick (build/recruit/diplomacy resolve before moves/scouts;
         each scout costs 3 Influence from your current total — this tick&apos;s production applies
-        next tick). Submit runs <code className="mono">tick()</code> on the local engine.
+        next tick; at most one <code className="mono">move</code> per force). Submit runs{" "}
+        <code className="mono">tick()</code> on the local engine.
       </p>
       {chosenIds.length > 0 && (
         <ol className="v2-queue-list">
@@ -63,7 +64,7 @@ export function OrderQueue({ view, chosenIds, canAdd, onToggle, onClear }: Order
                       title={
                         allowed
                           ? o.id
-                          : `${o.id} — not enough Influence with your current queue`
+                          : `${o.id} — would be clipped (Influence budget or a second move for the same force)`
                       }
                     >
                       {o.summary}

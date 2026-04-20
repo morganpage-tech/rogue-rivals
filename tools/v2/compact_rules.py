@@ -31,7 +31,7 @@ Only ONE garrison per owned region. Recruit in a region you own without a garris
 granary 8 (+1 production), fort 10 (+1 defender tier), road 6 (halves one trail length), watchtower 6 (reveals adjacent regions + scout 2 hops), shrine 12 (+1 prod + counts toward cultural victory), forge 15 (enables Tier IV recruiting).
 
 ### Movement
-Move force from a region you own to an adjacent region only. Transit time = trail length (base 2, plains-plains 1, mountains-mountains 3) + tier penalty. Moving into an NAP partner's region BREAKS the NAP (public event + reputation penalty). Moving into unowned region claims it. Moving into an enemy region triggers combat on arrival.
+Move force from a region you own to an adjacent region only. At most **one move order per force per tick**; extras are dropped (first in your list wins). Transit time = trail length (base 2, plains-plains 1, mountains-mountains 3) + tier penalty. Moving into an NAP partner's region BREAKS the NAP (public event + reputation penalty). Moving into unowned region claims it. Moving into an enemy region triggers combat on arrival.
 
 ### Combat
 Tier + modifiers. Defender gets +1 own-region, +1 if fort present, up to +2 from adjacent Shared-Vision allies with tier>=II forces. Attacker gets -1 if scouted same tick. Higher wins; loser drops a tier and retreats (or is destroyed if no friendly adjacent region). Tie: both drop a tier.

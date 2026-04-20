@@ -2,9 +2,9 @@ import {
   CONTINENT_6P_DEFAULT_TRIBES,
   DEFAULT_MATCH_CONFIG,
   initMatch,
-  ordersExceedInfluenceBudget,
   projectForPlayer,
   tick,
+  wouldClipOrders,
   type GameState,
   type MatchConfig,
   type Order,
@@ -80,7 +80,7 @@ export function V2Shell() {
   const canAddLegalId = useCallback(
     (id: string) => {
       if (chosenIds.includes(id)) return true;
-      return !ordersExceedInfluenceBudget(ps.influence, ordersForIds([...chosenIds, id]));
+      return !wouldClipOrders(ps.influence, ordersForIds([...chosenIds, id]));
     },
     [chosenIds, ordersForIds, ps.influence],
   );
@@ -91,7 +91,7 @@ export function V2Shell() {
         return prev.filter((x) => x !== id);
       }
       const next = [...prev, id];
-      if (ordersExceedInfluenceBudget(ps.influence, ordersForIds(next))) {
+      if (wouldClipOrders(ps.influence, ordersForIds(next))) {
         return prev;
       }
       return next;
