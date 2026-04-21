@@ -14,6 +14,7 @@ import { ensureDataDir } from "./persistence/matchLog.js";
 import { jwtSecret, MatchManager } from "./match/matchManager.js";
 import { handlePlayerConnection } from "./ws/playerHub.js";
 import { handleSpectatorConnection } from "./ws/spectatorHub.js";
+import { handleDebugConnection } from "./ws/debugHub.js";
 
 /** Load env regardless of process cwd (e.g. starting `node dist/index.js` from the repo root). */
 const _serverDir = dirname(fileURLToPath(import.meta.url));
@@ -150,6 +151,11 @@ async function main(): Promise<void> {
   server.get("/ws/play", { websocket: true }, (socket, req) => {
     const q = req.query as Record<string, string>;
     handlePlayerConnection(socket as WebSocket, q.matchId ?? "", matchManager);
+  });
+
+  server.get("/ws/debug", { websocket: true }, (socket, req) => {
+    const q = req.query as Record<string, string>;
+    handleDebugConnection(socket as WebSocket, q.matchId ?? "", matchManager);
   });
 
   const port = Number(process.env.PORT ?? 3001);

@@ -238,6 +238,7 @@ export class MatchManager {
   /** Called after every successful `resolveTick` (human, timeout, or autoplay). */
   afterTickResolved(match: ActiveMatch, matchId: string): void {
     this.broadcastTick(match);
+    this.broadcastDebugTick(match);
     if (match.state.winner !== null) {
       appendMatchEnd(matchId, {
         kind: "match_end",
@@ -294,6 +295,27 @@ export class MatchManager {
     for (const ws of match.playerSockets.values()) {
       if (ws.readyState === 1) ws.send(p2);
     }
+    const debugEnd = enc({ type: "debug_match_end", winner: match.state.winner });
+    for (const ws of match.debugSockets) {
+      if (ws.readyState === 1) ws.send(debugEnd);
+    }
+  }
+
+  private broadcastDebugTick(match: ActiveMatch): void {
+    const last = match.debugBuffer[match.debugBuffer.length - 1];
+    if (!last) return;
+    const msg = JSON.stringify({ type: "debug_tick", tick: last });
+    for (const ws of match.debugSockets) {
+      if (ws.readyState === 1) ws.send(msg);
+    }
+  }
+
+  registerDebugSocket(matchId: string, ws: WebSocket): void {
+    this.matches.get(matchId)?.debugSockets.add(ws);
+  }
+
+  unregisterDebugSocket(matchId: string, ws: WebSocket): void {
+    this.matches.get(matchId)?.debugSockets.delete(ws);
   }
 
   joinMatch(

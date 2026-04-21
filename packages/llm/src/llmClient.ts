@@ -135,6 +135,12 @@ export interface LlmUsageMeta {
   provider: string;
 }
 
+export interface LlmCompleteResult {
+  data: Record<string, unknown>;
+  rawResponse: string;
+  usage: LlmUsageMeta;
+}
+
 export class LLMClient {
   readonly provider: LlmProvider;
   readonly model: string;
@@ -189,15 +195,11 @@ export class LLMClient {
     return `${text.slice(0, maxChars - 40)}\n...[truncated for token cap]`;
   }
 
-  /**
-   * Complete with JSON object response; validates against optional JSON Schema.
-   * Adds `_usage` to returned object (same as Python).
-   */
   async complete(
     system: string,
     user: string,
     schema: object | undefined,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<LlmCompleteResult> {
     const sysB = this.truncateText(system, this.maxInputTokens >> 1);
     const usrBudget = Math.max(256, this.maxInputTokens - Math.floor(sysB.length / 4));
     const usrB = this.truncateText(user, usrBudget);
@@ -274,13 +276,15 @@ export class LLMClient {
       validateOrderPacketLoose(data, schema);
     }
 
-    data._usage = {
+    const usage = {
       input_tokens: inTok,
       output_tokens: outTok,
       latency_ms: latencyMs,
       model: this.model,
       provider: this.provider,
     } satisfies LlmUsageMeta;
-    return data;
+
+    data._usage = usage;
+    return { data, rawResponse: rawText, usage };
   }
 }

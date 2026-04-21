@@ -2,6 +2,7 @@ import type { MatchLogStatusResponse, Tribe } from "@rr/shared";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
+import { DebugPanel } from "../components/DebugPanel.js";
 import { SpectatorScoreboard } from "../components/SpectatorScoreboard.js";
 import { SpectatorTimeline } from "../components/SpectatorTimeline.js";
 import { apiUrl } from "../config.js";
@@ -19,6 +20,7 @@ import { spectatorViewToParsedReplayState } from "../replay/spectatorViewToParse
 import { trailBaseTicksMap } from "../replay/trailBaseTicksMap.js";
 import type { ReplayFrame } from "../replay/types.js";
 import { useSpectatorCurrentView, useSpectatorStore } from "../state/spectatorStore.js";
+import { useDebugStore, useDebugTickForIndex } from "../state/debugStore.js";
 import { V2Map } from "../v2/V2Map.js";
 
 export function WatchMatch(): React.ReactElement {
@@ -37,11 +39,22 @@ export function WatchMatch(): React.ReactElement {
   const stepForward = useSpectatorStore((s) => s.stepForward);
   const stepBack = useSpectatorStore((s) => s.stepBack);
 
+  const [showDebug, setShowDebug] = useState(false);
+  const debugConnect = useDebugStore((s) => s.connect);
+  const debugDisconnect = useDebugStore((s) => s.disconnect);
+  const debugTick = useDebugTickForIndex(tickIndex);
+
   useEffect(() => {
     if (!matchId) return;
     connect(matchId);
     return () => disconnect();
   }, [matchId, connect, disconnect]);
+
+  useEffect(() => {
+    if (!matchId || !showDebug) return;
+    debugConnect(matchId);
+    return () => debugDisconnect();
+  }, [matchId, showDebug, debugConnect, debugDisconnect]);
 
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
 
@@ -134,7 +147,16 @@ export function WatchMatch(): React.ReactElement {
   return (
     <div className="page-watch">
       <header className="pw-header">
-        <h1>Rogue Rivals — Spectating</h1>
+        <div className="pw-header-row">
+          <h1>Rogue Rivals — Spectating</h1>
+          <button
+            type="button"
+            className={`dp-toggle-btn ${showDebug ? "dp-toggle-active" : ""}`}
+            onClick={() => setShowDebug(!showDebug)}
+          >
+            Debug
+          </button>
+        </div>
         {logStatus ? (
           <details className="pw-debug">
             <summary className="muted" style={{ fontSize: 11, cursor: "pointer" }}>
@@ -184,6 +206,12 @@ export function WatchMatch(): React.ReactElement {
         {v && (
           <aside className="pw-sidebar">
             <SpectatorScoreboard view={v} />
+          </aside>
+        )}
+
+        {showDebug && (
+          <aside className="pw-sidebar pw-debug-sidebar">
+            <DebugPanel debug={debugTick} />
           </aside>
         )}
       </div>

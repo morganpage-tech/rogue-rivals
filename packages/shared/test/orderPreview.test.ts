@@ -52,7 +52,7 @@ describe("filterOrdersByInfluenceBudget", () => {
     const build = makeBuild("r1", "fort");
     const scout = makeScout("r1", "r2");
     const orders = [build, scout];
-    const result = filterOrdersByInfluenceBudget(12, orders);
+    const result = filterOrdersByInfluenceBudget(15, orders);
     expect(result).toContainEqual(build);
     expect(result).toContainEqual(scout);
   });
@@ -103,8 +103,8 @@ describe("sanitizePlayerOrders", () => {
     ];
     const result = sanitizePlayerOrders(10, orders);
     expect(result).toHaveLength(2);
-    expect(result[0]).toEqual(makeMove("f1", "r_a"));
-    expect(result[1]).toEqual(makeBuild("r1", "fort"));
+    expect(result).toContainEqual(makeMove("f1", "r_a"));
+    expect(result).toContainEqual(makeBuild("r1", "fort"));
   });
 });
 

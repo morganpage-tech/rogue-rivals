@@ -1,6 +1,8 @@
 export {
   decideOrdersPacketJson,
+  decideOrdersPacketWithDebug,
   type DecideOrdersPacketOptions,
+  type LlmDecisionDebugData,
   type LlmPacketResult,
 } from "./decideOrdersPacket.js";
 export {
@@ -8,6 +10,7 @@ export {
   LLMClient,
   LLMError,
   pickProviderModel,
+  type LlmCompleteResult,
   type LlmProvider,
   type LlmUsageMeta,
 } from "./llmClient.js";

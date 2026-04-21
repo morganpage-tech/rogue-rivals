@@ -21,7 +21,7 @@ export async function runAutoPlayLoop(
           const slot = match.slots.get(tribe)!;
           if (slot.type === "pass") return [tribe, [] as Order[]] as const;
           if (slot.type === "llm" && slot.llmConfig) {
-            const orders = await generateLlmOrders(
+            const { orders } = await generateLlmOrders(
               match.state,
               tribe,
               slot.llmConfig,

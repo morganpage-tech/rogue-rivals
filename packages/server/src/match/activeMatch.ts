@@ -8,6 +8,7 @@ import type {
   ProjectedView,
   ResolutionEvent,
   SubmitOrdersResponse,
+  TickDebug,
   Tribe,
 } from "@rr/shared";
 import type { SpectatorView } from "@rr/shared";
@@ -44,8 +45,10 @@ export class ActiveMatch {
   slots: Map<Tribe, SlotInfo>;
   submittedOrders: Map<Tribe, SubmittedOrderEntry>;
   tickBuffer: TickBufferEntry[];
+  debugBuffer: TickDebug[];
   tickTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
   spectatorSockets: Set<WebSocket> = new Set();
+  debugSockets: Set<WebSocket> = new Set();
   playerSockets: Map<Tribe, WebSocket> = new Map();
   status: "lobby" | "running" | "finished";
   autoPlay: boolean;
@@ -68,6 +71,7 @@ export class ActiveMatch {
     this.slots = slots;
     this.submittedOrders = new Map();
     this.tickBuffer = [];
+    this.debugBuffer = [];
     this.status = autoPlay ? "running" : "lobby";
     this.autoPlay = autoPlay;
     this.tickTimeoutSeconds = tickTimeoutSeconds;

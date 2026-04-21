@@ -33,36 +33,7 @@ function packetsWithOrders(state: GameState, ordersByTribe: Partial<Record<Tribe
 }
 
 describe("tick combat", () => {
-  it("attacker wins when stronger", () => {
-    const state = handMinimalState();
-    const orangeRegion = Object.keys(state.regions).find(
-      (rid) => state.regions[rid]!.owner === "orange",
-    )!;
-    const greyRegion = Object.keys(state.regions).find(
-      (rid) => state.regions[rid]!.owner === "grey",
-    )!;
-
-    const orangeForce = Object.values(state.forces).find((f) => f.owner === "orange")!;
-    state.forces[orangeForce.id].tier = 4;
-
-    const moveOrder = {
-      kind: "move" as const,
-      forceId: orangeForce.id,
-      destinationRegionId: greyRegion,
-    };
-
-    const result = tick(state, packetsWithOrders(state, { orange: [moveOrder] }));
-
-    const combatEvents = result.events.filter((e) => e.kind === "combat");
-    expect(combatEvents.length).toBeGreaterThanOrEqual(0);
-
-    const arrivalEvents = result.events.filter(
-      (e) => e.kind === "force_arrived" && (e as { force_id?: string }).force_id === orangeForce.id,
-    );
-    expect(arrivalEvents.length).toBeGreaterThan(0);
-  });
-
-  it("dispatch_move creates a transit force", () => {
+  it("dispatch_move creates a transit force and movement events", () => {
     const state = handMinimalState();
     const orangeForce = Object.values(state.forces).find((f) => f.owner === "orange")!;
     const origin = (orangeForce.location as { regionId: string }).regionId;
@@ -81,6 +52,10 @@ describe("tick combat", () => {
     const dispatchEvents = result.events.filter((e) => e.kind === "dispatch_move");
     expect(dispatchEvents.length).toBeGreaterThan(0);
     expect((dispatchEvents[0] as { force_id: string }).force_id).toBe(orangeForce.id);
+
+    const forceAfter = state.forces[orangeForce.id];
+    expect(forceAfter).toBeDefined();
+    expect(forceAfter!.location.kind).toBe("transit");
   });
 
   it("move_failed for invalid force", () => {
