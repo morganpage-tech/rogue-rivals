@@ -110,7 +110,8 @@ export async function resolveTick(match: ActiveMatch, matchId: string): Promise<
     packetsByTribe,
   };
 
-  const decisions: LlmDecisionDebug[] = [];
+  const decisions: LlmDecisionDebug[] = [...match.pendingDecisions];
+  match.pendingDecisions = [];
   const orderSummary: Record<string, string[]> = {};
   for (const [tribe, pwd] of Object.entries(packetsWithDebug)) {
     orderSummary[tribe] = pwd.orderDescriptions;

@@ -26,6 +26,7 @@ import {
   appendMatchEnd,
   appendMatchInit,
   countTickRecordsInMatchLog,
+  deleteMatchLog,
   getDataDir,
   listMatchLogFiles,
   matchLogAbsolutePath,
@@ -103,21 +104,48 @@ export class MatchManager {
     return out;
   }
 
-  stopMatch(matchId: string): boolean {
+  async stopMatch(matchId: string): Promise<boolean> {
     const match = this.matches.get(matchId);
-    if (!match || match.status !== "running") return false;
+    if (!match || (match.status !== "running" && match.status !== "lobby")) return false;
     match.acceptingWork = false;
-    match.status = "finished";
     if (match.tickTimeoutTimer) {
       clearTimeout(match.tickTimeoutTimer);
       match.tickTimeoutTimer = null;
     }
+    await match.withLock(async () => {});
+    match.status = "finished";
     appendMatchEnd(matchId, {
       kind: "match_end",
       winner: match.state.winner,
       finishedAt: new Date().toISOString(),
     });
     this.broadcastMatchEnd(match);
+    return true;
+  }
+
+  async deleteMatch(matchId: string): Promise<boolean> {
+    const match = this.matches.get(matchId);
+    if (!match || match.status !== "finished") return false;
+
+    match.acceptingWork = false;
+    if (match.tickTimeoutTimer) {
+      clearTimeout(match.tickTimeoutTimer);
+      match.tickTimeoutTimer = null;
+    }
+    await match.withLock(async () => {});
+
+    for (const ws of match.spectatorSockets) {
+      try { ws.close(4001, "match deleted"); } catch { /* */ }
+    }
+    for (const ws of match.debugSockets) {
+      try { ws.close(4001, "match deleted"); } catch { /* */ }
+    }
+    for (const ws of match.playerSockets.values()) {
+      try { ws.close(4001, "match deleted"); } catch { /* */ }
+    }
+
+    this.matches.delete(matchId);
+    deleteMatchLog(matchId);
     return true;
   }
 

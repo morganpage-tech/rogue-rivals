@@ -48,10 +48,6 @@ function validateOrderPacketLoose(data: Record<string, unknown>, _schema: object
       }
     }
   }
-  if (data.orders !== undefined) {
-    if (!Array.isArray(data.orders)) throw new LLMError("Schema validation failed: orders must be an array");
-    if (data.orders.length > 12) throw new LLMError("Schema validation failed: orders maxItems 12");
-  }
 }
 
 export function pickProviderModel(

@@ -12,9 +12,9 @@ const handMinimal4 = {
 };
 
 vi.mock("@rr/llm", () => ({
-  decideOrdersPacketJson: vi.fn(async () => ({
-    choose: [] as string[],
-    messages: [] as { to: string; text: string }[],
+  decideOrdersPacketWithDebug: vi.fn(async () => ({
+    result: { choose: [] as string[], messages: [] as { to: string; text: string }[] },
+    debug: { tribe: "orange", error: null },
   })),
 }));
 
@@ -24,18 +24,18 @@ describe("generateLlmOrders", () => {
   });
 
   it("merges choose + messages and sanitizes via @rr/llm", async () => {
-    const { decideOrdersPacketJson } = await import("@rr/llm");
-    vi.mocked(decideOrdersPacketJson).mockResolvedValueOnce({
-      choose: [],
-      messages: [],
+    const { decideOrdersPacketWithDebug } = await import("@rr/llm");
+    vi.mocked(decideOrdersPacketWithDebug).mockResolvedValueOnce({
+      result: { choose: [], messages: [] },
+      debug: { tribe: "orange", error: null },
     });
 
     const state = initMatch(handMinimal4);
-    const orders = await generateLlmOrders(state, "orange", {
+    const { orders, debug } = await generateLlmOrders(state, "orange", {
       persona: "warlord",
     });
 
     expect(orders).toEqual([]);
-    expect(decideOrdersPacketJson).toHaveBeenCalled();
+    expect(decideOrdersPacketWithDebug).toHaveBeenCalled();
   });
 });

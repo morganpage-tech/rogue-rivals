@@ -21,6 +21,5 @@ export const ORDER_PACKET_SCHEMA = {
         },
       },
     },
-    orders: { type: "array", maxItems: 12 },
   },
 } as const;

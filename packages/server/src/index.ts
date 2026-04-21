@@ -21,17 +21,17 @@ const _serverDir = dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: join(_serverDir, "../.env") });
 loadEnv({ path: join(_serverDir, "../../..", ".env") });
 
-function jwtSecretValue(): string {
-  return jwtSecret();
+export interface BuildAppOptions {
+  logger?: boolean;
+  matchManager?: MatchManager;
 }
 
-async function main(): Promise<void> {
-  ensureDataDir();
+export async function buildApp(
+  options: BuildAppOptions = {},
+): Promise<{ server: Fastify.FastifyInstance; matchManager: MatchManager }> {
+  const matchManager = options.matchManager ?? new MatchManager();
 
-  const matchManager = new MatchManager();
-  matchManager.restoreMatches();
-
-  const server = Fastify({ logger: true });
+  const server = Fastify({ logger: options.logger ?? true });
 
   await server.register(cors, { origin: true });
   await server.register(websocket);
@@ -43,9 +43,19 @@ async function main(): Promise<void> {
   });
 
   server.delete<{ Params: { id: string } }>("/api/matches/:id", async (req, reply) => {
-    const ok = matchManager.stopMatch(req.params.id);
-    if (!ok) return reply.code(404).send({ error: "not found or not running" });
-    return { stopped: true, matchId: req.params.id };
+    const match = matchManager.getMatch(req.params.id);
+    if (!match) return reply.code(404).send({ error: "not found" });
+    if (match.status === "running" || match.status === "lobby") {
+      const ok = await matchManager.stopMatch(req.params.id);
+      if (!ok) return reply.code(409).send({ error: "could not stop" });
+      return { stopped: true, matchId: req.params.id };
+    }
+    if (match.status === "finished") {
+      const ok = await matchManager.deleteMatch(req.params.id);
+      if (!ok) return reply.code(409).send({ error: "could not delete" });
+      return { deleted: true, matchId: req.params.id };
+    }
+    return reply.code(400).send({ error: "unknown status" });
   });
 
   server.post<{ Body: CreateMatchRequest }>("/api/matches", async (req, reply) => {
@@ -74,7 +84,7 @@ async function main(): Promise<void> {
       if (!auth?.startsWith("Bearer ")) {
         return reply.code(401).send({ error: "unauthorized" });
       }
-      const claims = verifyPlayerToken(jwtSecretValue(), auth.slice(7));
+      const claims = verifyPlayerToken(jwtSecret(), auth.slice(7));
       if (!claims || claims.matchId !== req.params.id) {
         return reply.code(401).send({ error: "unauthorized" });
       }
@@ -93,7 +103,7 @@ async function main(): Promise<void> {
     if (!auth?.startsWith("Bearer ")) {
       return reply.code(401).send({ error: "unauthorized" });
     }
-    const claims = verifyPlayerToken(jwtSecretValue(), auth.slice(7));
+    const claims = verifyPlayerToken(jwtSecret(), auth.slice(7));
     if (!claims || claims.matchId !== req.params.id) {
       return reply.code(401).send({ error: "unauthorized" });
     }
@@ -158,6 +168,15 @@ async function main(): Promise<void> {
     handleDebugConnection(socket as WebSocket, q.matchId ?? "", matchManager);
   });
 
+  return { server, matchManager };
+}
+
+async function main(): Promise<void> {
+  ensureDataDir();
+
+  const { server, matchManager } = await buildApp();
+  matchManager.restoreMatches();
+
   const port = Number(process.env.PORT ?? 3001);
   const host = process.env.HOST ?? "0.0.0.0";
 
@@ -175,7 +194,10 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
-void main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const _direct = process.argv[1]?.endsWith("src/index.ts") || process.argv[1]?.endsWith("dist/index.js");
+if (_direct) {
+  void main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

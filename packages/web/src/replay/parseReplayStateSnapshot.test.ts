@@ -3,7 +3,6 @@ import {
   parseReplayStateSnapshot,
   parseRegion,
   parseTrail,
-  parseForce,
   parseScout,
   parseCaravan,
   buildOmniscientProjectedViewFromState,

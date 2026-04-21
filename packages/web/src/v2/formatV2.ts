@@ -16,7 +16,7 @@ export function tribeLabel(t: Tribe): string {
 /** `r_or_vulpgard` → "Vulpgard", `r_core_moon_ford` → "Moon Ford" */
 export function regionShortName(regionId: string): string {
   const base = regionId.replace(/^r_/, "");
-  const segs = base.split("_");
+  const segs = base.split("_").slice(1);
   const tail = segs.length >= 2 ? segs.slice(-2) : segs;
   return tail
     .join(" ")

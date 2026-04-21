@@ -68,6 +68,21 @@ export function MatchList(): React.ReactElement {
     [refresh],
   );
 
+  const deleteMatch = useCallback(
+    async (matchId: string) => {
+      try {
+        const res = await fetch(apiUrl(`/api/matches/${encodeURIComponent(matchId)}`), {
+          method: "DELETE",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await refresh();
+      } catch (e) {
+        setErr(String(e));
+      }
+    },
+    [refresh],
+  );
+
   if (matches.length === 0 && !err) {
     return (
       <div className="ml-empty">
@@ -119,7 +134,7 @@ export function MatchList(): React.ReactElement {
                   >
                     Watch
                   </button>
-                  {m.status === "running" && (
+                  {(m.status === "running" || m.status === "lobby") && (
                     <button
                       type="button"
                       className="danger"
@@ -164,6 +179,13 @@ export function MatchList(): React.ReactElement {
                     onClick={() => nav(`/watch/${m.matchId}`)}
                   >
                     Replay
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => void deleteMatch(m.matchId)}
+                  >
+                    Delete
                   </button>
                 </div>
                 <div className="ml-card-id muted" title={m.matchId}>

@@ -77,20 +77,61 @@ async function callLlmOrderPacket(
   const userPrompt =
     "CURRENT VIEW:\n" + `${compactView(view)}\n\n` + "Return JSON: choose[] uses only ids from Legal order options above; messages[] for any prose.";
 
-  try {
-    const result = await c.complete(systemPrompt, userPrompt, ORDER_PACKET_SCHEMA as unknown as object);
-    return {
-      data: result.data,
-      rawResponse: result.rawResponse,
-      usage: result.usage,
-      systemPrompt,
-      userPrompt,
-    };
-  } catch (e: unknown) {
-    const msg = e instanceof LLMError ? e.message : String(e);
-    diagnostics?.push(`LLM call failed: ${msg}`);
-    return null;
+  const maxAttempts = 2;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const result = await c.complete(systemPrompt, userPrompt, ORDER_PACKET_SCHEMA as unknown as object);
+      return {
+        data: result.data,
+        rawResponse: result.rawResponse,
+        usage: result.usage,
+        systemPrompt,
+        userPrompt,
+      };
+    } catch (e: unknown) {
+      const msg = e instanceof LLMError ? e.message : String(e);
+      if (attempt < maxAttempts) {
+        const delayMs = attempt * 500;
+        diagnostics?.push(`LLM call attempt ${attempt}/${maxAttempts} failed (${c.provider}/${c.model}): ${msg} — retrying in ${delayMs}ms`);
+        await new Promise((r) => setTimeout(r, delayMs));
+      } else {
+        diagnostics?.push(`LLM call failed (${c.provider}/${c.model}) after ${maxAttempts} attempts: ${msg}`);
+      }
+    }
   }
+
+  const fallbackProviders: { provider: string; envKeys: string[] }[] = [
+    { provider: "zai", envKeys: ["ZAI_API_KEY", "ZAI_KEY"] },
+    { provider: "groq", envKeys: ["GROQ_API_KEY"] },
+    { provider: "openrouter", envKeys: ["OPENROUTER_API_KEY"] },
+  ];
+
+  for (const fb of fallbackProviders) {
+    if (fb.provider === c.provider) continue;
+    if (!fb.envKeys.some((k) => (process.env[k] ?? "").trim())) continue;
+    try {
+      const fbClient = new LLMClient({
+        provider: fb.provider,
+        temperature: persona.temperature,
+        maxInputTokens: 4000,
+        maxOutputTokens: 700,
+      });
+      diagnostics?.push(`Falling back to ${fbClient.provider}/${fbClient.model}`);
+      const result = await fbClient.complete(systemPrompt, userPrompt, ORDER_PACKET_SCHEMA as unknown as object);
+      return {
+        data: result.data,
+        rawResponse: result.rawResponse,
+        usage: result.usage,
+        systemPrompt,
+        userPrompt,
+      };
+    } catch (fbErr) {
+      const fbMsg = fbErr instanceof LLMError ? fbErr.message : String(fbErr);
+      diagnostics?.push(`Fallback ${fb.provider} also failed: ${fbMsg}`);
+    }
+  }
+
+  return null;
 }
 
 export async function decideOrdersPacketJson(
@@ -133,16 +174,22 @@ export async function decideOrdersPacketWithDebug(
     error: "no result",
   };
 
+  const diagnostics: string[] = [];
+
   const result = await callLlmOrderPacket(
     view,
     personaId,
     options?.client,
-    options?.diagnostics,
+    diagnostics,
     options?.systemPromptAppend,
   );
 
   if (result === null) {
-    return { result: { choose: [], messages: [] }, debug: emptyDebug };
+    const diagMsg = diagnostics.length > 0 ? diagnostics.join("; ") : "no result";
+    return {
+      result: { choose: [], messages: [] },
+      debug: { ...emptyDebug, error: diagMsg },
+    };
   }
 
   const choose = extractChoose(result.data);
@@ -161,7 +208,7 @@ export async function decideOrdersPacketWithDebug(
   return { result: { choose, messages }, debug };
 }
 
-function extractChoose(data: Record<string, unknown>): string[] {
+export function extractChoose(data: Record<string, unknown>): string[] {
   const choose: string[] = [];
   const rawChoose = data.choose;
   if (Array.isArray(rawChoose)) {
@@ -172,7 +219,7 @@ function extractChoose(data: Record<string, unknown>): string[] {
   return choose;
 }
 
-function extractMessages(data: Record<string, unknown>): { to: string; text: string }[] {
+export function extractMessages(data: Record<string, unknown>): { to: string; text: string }[] {
   const messages: { to: string; text: string }[] = [];
   const rawMessages = data.messages;
   if (Array.isArray(rawMessages)) {

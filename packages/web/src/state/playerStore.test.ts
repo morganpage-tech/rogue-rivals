@@ -1,6 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { usePlayerStore } from "./playerStore.js";
-import type { PlayerStore } from "./playerStore.js";
 
 describe("usePlayerStore", () => {
   beforeEach(() => {

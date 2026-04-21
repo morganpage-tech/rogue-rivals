@@ -53,14 +53,6 @@ On Trade Offer accept, sender spends amount + 1 overhead, caravan dispatched. De
 ### Fog of war
 You see: your regions, regions adjacent to yours, scouted regions, regions adjacent to your watchtowers (2 hops). Foreign forces appear as fuzzy tier (raiding_party / warband / large_host / massive_army) -- no exact numbers. Transits visible only if you can see either endpoint. Caravans invisible.
 
-### Your turn -- what to output
-Return a JSON object: { "orders": [ ... ] }. Each order has a "kind":
- - "move" { force_id, destination_region_id }
- - "recruit" { region_id, tier }
- - "build" { region_id, structure, road_target? }
- - "scout" { from_region_id, target_region_id }
- - "propose" { proposal: { kind: "nap"|"trade_offer"|"shared_vision"|"declare_war"|"break_pact", to, length_ticks?, amount_influence? } }
- - "respond" { proposal_id, response: "accept"|"decline" }
- - "message" { to, text }
-Empty orders array means "pass". Invalid orders fail silently; the engine logs them. You can stack multiple orders in one packet (e.g. build + scout + propose + message).
+### Your turn -- how to act
+Pick actions by id from the Legal order options list in your current view. You can stack multiple actions (e.g. build + scout + propose + message). Invalid choices fail silently; the engine logs them. If you have no good moves, return an empty choose array (pass).
 `.trim();

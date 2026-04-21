@@ -3,6 +3,7 @@ import type { WebSocket } from "ws";
 import type { GameState } from "@rr/engine2";
 import type {
   CreateMatchRequest,
+  LlmDecisionDebug,
   Order,
   OrderPacket,
   ProjectedView,
@@ -54,6 +55,7 @@ export class ActiveMatch {
   autoPlay: boolean;
   tickTimeoutSeconds: number;
   acceptingWork = true;
+  pendingDecisions: LlmDecisionDebug[] = [];
 
   private _lock: Promise<void> = Promise.resolve();
 

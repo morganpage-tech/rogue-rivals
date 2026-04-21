@@ -85,6 +85,13 @@ export function ensureDataDir(): void {
   fs.mkdirSync(getDataDir(), { recursive: true });
 }
 
+export function deleteMatchLog(matchId: string): boolean {
+  const p = linePath(matchId);
+  if (!fs.existsSync(p)) return false;
+  fs.unlinkSync(p);
+  return true;
+}
+
 export function appendMatchInit(matchId: string, init: MatchInitRecord): void {
   ensureDataDir();
   fs.appendFileSync(linePath(matchId), JSON.stringify(init) + "\n");
