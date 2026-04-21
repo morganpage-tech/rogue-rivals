@@ -15,6 +15,8 @@ import type {
   FuzzyTier,
 } from "./types.js";
 
+export { FORCE_RECRUIT_COST, SCOUT_COST, STRUCTURE_COST } from "@rr/shared";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Influence production (§4.1)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,13 +42,6 @@ export const STRUCTURE_PRODUCTION_BONUS: Partial<Record<StructureKind, number>> 
 // Force recruiting (§4.2)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const FORCE_RECRUIT_COST: Record<ForceTier, number> = {
-  1: 2,
-  2: 5,
-  3: 12,
-  4: 30,
-};
-
 /** Ticks added to every trail traversal by a force of this tier. */
 export const FORCE_TRAVEL_PENALTY: Record<ForceTier, number> = {
   1: 0,
@@ -57,19 +52,6 @@ export const FORCE_TRAVEL_PENALTY: Record<ForceTier, number> = {
 
 /** Tier IV cannot be recruited unless the recruit region has this structure. */
 export const FORGE_REQUIRED_FOR_TIER: ForceTier = 4;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Structure costs (§4.3)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const STRUCTURE_COST: Record<StructureKind, number> = {
-  granary: 8,
-  fort: 10,
-  road: 6,
-  watchtower: 6,
-  shrine: 12,
-  forge: 15,
-};
 
 export const MAX_STRUCTURES_PER_REGION = 2;
 
@@ -109,7 +91,6 @@ export const COMBAT_SCOUT_REVEAL_PENALTY = -1;
 // Scouts & caravans (§4.6, §4.7)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const SCOUT_COST = 3;
 export const SCOUT_DWELL_TICKS = 1;
 
 export const CARAVAN_TRAVEL_TICKS_DEFAULT = 2;

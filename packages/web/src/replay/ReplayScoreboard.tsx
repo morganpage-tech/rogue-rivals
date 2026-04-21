@@ -1,4 +1,4 @@
-import type { Tribe } from "@rr/engine2";
+import type { Tribe } from "@rr/shared";
 import { REPLAY_TRIBE_STROKE } from "./replayTheme.js";
 import type { ParsedReplayState } from "./parseReplayStateSnapshot.js";
 

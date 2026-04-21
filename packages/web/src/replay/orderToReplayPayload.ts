@@ -1,4 +1,4 @@
-import type { Order } from "@rr/engine2";
+import type { Order } from "@rr/shared";
 
 /** Same payload shape as trace jsonl / Python engine (snake_case keys). */
 export function orderToReplayPayload(o: Order): Record<string, unknown> {

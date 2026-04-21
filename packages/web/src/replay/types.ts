@@ -1,5 +1,5 @@
 /**
- * JSON shape aligned with tools/v2/render_replay.py `build_replay_payload` output
+ * JSON shape aligned with `packages/engine2` `buildReplayPayload` output
  * (snake_case in `state` and `projected_views`).
  */
 

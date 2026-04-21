@@ -20,7 +20,7 @@ import type {
   VisibleForce,
   VisibleScout,
   VisibleTransit,
-} from "@rr/engine2";
+} from "@rr/shared";
 import { DEFAULT_TICK_LIMIT } from "./replayConstants.js";
 
 function isRecord(x: unknown): x is Record<string, unknown> {

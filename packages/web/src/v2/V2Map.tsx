@@ -7,7 +7,7 @@ import type {
   Tribe,
   VisibleScout,
   VisibleTransit,
-} from "@rr/engine2";
+} from "@rr/shared";
 import type { ReactNode } from "react";
 import React, {
   useCallback,

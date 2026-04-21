@@ -1,9 +1,10 @@
-import type { GameState, OrderPacket, ProjectedView, Tribe } from "@rr/engine2";
-import { hashState } from "@rr/engine2";
+import type { OrderPacket, ProjectedView, Tribe } from "@rr/shared";
+
 import { buildReplayFrameFromTs } from "./buildReplayFrameFromTs.js";
+import type { ParsedReplayState } from "./parseReplayStateSnapshot.js";
 
 export function buildInitialReplayFrame(
-  state: GameState,
+  state: ParsedReplayState,
   projectedViews: Readonly<Record<Tribe, ProjectedView>>,
 ): ReturnType<typeof buildReplayFrameFromTs> {
   const packets = {} as Record<Tribe, OrderPacket>;
@@ -13,7 +14,7 @@ export function buildInitialReplayFrame(
   return buildReplayFrameFromTs({
     label: "Initial state",
     state,
-    stateHash: hashState(state),
+    stateHash: "",
     packets,
     events: [],
     projectedViews,

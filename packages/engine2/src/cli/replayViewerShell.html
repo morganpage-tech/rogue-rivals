@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rogue Rivals v2 replay - expanded map</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #151515;
+    --panel: #202020;
+    --panel-2: #262626;
+    --border: #383838;
+    --muted: #a5a5a5;
+    --text: #efefef;
+    --accent: #7cc4ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.4 Inter, system-ui, sans-serif;
+  }
+  .page {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-height: 100vh;
+  }
+  .topbar {
+    display: grid;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: #111;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  button, select {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  input[type="range"] {
+    flex: 1 1 320px;
+  }
+  label.toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    font-size: 13px;
+  }
+  .meta {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .warningBar {
+    display: none;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border: 1px solid #6a4a12;
+    border-radius: 8px;
+    background: #3a2a12;
+    color: #ffdca0;
+    font-size: 13px;
+  }
+  .content {
+    display: grid;
+    grid-template-columns: minmax(520px, 1.5fr) minmax(360px, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .panel h2 {
+    margin: 0;
+    padding: 12px 14px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  #mapPanel {
+    min-height: 720px;
+    display: flex;
+    flex-direction: column;
+    /* .panel sets overflow:hidden; that breaks nested flex+percent-height SVG when the sidebar grows */
+    overflow: visible;
+  }
+  .mapToolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .mapToolbar button {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    background: #191919;
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .mapToolbar button:hover {
+    background: #222;
+  }
+  #mapWrap {
+    /* Fixed height avoids flex collapse to 0px when sibling columns reflow (e.g. more orders on tick N). */
+    height: clamp(420px, 58vh, 720px);
+    min-height: 420px;
+    flex-shrink: 0;
+    padding: 0;
+    overflow: hidden;
+    touch-action: none;
+    cursor: grab;
+    background: #0d0d0d;
+  }
+  #mapWrap:active {
+    cursor: grabbing;
+  }
+  #mapWrap svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .sidebar {
+    display: grid;
+    gap: 16px;
+    align-content: start;
+  }
+  .sectionBody {
+    padding: 12px 14px;
+  }
+  .scoreGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .perspectiveGrid {
+    display: grid;
+    gap: 8px;
+  }
+  .pillRow {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .pill {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--muted);
+    background: #191919;
+  }
+  .scoreCard {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: #191919;
+  }
+  .scoreCard .tribe {
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .list {
+    display: grid;
+    gap: 8px;
+  }
+  .item {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: #191919;
+  }
+  .item pre {
+    margin: 8px 0 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <div>
+      <div style="font-size:20px;font-weight:700;">Rogue Rivals v2 replay - expanded map</div>
+      <div class="meta" id="metaLine"></div>
+      <div class="warningBar" id="warningBar"></div>
+    </div>
+    <div class="controls">
+      <button id="playBtn">Play</button>
+      <button id="prevBtn">Prev</button>
+      <button id="nextBtn">Next</button>
+      <input id="tickSlider" type="range" min="0" step="1">
+      <select id="perspectiveSelect"></select>
+      <label class="toggle"><input id="showOverlayToggle" type="checkbox" checked> Map overlays</label>
+      <select id="speedSelect">
+        <option value="1400">0.7x</option>
+        <option value="900" selected>1x</option>
+        <option value="500">2x</option>
+        <option value="250">4x</option>
+      </select>
+      <span id="tickLabel" class="mono"></span>
+    </div>
+  </div>
+  <div class="content">
+    <div class="panel" id="mapPanel">
+      <h2>Map Replay</h2>
+      <div class="mapToolbar">
+        <span>Scroll: zoom · Drag: pan · Double-click: reset</span>
+        <button type="button" id="mapResetViewBtn">Reset view</button>
+      </div>
+      <div id="mapWrap"></div>
+    </div>
+    <div class="sidebar">
+      <div class="panel">
+        <h2>Scoreboard</h2>
+        <div class="sectionBody">
+          <div id="scoreboard" class="scoreGrid"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Selected Perspective</h2>
+        <div class="sectionBody">
+          <div id="perspectivePanel" class="perspectiveGrid"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Messages And Diplomacy</h2>
+        <div class="sectionBody">
+          <div id="commsList" class="list"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Orders</h2>
+        <div class="sectionBody">
+          <div id="ordersList" class="list"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Resolution Events</h2>
+        <div class="sectionBody">
+          <div id="eventsList" class="list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const DATA = __RR_PAYLOAD__;
+const frames = DATA.frames;
+const layout = DATA.layout;
+const terrainFill = DATA.terrain_fill;
+const tribeStroke = DATA.tribe_stroke;
+
+let frameIdx = 0;
+let timer = null;
+let selectedPerspective = "all";
+
+let mapContentSize = { w: 0, h: 0 };
+let mapViewBox = { x: 0, y: 0, w: 0, h: 0 };
+let mapPanZoomBound = false;
+let mapDragging = false;
+let mapDragLast = { x: 0, y: 0 };
+
+function resetMapViewToFull() {
+  const w = mapContentSize.w;
+  const h = mapContentSize.h;
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return;
+  mapViewBox = { x: 0, y: 0, w, h };
+}
+
+function ensureMapContentSize(w, h) {
+  const rw = Math.round(w);
+  const rh = Math.round(h);
+  if (!Number.isFinite(rw) || !Number.isFinite(rh) || rw <= 0 || rh <= 0) return;
+  if (mapContentSize.w !== rw || mapContentSize.h !== rh) {
+    mapContentSize = { w: rw, h: rh };
+    resetMapViewToFull();
+  }
+}
+
+function syncMapView(svgEl) {
+  if (!svgEl) return;
+  const cw = mapContentSize.w;
+  const ch = mapContentSize.h;
+  if (!Number.isFinite(cw) || !Number.isFinite(ch) || cw <= 0 || ch <= 0) return;
+  let vb = mapViewBox;
+  if (
+    !vb ||
+    !Number.isFinite(vb.w) ||
+    !Number.isFinite(vb.h) ||
+    !Number.isFinite(vb.x) ||
+    !Number.isFinite(vb.y) ||
+    vb.w <= 0 ||
+    vb.h <= 0
+  ) {
+    resetMapViewToFull();
+    vb = mapViewBox;
+  }
+  // resetMapViewToFull can no-op if mapContentSize was stale; avoid 0×0 → clamped 1×1 "pinhole" view
+  if (!vb || vb.w <= 0 || vb.h <= 0 || !Number.isFinite(vb.w) || !Number.isFinite(vb.h)) {
+    vb = { x: 0, y: 0, w: cw, h: ch };
+  }
+  vb.w = Math.min(Math.max(vb.w, 1), cw);
+  vb.h = Math.min(Math.max(vb.h, 1), ch);
+  vb.x = Math.max(0, Math.min(vb.x, cw - vb.w));
+  vb.y = Math.max(0, Math.min(vb.y, ch - vb.h));
+  mapViewBox = vb;
+  svgEl.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+}
+
+function bindMapPanZoomOnce() {
+  if (mapPanZoomBound) return;
+  mapPanZoomBound = true;
+  const wrap = document.getElementById("mapWrap");
+  const ratio = () => mapContentSize.h / mapContentSize.w;
+
+  wrap.addEventListener(
+    "wheel",
+    (e) => {
+      const svg = wrap.querySelector("svg");
+      if (!svg || !mapContentSize.w) return;
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const vb = mapViewBox;
+      const mx = ((e.clientX - rect.left) / rect.width) * vb.w + vb.x;
+      const my = ((e.clientY - rect.top) / rect.height) * vb.h + vb.y;
+      const zoom = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      let nw = vb.w / zoom;
+      const minW = mapContentSize.w / 24;
+      nw = Math.min(Math.max(nw, minW), mapContentSize.w);
+      let nh = nw * ratio();
+      let nx = mx - ((mx - vb.x) * nw) / vb.w;
+      let ny = my - ((my - vb.y) * nh) / vb.h;
+      nx = Math.max(0, Math.min(nx, mapContentSize.w - nw));
+      ny = Math.max(0, Math.min(ny, mapContentSize.h - nh));
+      mapViewBox = { x: nx, y: ny, w: nw, h: nh };
+      syncMapView(svg);
+    },
+    { passive: false },
+  );
+
+  wrap.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    const svg = wrap.querySelector("svg");
+    if (!svg || !svg.contains(e.target)) return;
+    mapDragging = true;
+    mapDragLast = { x: e.clientX, y: e.clientY };
+    wrap.style.cursor = "grabbing";
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!mapDragging) return;
+    const svg = wrap.querySelector("svg");
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const vb = mapViewBox;
+    const dx = ((e.clientX - mapDragLast.x) / rect.width) * vb.w;
+    const dy = ((e.clientY - mapDragLast.y) / rect.height) * vb.h;
+    mapDragLast = { x: e.clientX, y: e.clientY };
+    let nx = vb.x - dx;
+    let ny = vb.y - dy;
+    nx = Math.max(0, Math.min(nx, mapContentSize.w - vb.w));
+    ny = Math.max(0, Math.min(ny, mapContentSize.h - vb.h));
+    mapViewBox = { ...vb, x: nx, y: ny };
+    syncMapView(svg);
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (mapDragging) {
+      mapDragging = false;
+      wrap.style.cursor = "grab";
+    }
+  });
+
+  let touchId = null;
+  wrap.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const svg = wrap.querySelector("svg");
+    if (!svg) return;
+    const target = document.elementFromPoint(t.clientX, t.clientY);
+    if (!svg.contains(target)) return;
+    touchId = t.identifier;
+    mapDragging = true;
+    mapDragLast = { x: t.clientX, y: t.clientY };
+  }, { passive: true });
+
+  wrap.addEventListener("touchmove", (e) => {
+    if (touchId === null || !mapDragging) return;
+    const t = Array.from(e.touches).find((x) => x.identifier === touchId);
+    if (!t) return;
+    e.preventDefault();
+    const svg = wrap.querySelector("svg");
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const vb = mapViewBox;
+    const dx = ((t.clientX - mapDragLast.x) / rect.width) * vb.w;
+    const dy = ((t.clientY - mapDragLast.y) / rect.height) * vb.h;
+    mapDragLast = { x: t.clientX, y: t.clientY };
+    let nx = vb.x - dx;
+    let ny = vb.y - dy;
+    nx = Math.max(0, Math.min(nx, mapContentSize.w - vb.w));
+    ny = Math.max(0, Math.min(ny, mapContentSize.h - vb.h));
+    mapViewBox = { ...vb, x: nx, y: ny };
+    syncMapView(svg);
+  }, { passive: false });
+
+  wrap.addEventListener("touchend", (e) => {
+    if (touchId === null) return;
+    if (!Array.from(e.touches).some((x) => x.identifier === touchId)) {
+      touchId = null;
+      mapDragging = false;
+    }
+  });
+
+  wrap.addEventListener("dblclick", (e) => {
+    const svg = wrap.querySelector("svg");
+    if (!svg || !svg.contains(e.target)) return;
+    resetMapViewToFull();
+    syncMapView(svg);
+  });
+
+  const resetBtn = document.getElementById("mapResetViewBtn");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      resetMapViewToFull();
+      const svg = wrap.querySelector("svg");
+      syncMapView(svg);
+    });
+  }
+}
+
+const slider = document.getElementById("tickSlider");
+slider.max = String(frames.length - 1);
+const perspectiveSelect = document.getElementById("perspectiveSelect");
+perspectiveSelect.innerHTML = [
+  `<option value="all">Omniscient</option>`,
+  ...(DATA.meta.roster || []).map((tribe) => `<option value="${tribe}">${tribe[0].toUpperCase() + tribe.slice(1)} perspective</option>`),
+].join("");
+
+function tribeColor(tribe) {
+  return tribeStroke[tribe] || "#666";
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function shortRegionId(rid) {
+  return rid.startsWith("r_") ? rid.slice(2) : rid;
+}
+
+function tribeAbbr(tribe) {
+  return tribe.split("_").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function regionCounts(state) {
+  const counts = {};
+  for (const tribe of Object.keys(state.players)) counts[tribe] = 0;
+  for (const region of Object.values(state.regions)) {
+    if (region.owner) counts[region.owner] = (counts[region.owner] || 0) + 1;
+  }
+  return counts;
+}
+
+function orderedForceList(state) {
+  return Object.entries(state.forces).sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function getPerspectiveView(frame) {
+  if (selectedPerspective === "all") return null;
+  return (frame.projected_views || {})[selectedPerspective] || null;
+}
+
+function fuzzyForceByRegion(view) {
+  const lookup = {};
+  for (const entry of (view?.visible_forces || [])) lookup[entry.region_id] = entry;
+  return lookup;
+}
+
+function transitMidpoint(force, state) {
+  const transit = force.location_transit;
+  const from = layout[transit.direction_from];
+  const to = layout[transit.direction_to];
+  const x = (from[0] + to[0]) / 2;
+  const y = (from[1] + to[1]) / 2;
+  return [x, y];
+}
+
+function renderMap(frame) {
+  const state = frame.state;
+  const perspective = getPerspectiveView(frame);
+  const visibleRegions = new Set(Object.keys(perspective?.visible_regions || {}));
+  const visibleForceLookup = fuzzyForceByRegion(perspective);
+  const showOverlays = document.getElementById("showOverlayToggle").checked;
+  const coords = Object.values(layout);
+  const xs = coords.map(([x]) => x);
+  const ys = coords.map(([, y]) => y);
+  const pad = 200;
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const mapCanvasW = Math.round(maxX - minX + pad * 2);
+  const mapCanvasH = Math.round(maxY - minY + pad * 2);
+  const tx = (x) => x - minX + pad;
+  const ty = (y) => y - minY + pad;
+
+  const svg = [];
+  svg.push(`<svg id="replayMapSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${mapCanvasW} ${mapCanvasH}" preserveAspectRatio="xMidYMid meet" style="background:#121212">`);
+  svg.push(`
+    <defs>
+      <marker id="overlayArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ffffff" />
+      </marker>
+    </defs>
+  `);
+
+  const regionBadgeCount = {};
+  function regionVisibleForOverlay(rid, ownerTribe) {
+    return !perspective || visibleRegions.has(rid) || ownerTribe === selectedPerspective;
+  }
+  function addRegionBadge(rid, text, fill, ownerTribe = null) {
+    if (!layout[rid] || !regionVisibleForOverlay(rid, ownerTribe)) return;
+    const [x, y] = layout[rid];
+    const n = regionBadgeCount[rid] || 0;
+    regionBadgeCount[rid] = n + 1;
+    const bx = tx(x) - 50;
+    const by = ty(y) + 38 + n * 18;
+    const width = Math.max(42, 8 * text.length + 10);
+    svg.push(`<rect x="${bx}" y="${by}" width="${width}" height="16" rx="8" fill="${fill}" stroke="#111" opacity="0.95" />`);
+    svg.push(`<text x="${bx + width / 2}" y="${by + 11}" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">${escapeHtml(text)}</text>`);
+  }
+  function addStructureBadges(rid, structures) {
+    if (!layout[rid] || !structures || !structures.length) return;
+    const [x, y] = layout[rid];
+    const totalWidth = structures.reduce((sum, structure) => sum + Math.max(28, 7 * structure.length + 14), 0) + Math.max(0, structures.length - 1) * 6;
+    let cursor = tx(x) - totalWidth / 2;
+    const by = ty(y) - 48;
+    for (const structure of structures) {
+      const width = Math.max(28, 7 * structure.length + 14);
+      svg.push(`<rect x="${cursor}" y="${by}" width="${width}" height="16" rx="8" fill="#e4c36a" stroke="#111" opacity="0.98" />`);
+      svg.push(`<text x="${cursor + width / 2}" y="${by + 11}" fill="#111" font-size="9" font-weight="bold" text-anchor="middle">${escapeHtml(structure)}</text>`);
+      cursor += width + 6;
+    }
+  }
+  function addRegionPulse(rid, stroke, widthPx = 5) {
+    if (!layout[rid] || !regionVisibleForOverlay(rid, null)) return;
+    const [x, y] = layout[rid];
+    svg.push(`<circle cx="${tx(x)}" cy="${ty(y)}" r="48" fill="none" stroke="${stroke}" stroke-width="${widthPx}" opacity="0.95" />`);
+  }
+  function addPathOverlay(fromRid, toRid, tribe, text, colorOverride = null, dashed = false) {
+    if (!layout[fromRid] || !layout[toRid]) return;
+    const fromVisible = regionVisibleForOverlay(fromRid, tribe);
+    const toVisible = regionVisibleForOverlay(toRid, tribe);
+    if (perspective && !(fromVisible || toVisible || tribe === selectedPerspective)) return;
+    const color = colorOverride || tribeColor(tribe);
+    const [x1, y1] = layout[fromRid];
+    const [x2, y2] = layout[toRid];
+    const sx = tx(x1);
+    const sy = ty(y1);
+    const ex = tx(x2);
+    const ey = ty(y2);
+    const mx = (sx + ex) / 2;
+    const my = (sy + ey) / 2;
+    svg.push(`<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="${color}" stroke-width="4" opacity="0.9" marker-end="url(#overlayArrow)"${dashed ? ' stroke-dasharray="8,5"' : ""} />`);
+    const labelWidth = Math.max(54, 8 * text.length + 10);
+    svg.push(`<rect x="${mx - labelWidth / 2}" y="${my - 28}" width="${labelWidth}" height="18" rx="8" fill="${color}" stroke="#111" opacity="0.95" />`);
+    svg.push(`<text x="${mx}" y="${my - 15}" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">${escapeHtml(text)}</text>`);
+  }
+
+  for (const trail of state.trails) {
+    const a = layout[trail.a];
+    const b = layout[trail.b];
+    const x1 = tx(a[0]), y1 = ty(a[1]), x2 = tx(b[0]), y2 = ty(b[1]);
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1;
+    const ox = (-dy / len) * 20, oy = (dx / len) * 20;
+    const mx = (x1 + x2) / 2 + ox;
+    const my = (y1 + y2) / 2 + oy;
+    svg.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#565656" stroke-width="3" stroke-dasharray="7,4" />`);
+    svg.push(`<rect x="${mx - 12}" y="${my - 10}" width="24" height="18" rx="4" fill="#111" stroke="#777" />`);
+    svg.push(`<text x="${mx}" y="${my + 3}" fill="#ddd" font-size="11" text-anchor="middle">${trail.base_length_ticks}t</text>`);
+  }
+
+  for (const [rid, region] of Object.entries(state.regions)) {
+    if (!layout[rid]) continue;
+    const regionVisible = !perspective || visibleRegions.has(rid);
+    const shownRegion = regionVisible
+      ? (perspective ? (perspective.visible_regions[rid] ?? region) : region)
+      : null;
+    const [x, y] = layout[rid];
+    const cx = tx(x);
+    const cy = ty(y);
+    const owner = shownRegion?.owner || null;
+    const stroke = owner ? tribeColor(owner) : "#222";
+    const strokeWidth = owner ? 4 : 1.5;
+    const fill = regionVisible
+      ? (terrainFill[shownRegion?.type] || "#444")
+      : "#0e0e0e";
+    svg.push(`<circle cx="${cx}" cy="${cy}" r="42" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${regionVisible ? "1" : "0.55"}" />`);
+    svg.push(`<text x="${cx}" y="${cy - 4}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">${escapeHtml(regionVisible ? shortRegionId(rid) : "?")}</text>`);
+    svg.push(`<text x="${cx}" y="${cy + 10}" fill="#eaeaea" font-size="9" text-anchor="middle">${escapeHtml(regionVisible ? (shownRegion?.type || "?") : "hidden")}</text>`);
+    if (owner) {
+      svg.push(`<text x="${cx}" y="${cy + 26}" fill="${tribeColor(owner)}" font-size="10" font-weight="bold" text-anchor="middle">${escapeHtml(owner.toUpperCase())}</text>`);
+    }
+    if (regionVisible && shownRegion?.structures?.length) {
+      addStructureBadges(rid, shownRegion.structures);
+    }
+    if (!regionVisible) continue;
+    const garrisonId = shownRegion.garrison_force_id;
+    if (perspective) {
+      const myGarrison = (perspective.my_forces || []).find(
+        (f) => f.location_kind === "garrison" && f.location_region_id === rid
+      );
+      if (myGarrison) {
+        svg.push(`<rect x="${cx + 22}" y="${cy + 18}" width="26" height="18" rx="6" fill="${tribeColor(myGarrison.owner)}" stroke="#111" />`);
+        svg.push(`<text x="${cx + 35}" y="${cy + 31}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">T${myGarrison.tier}</text>`);
+      } else if (visibleForceLookup[rid]) {
+        const vf = visibleForceLookup[rid];
+        svg.push(`<rect x="${cx + 8}" y="${cy + 18}" width="40" height="18" rx="6" fill="${tribeColor(vf.owner)}" stroke="#111" />`);
+        svg.push(`<text x="${cx + 28}" y="${cy + 31}" fill="#fff" font-size="8" font-weight="bold" text-anchor="middle">${escapeHtml(vf.fuzzy_tier.replaceAll("_", " "))}</text>`);
+      }
+    } else if (garrisonId) {
+      const garrison = state.forces[garrisonId];
+      if (garrison) {
+        svg.push(`<rect x="${cx + 22}" y="${cy + 18}" width="26" height="18" rx="6" fill="${tribeColor(garrison.owner)}" stroke="#111" />`);
+        svg.push(`<text x="${cx + 35}" y="${cy + 31}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">T${garrison.tier}</text>`);
+      }
+    }
+  }
+
+  const preciseTransits = perspective
+    ? (perspective.my_forces || []).filter((f) => f.location_kind === "transit" && f.location_transit)
+    : orderedForceList(state).map(([, force]) => force).filter((f) => f.location_kind === "transit" && f.location_transit);
+  for (const force of preciseTransits) {
+    const [x, y] = transitMidpoint(force, state);
+    const cx = tx(x);
+    const cy = ty(y);
+    svg.push(`<rect x="${cx - 34}" y="${cy - 10}" width="68" height="20" rx="8" fill="${tribeColor(force.owner)}" stroke="#111" />`);
+    svg.push(`<text x="${cx}" y="${cy + 4}" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">${escapeHtml(force.owner.slice(0, 2).toUpperCase())} T${force.tier} → ${escapeHtml(shortRegionId(force.location_transit.direction_to))} (${force.location_transit.ticks_remaining})</text>`);
+  }
+  for (const transit of (perspective?.visible_transits || [])) {
+    const from = layout[transit.direction_from];
+    const to = layout[transit.direction_to];
+    const cx = tx((from[0] + to[0]) / 2);
+    const cy = ty((from[1] + to[1]) / 2);
+    svg.push(`<rect x="${cx - 38}" y="${cy - 10}" width="76" height="20" rx="8" fill="${tribeColor(transit.owner)}" stroke="#111" opacity="0.9" />`);
+    svg.push(`<text x="${cx}" y="${cy + 4}" fill="#fff" font-size="8" font-weight="bold" text-anchor="middle">${escapeHtml(transit.owner.slice(0, 2).toUpperCase())} ${escapeHtml(transit.fuzzy_tier.replaceAll("_", " "))}</text>`);
+  }
+
+  const preciseScouts = perspective
+    ? (perspective.my_scouts || []).filter((s) => s.location_kind === "arrived" && s.location_region_id)
+    : Object.values(state.scouts).filter((s) => s.location_kind === "arrived" && s.location_region_id);
+  for (const scout of preciseScouts) {
+    const [x, y] = layout[scout.location_region_id];
+    const cx = tx(x) - 30;
+    const cy = ty(y) + 28;
+    svg.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="#111" stroke="${tribeColor(scout.owner)}" stroke-width="2" />`);
+    svg.push(`<text x="${cx}" y="${cy + 4}" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">S</text>`);
+  }
+  for (const scout of (perspective?.visible_scouts || [])) {
+    const [x, y] = layout[scout.region_id];
+    const cx = tx(x) - 30;
+    const cy = ty(y) + 28;
+    svg.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="#111" stroke="${tribeColor(scout.owner)}" stroke-width="2" opacity="0.9" />`);
+    svg.push(`<text x="${cx}" y="${cy + 4}" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">S</text>`);
+  }
+
+  const caravans = perspective ? (perspective.my_caravans || []) : Object.values(state.caravans);
+  for (const caravan of caravans) {
+    const rid = caravan.path[Math.min(caravan.current_index, caravan.path.length - 1)];
+    if (!rid || !layout[rid]) continue;
+    const [x, y] = layout[rid];
+    const cx = tx(x) + 30;
+    const cy = ty(y) - 30;
+    svg.push(`<rect x="${cx - 18}" y="${cy - 10}" width="36" height="20" rx="8" fill="#d1b254" stroke="#111" />`);
+    svg.push(`<text x="${cx}" y="${cy + 4}" fill="#111" font-size="9" font-weight="bold" text-anchor="middle">C${caravan.amount_influence}</text>`);
+  }
+
+  if (showOverlays) {
+    const prevState = frameIdx > 0 ? frames[frameIdx - 1].state : null;
+    const events = frame.resolution_events || [];
+    const builtKeys = new Set(events.filter((e) => e.kind === "built").map((e) => `${e.tribe}|${e.region_id}|${e.structure}`));
+    const recruitedKeys = new Set(events.filter((e) => e.kind === "recruited").map((e) => `${e.tribe}|${e.region_id}|${e.tier}`));
+    const moveKeys = new Set(events.filter((e) => e.kind === "dispatch_move").map((e) => `${e.tribe}|${e.force_id}|${e.to}`));
+    const scoutKeys = new Set(events.filter((e) => e.kind === "dispatch_scout").map((e) => `${e.tribe}|${e.from}|${e.to}`));
+    const buildFailReasons = {};
+    for (const event of events) {
+      if (event.kind === "build_failed" && event.tribe) {
+        buildFailReasons[event.tribe] ||= [];
+        buildFailReasons[event.tribe].push(event.reason || "failed");
+      }
+    }
+    for (const [tribe, pkt] of Object.entries(frame.orders_by_tribe || {})) {
+      for (const order of (pkt.orders || [])) {
+        const payload = order.payload || {};
+        if (order.kind === "build" && payload.region_id) {
+          const label = `${tribeAbbr(tribe)} build ${payload.structure || ""}`.trim();
+          addRegionBadge(payload.region_id, label, tribeColor(tribe), tribe);
+          const ok = builtKeys.has(`${tribe}|${payload.region_id}|${payload.structure}`);
+          if (!ok) {
+            const reason = (buildFailReasons[tribe] || []).shift();
+            addRegionBadge(
+              payload.region_id,
+              reason ? `fail ${reason}` : "build failed",
+              "#a12b2b",
+              tribe,
+            );
+          }
+        } else if (order.kind === "recruit" && payload.region_id) {
+          const ok = recruitedKeys.has(`${tribe}|${payload.region_id}|${payload.tier ?? "?"}`);
+          /* Order + recruited event both describe the same success — show only the resolution badge below. */
+          if (!ok) {
+            addRegionBadge(payload.region_id, `${tribeAbbr(tribe)} rec T${payload.tier ?? "?"}`, tribeColor(tribe), tribe);
+            addRegionBadge(payload.region_id, "recruit failed", "#a12b2b", tribe);
+          }
+        } else if (order.kind === "move" && payload.force_id && payload.destination_region_id && prevState) {
+          const ok = moveKeys.has(`${tribe}|${payload.force_id}|${payload.destination_region_id}`);
+          if (!ok) {
+            const prevForce = prevState.forces[payload.force_id];
+            const fromRid = prevForce && prevForce.location_kind === "garrison" ? prevForce.location_region_id : null;
+            if (fromRid) {
+              addPathOverlay(fromRid, payload.destination_region_id, tribe, `${tribeAbbr(tribe)} move fail`, "#a12b2b", true);
+            }
+          }
+        } else if (order.kind === "scout" && payload.from_region_id && payload.target_region_id) {
+          const ok = scoutKeys.has(`${tribe}|${payload.from_region_id}|${payload.target_region_id}`);
+          if (!ok) {
+            addPathOverlay(payload.from_region_id, payload.target_region_id, tribe, `${tribeAbbr(tribe)} scout fail`, "#a12b2b", true);
+          }
+        }
+      }
+    }
+    for (const event of events) {
+      if (event.kind === "dispatch_move") {
+        addPathOverlay(event.from, event.to, event.tribe, `${tribeAbbr(event.tribe)} move`);
+      } else if (event.kind === "dispatch_scout") {
+        addPathOverlay(event.from, event.to, event.tribe, `${tribeAbbr(event.tribe)} scout`);
+      } else if (event.kind === "built") {
+        addRegionBadge(event.region_id, `built ${event.structure}`, "#4d7c3a", event.tribe);
+      } else if (event.kind === "recruited") {
+        addRegionBadge(event.region_id, `recruit T${event.tier}`, "#2d6fb0", event.tribe);
+      } else if (event.kind === "force_arrived") {
+        addRegionPulse(event.region_id, "#5ee173", 4);
+      } else if (event.kind === "scout_arrived") {
+        addRegionPulse(event.region_id, "#72d5ff", 4);
+      } else if (event.kind === "combat") {
+        const rid = event.region || event.region_id;
+        addRegionPulse(rid, "#ff5d5d", 6);
+        addRegionBadge(rid, "COMBAT", "#8f2222");
+      } else if (event.kind === "region_transferred" || event.kind === "region_captured" || event.kind === "region_claimed") {
+        addRegionBadge(event.region_id, "capture", "#8a5a17", event.to || event.tribe || null);
+      }
+    }
+  }
+
+  svg.push(`</svg>`);
+  document.getElementById("mapWrap").innerHTML = svg.join("");
+  const svgEl =
+    document.getElementById("replayMapSvg") || document.querySelector("#mapWrap svg");
+  ensureMapContentSize(mapCanvasW, mapCanvasH);
+  syncMapView(svgEl);
+  bindMapPanZoomOnce();
+}
+
+function renderScoreboard(frame) {
+  const state = frame.state;
+  const counts = regionCounts(state);
+  const cards = Object.entries(state.players).map(([tribe, player]) => {
+    const forceCount = Object.values(state.forces).filter((f) => f.owner === tribe).length;
+    const pactCount = state.pacts.filter((p) => p.parties.includes(tribe)).length;
+    return `
+      <div class="scoreCard">
+        <div class="tribe" style="color:${tribeColor(tribe)}">${escapeHtml(tribe.toUpperCase())}</div>
+        <div>Influence: <span class="mono">${player.influence}</span></div>
+        <div>Regions: <span class="mono">${counts[tribe] || 0}</span></div>
+        <div>Forces: <span class="mono">${forceCount}</span></div>
+        <div>Pacts: <span class="mono">${pactCount}</span></div>
+      </div>
+    `;
+  });
+  document.getElementById("scoreboard").innerHTML = cards.join("");
+}
+
+function renderPerspectivePanel(frame) {
+  const perspective = getPerspectiveView(frame);
+  const panel = document.getElementById("perspectivePanel");
+  if (!perspective) {
+    panel.innerHTML = `<div class="item">Showing <strong>omniscient</strong> replay state. Switch to a tribe perspective to see that tribe's fog-of-war, inbox, and visible forces.</div>`;
+    return;
+  }
+  const visibleRegions = Object.keys(perspective.visible_regions || {}).sort();
+  const pacts = perspective.pacts_involving_me || [];
+  const inbox = perspective.inbox_new || [];
+  const inboxHtml = inbox.length
+    ? `<ul>${inbox.map((entry) => {
+        if (entry.kind === "message") return `<li>${escapeHtml("message from " + entry.from_tribe + ": " + (entry.text || ""))}</li>`;
+        if (entry.kind === "proposal") return `<li>${escapeHtml("proposal " + entry.proposal.kind + " from " + entry.from_tribe + " (" + entry.proposal.id + ")")}</li>`;
+        if (entry.kind === "scout_report") return `<li>${escapeHtml("scout report: " + ((entry.payload && entry.payload.region_id) || "unknown"))}</li>`;
+        if (entry.kind === "caravan_delivered") return `<li>${escapeHtml("caravan from " + entry.from_tribe + " amount=" + ((entry.payload && entry.payload.amount) || ""))}</li>`;
+        return `<li>${escapeHtml(entry.kind)}</li>`;
+      }).join("")}</ul>`
+    : `<div class="small">No new inbox items.</div>`;
+  const pactsHtml = pacts.length
+    ? `<ul>${pacts.map((p) => `<li>${escapeHtml(p.kind + ": " + p.parties.join(" / ") + " (exp " + p.expires_tick + ")")}</li>`).join("")}</ul>`
+    : `<div class="small">No active pacts.</div>`;
+  const items = [
+    `<div class="pillRow">
+      <span class="pill">Tribe: <strong style="color:${tribeColor(perspective.for_tribe)}">${escapeHtml(perspective.for_tribe.toUpperCase())}</strong></span>
+      <span class="pill">Visible regions: <span class="mono">${visibleRegions.length}</span></span>
+      <span class="pill">Visible foreign forces: <span class="mono">${(perspective.visible_forces || []).length}</span></span>
+      <span class="pill">Visible transits: <span class="mono">${(perspective.visible_transits || []).length}</span></span>
+    </div>`,
+    `<div class="item">
+      <div><strong>Visible region ids</strong></div>
+      <div class="small mono">${escapeHtml(visibleRegions.join(", ") || "(none)")}</div>
+    </div>`,
+    `<div class="item">
+      <div><strong>Inbox this tick</strong></div>
+      ${inboxHtml}
+    </div>`,
+    `<div class="item">
+      <div><strong>Active pacts involving this tribe</strong></div>
+      ${pactsHtml}
+    </div>`,
+  ];
+  panel.innerHTML = items.join("");
+}
+
+function describeEvent(event) {
+  const kind = event.kind;
+  if (kind === "combat") return `${event.attacker} vs ${event.defender} at ${event.region || event.region_id} → ${event.result}`;
+  if (kind === "dispatch_move") return `${event.tribe} moved ${event.force_id}: ${event.from} → ${event.to} (${event.ticks}t)`;
+  if (kind === "dispatch_scout") return `${event.tribe} dispatched scout ${event.scout_id}: ${event.from} → ${event.to}`;
+  if (kind === "force_arrived") return `${event.force_id} arrived at ${event.region_id}`;
+  if (kind === "scout_arrived") return `${event.scout_id} arrived at ${event.region_id}`;
+  if (kind === "recruited") return `${event.tribe} recruited Tier ${event.tier} at ${event.region_id}`;
+  if (kind === "built") return `${event.tribe} built ${event.structure} at ${event.region_id}`;
+  if (kind === "proposal_sent") return `${event.from} proposed ${event.proposal_kind} to ${event.to}`;
+  if (kind === "pact_formed") return `Pact formed: ${event.parties.join(" / ")} (${event.pact})`;
+  if (kind === "pact_broken" || kind === "pact_broken_by_move") return `Pact broken by ${event.breaker}: ${(event.parties || []).join(" / ")}`;
+  if (kind === "war_declared") return `War declared: ${(event.parties || []).join(" / ")}`;
+  if (kind === "caravan_delivered") return `Caravan delivered: ${event.from} → ${event.to} (${event.amount})`;
+  if (kind === "caravan_intercepted") return `Caravan intercepted: ${event.from} → ${event.to} by ${event.interceptor} (${event.amount})`;
+  if (kind === "proposal_expired") return `Proposal expired: ${event.id} (${event.from} → ${event.to})`;
+  if (kind === "influence_credited") return `${event.tribe} gained ${event.amount} Influence`;
+  if (kind && kind.endsWith("_failed")) return `${kind}: ${event.reason || "unknown"}`;
+  return JSON.stringify(event);
+}
+
+function renderList(targetId, items, renderFn) {
+  const el = document.getElementById(targetId);
+  if (!items.length) {
+    el.innerHTML = `<div class="empty">None this tick.</div>`;
+    return;
+  }
+  el.innerHTML = items.map(renderFn).join("");
+}
+
+function renderComms(frame) {
+  const items = [];
+  for (const msg of frame.tick_summary.messages) {
+    items.push(`
+      <div class="item">
+        <div><strong style="color:${tribeColor(msg.from)}">${escapeHtml(msg.from)}</strong> → <strong style="color:${tribeColor(msg.to)}">${escapeHtml(msg.to)}</strong></div>
+        <pre>${escapeHtml(msg.text)}</pre>
+      </div>
+    `);
+  }
+  for (const entry of frame.tick_summary.diplomacy) {
+    let body = "";
+    if (entry.kind === "proposal_order") {
+      body = `${entry.from} proposes ${entry.proposal_kind} to ${entry.to}`;
+      if (entry.length_ticks) body += ` for ${entry.length_ticks} ticks`;
+      if (entry.amount_influence) body += ` (${entry.amount_influence} Influence)`;
+    } else if (entry.kind === "respond_order") {
+      body = `${entry.from} responds ${entry.response} to ${entry.proposal_id}`;
+    } else {
+      body = describeEvent(entry);
+    }
+    items.push(`<div class="item">${escapeHtml(body)}</div>`);
+  }
+  const el = document.getElementById("commsList");
+  el.innerHTML = items.length ? items.join("") : `<div class="empty">No communication or diplomacy this tick.</div>`;
+}
+
+function renderOrders(frame) {
+  const tribes = Object.keys(frame.orders_by_tribe).sort();
+  renderList("ordersList", tribes, (tribe) => {
+    const orders = frame.orders_by_tribe[tribe].orders || [];
+    const body = orders.length
+      ? orders.map((o) => `<li><span class="mono">${escapeHtml(o.kind)}</span> <span class="small">${escapeHtml(JSON.stringify(o.payload || {}))}</span></li>`).join("")
+      : `<div class="small">pass</div>`;
+    return `
+      <div class="item">
+        <div><strong style="color:${tribeColor(tribe)}">${escapeHtml(tribe.toUpperCase())}</strong></div>
+        ${orders.length ? `<ul>${body}</ul>` : body}
+      </div>
+    `;
+  });
+}
+
+function renderEvents(frame) {
+  renderList("eventsList", frame.resolution_events, (event) => `
+    <div class="item">
+      <div><span class="mono">${escapeHtml(event.kind)}</span></div>
+      <div class="small">${escapeHtml(describeEvent(event))}</div>
+    </div>
+  `);
+}
+
+function renderMeta(frame) {
+  const winner = frame.state.winner ? ` winner=${JSON.stringify(frame.state.winner)}` : "";
+  document.getElementById("tickLabel").textContent = `${frame.label} (${frameIdx}/${frames.length - 1})`;
+  document.getElementById("metaLine").textContent =
+    `seed=${DATA.meta.seed}  map=${DATA.meta.map_kind}  finalTick=${DATA.meta.tick_final}${winner}`;
+  const warnings = DATA.meta.warnings || [];
+  const bar = document.getElementById("warningBar");
+  if (warnings.length) {
+    bar.style.display = "block";
+    bar.textContent = `Replay warning: ${warnings[0]}${warnings.length > 1 ? ` (+${warnings.length - 1} more)` : ""}`;
+  } else {
+    bar.style.display = "none";
+    bar.textContent = "";
+  }
+}
+
+function renderFrame(idx) {
+  frameIdx = idx;
+  slider.value = String(idx);
+  const frame = frames[idx];
+  renderMeta(frame);
+  renderMap(frame);
+  renderScoreboard(frame);
+  renderPerspectivePanel(frame);
+  renderComms(frame);
+  renderOrders(frame);
+  renderEvents(frame);
+}
+
+function stopPlayback() {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  document.getElementById("playBtn").textContent = "Play";
+}
+
+function startPlayback() {
+  stopPlayback();
+  const delay = Number(document.getElementById("speedSelect").value);
+  timer = setInterval(() => {
+    if (frameIdx >= frames.length - 1) {
+      stopPlayback();
+      return;
+    }
+    renderFrame(frameIdx + 1);
+  }, delay);
+  document.getElementById("playBtn").textContent = "Pause";
+}
+
+document.getElementById("playBtn").addEventListener("click", () => {
+  if (timer) stopPlayback();
+  else startPlayback();
+});
+document.getElementById("prevBtn").addEventListener("click", () => {
+  stopPlayback();
+  renderFrame(Math.max(0, frameIdx - 1));
+});
+document.getElementById("nextBtn").addEventListener("click", () => {
+  stopPlayback();
+  renderFrame(Math.min(frames.length - 1, frameIdx + 1));
+});
+document.getElementById("speedSelect").addEventListener("change", () => {
+  if (timer) startPlayback();
+});
+document.getElementById("perspectiveSelect").addEventListener("change", (e) => {
+  selectedPerspective = e.target.value;
+  renderFrame(frameIdx);
+});
+document.getElementById("showOverlayToggle").addEventListener("change", () => {
+  renderFrame(frameIdx);
+});
+slider.addEventListener("input", (e) => {
+  stopPlayback();
+  renderFrame(Number(e.target.value));
+});
+
+renderFrame(0);
+</script>
+</body>
+</html>

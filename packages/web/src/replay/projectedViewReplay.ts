@@ -11,7 +11,7 @@ import type {
   ProjectedView,
   Region,
   Scout,
-} from "@rr/engine2";
+} from "@rr/shared";
 
 function serializeRegionForView(r: Region): Record<string, unknown> {
   const road_targets: Record<string, string> = {};

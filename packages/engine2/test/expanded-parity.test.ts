@@ -8,7 +8,7 @@ import type { OrderPacket, Tribe } from "../src/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-describe("expanded map parity (tools/v2/mapgen.py)", () => {
+describe("expanded map parity (legacy oracle hashes)", () => {
   it("matches Python hashes: post-init and after one empty tick", () => {
     const golden = JSON.parse(
       readFileSync(join(__dirname, "fixtures", "expanded_python_hashes.json"), "utf-8"),

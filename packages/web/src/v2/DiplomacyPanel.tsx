@@ -1,4 +1,4 @@
-import type { InboxMessage, ProjectedView, Proposal, Tribe } from "@rr/engine2";
+import type { InboxMessage, ProjectedView, Proposal, Tribe } from "@rr/shared";
 import { tribeLabel } from "./formatV2.js";
 
 interface DiplomacyPanelProps {

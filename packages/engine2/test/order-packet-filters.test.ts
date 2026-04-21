@@ -3,7 +3,7 @@ import {
   dedupeMovesOnePerForce,
   sanitizePlayerOrders,
   wouldClipOrders,
-} from "../src/orderPacketFilters.js";
+} from "@rr/shared";
 import type { Order } from "../src/types.js";
 
 describe("orderPacketFilters", () => {

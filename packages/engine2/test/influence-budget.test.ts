@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterOrdersByInfluenceBudget,
   ordersExceedInfluenceBudget,
-} from "../src/influenceBudget.js";
+} from "@rr/shared";
 import type { Order } from "../src/types.js";
 
 describe("influenceBudget", () => {

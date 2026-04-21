@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Tribe } from "@rr/engine2";
+import type { Tribe } from "@rr/shared";
 import { V2Map } from "../v2/V2Map.js";
 import { describeReplayEvent } from "./describeReplayEvent.js";
 import { formatTickComms } from "./formatTickComms.js";

@@ -1,0 +1,204 @@
+{
+  "minimal": {
+    "r_orange_plains": [
+      0,
+      0
+    ],
+    "r_ruins_center": [
+      300,
+      0
+    ],
+    "r_grey_mountains": [
+      600,
+      0
+    ],
+    "r_brown_swamps": [
+      0,
+      200
+    ],
+    "r_desert_wastes": [
+      300,
+      200
+    ],
+    "r_red_desert": [
+      600,
+      200
+    ]
+  },
+  "expanded": {
+    "r_or_plains": [
+      0,
+      0
+    ],
+    "r_gr_mountains": [
+      1000,
+      0
+    ],
+    "r_or_forest": [
+      200,
+      120
+    ],
+    "r_or_hills": [
+      0,
+      240
+    ],
+    "r_gr_peaks": [
+      800,
+      120
+    ],
+    "r_gr_gap": [
+      1000,
+      240
+    ],
+    "r_dark_forest": [
+      400,
+      120
+    ],
+    "r_shrine_vale": [
+      400,
+      300
+    ],
+    "r_ruins_ctr": [
+      600,
+      300
+    ],
+    "r_river_xing": [
+      600,
+      480
+    ],
+    "r_br_fields": [
+      200,
+      420
+    ],
+    "r_br_shore": [
+      200,
+      600
+    ],
+    "r_rd_oasis": [
+      800,
+      420
+    ],
+    "r_rd_dunes": [
+      800,
+      600
+    ],
+    "r_br_swamps": [
+      0,
+      540
+    ],
+    "r_rd_desert": [
+      1000,
+      540
+    ]
+  },
+  "6p-continent": {
+    "r_core_foxfire_ruins": [
+      382,
+      259
+    ],
+    "r_core_three_trails_market": [
+      618,
+      259
+    ],
+    "r_core_moon_ford": [
+      500,
+      427
+    ],
+    "r_border_snowpine_reach": [
+      702,
+      91
+    ],
+    "r_border_glasswood_verge": [
+      870,
+      360
+    ],
+    "r_border_saltfen_crossing": [
+      702,
+      629
+    ],
+    "r_border_hillmire_gate": [
+      298,
+      629
+    ],
+    "r_border_howling_pass": [
+      130,
+      360
+    ],
+    "r_border_frostpass": [
+      298,
+      91
+    ],
+    "r_arc_frosthold": [
+      500,
+      -178
+    ],
+    "r_arc_ice_shelf": [
+      399,
+      -77
+    ],
+    "r_arc_white_wastes": [
+      601,
+      -77
+    ],
+    "r_tri_hidden_grove": [
+      1071,
+      -144
+    ],
+    "r_tri_tricky_woods": [
+      1004,
+      -43
+    ],
+    "r_tri_whisper_thicket": [
+      1138,
+      -43
+    ],
+    "r_red_mirage_camp": [
+      1071,
+      864
+    ],
+    "r_red_vast_dunes": [
+      1004,
+      763
+    ],
+    "r_red_rare_veins": [
+      1138,
+      763
+    ],
+    "r_br_root_cities": [
+      500,
+      898
+    ],
+    "r_br_reeky_canopy": [
+      399,
+      797
+    ],
+    "r_br_mire_channels": [
+      601,
+      797
+    ],
+    "r_or_vulpgard": [
+      -71,
+      864
+    ],
+    "r_or_windy_plains": [
+      -4,
+      763
+    ],
+    "r_or_rocky_hills": [
+      -138,
+      763
+    ],
+    "r_gr_middle_high_mountains": [
+      -71,
+      -144
+    ],
+    "r_gr_upper_high_mountains": [
+      -4,
+      -43
+    ],
+    "r_gr_lower_high_mountains": [
+      -138,
+      -43
+    ]
+  }
+}

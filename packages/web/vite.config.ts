@@ -9,13 +9,16 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      // Workspace package may not have `dist/` built; bundle from source.
-      "@rr/engine2": resolve(_root, "../engine2/src/index.ts"),
+      "@rr/shared": resolve(_root, "../shared/src/index.ts"),
     },
   },
   server: {
     host: "127.0.0.1",
     port: 5173,
+    proxy: {
+      "/api": { target: "http://127.0.0.1:3001", changeOrigin: true },
+      "/ws": { target: "ws://127.0.0.1:3001", ws: true },
+    },
   },
   build: {
     target: "es2022",

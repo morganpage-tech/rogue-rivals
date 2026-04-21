@@ -1,19 +1,20 @@
 /**
- * Serialize GameState to the same JSON shape as tools/v2/render_replay._state_snapshot
+ * Serialize GameState to the same JSON shape as offline replay `_state_snapshot`
  * (Python asdict / snake_case).
  */
 
 import type {
   Caravan,
   Force,
-  GameState,
   Pact,
   PlayerState,
   Proposal,
   Region,
   Scout,
   Trail,
-} from "@rr/engine2";
+} from "@rr/shared";
+
+import type { ParsedReplayState } from "./parseReplayStateSnapshot.js";
 
 function serializeTrail(t: Trail): Record<string, unknown> {
   return {
@@ -147,7 +148,7 @@ function serializePact(p: Pact): Record<string, unknown> {
   };
 }
 
-export function serializeGameStateForReplay(state: GameState): Record<string, unknown> {
+export function serializeGameStateForReplay(state: ParsedReplayState): Record<string, unknown> {
   const regions: Record<string, unknown> = {};
   for (const rid of Object.keys(state.regions).sort()) {
     regions[rid] = serializeRegion(state.regions[rid]!);

@@ -1,7 +1,8 @@
 import { buildContinentMap6p, placeTribesContinent6p } from "./continent6pMap.js";
 import { buildExpandedMap, placeTribesExpanded } from "./expandedMap.js";
 import { buildHandMap, placeTribes } from "./handMap.js";
-import type { GameState, MatchConfig, Tribe, VictoryCounters } from "./types.js";
+import type { GameState, Tribe, VictoryCounters } from "./types.js";
+import type { MatchConfig } from "./matchConfig.js";
 
 function emptyVictoryCounters(): VictoryCounters {
   return {} as VictoryCounters;

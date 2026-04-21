@@ -20,7 +20,7 @@
     "noEmit": true,
     "types": ["vite/client"],
     "paths": {
-      "@rr/engine2": ["../engine2/src/index.ts"]
+      "@rr/shared": ["../shared/src/index.ts"]
     }
   },
   "include": ["src", "vite.config.ts", "vitest.config.ts"]

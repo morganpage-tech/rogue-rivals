@@ -7,7 +7,7 @@ const INIT_HASH =
 const AFTER_EMPTY_TICK0_HASH =
   "sha256:2fb30d9c66071d86f72bb93663ce41eeabd911e79f5e3099140c1eb8542ecdc4";
 
-describe("engine2 hash parity (tools/v2/engine.py)", () => {
+describe("engine2 hash parity (legacy oracle baseline)", () => {
   it("matches Python after hand_minimal init", () => {
     const state = initMatch({
       seed: 2026001,

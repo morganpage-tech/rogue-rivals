@@ -1,4 +1,4 @@
-import type { ProjectedView, Tribe } from "@rr/engine2";
+import type { ProjectedView, Tribe } from "@rr/shared";
 import { REPLAY_TRIBE_STROKE } from "./replayTheme.js";
 
 function tribeColor(t: Tribe): string {

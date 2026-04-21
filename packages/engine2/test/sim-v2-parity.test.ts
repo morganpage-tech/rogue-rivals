@@ -31,7 +31,7 @@ function loadGoldenEvents(): GoldenEventsRow[] {
   return JSON.parse(raw) as GoldenEventsRow[];
 }
 
-describe("sim_v2 full script parity (tools/v2/sim_v2.py)", () => {
+describe("sim_v2 full script parity (legacy oracle fixtures)", () => {
   it("matches Python state hash after every scripted tick", () => {
     const golden = loadGolden();
     const state = initMatch({

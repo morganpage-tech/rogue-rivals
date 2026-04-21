@@ -28,10 +28,21 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: "@rr/shared, @rr/llm (build, test)"
+        run: |
+          pnpm -F @rr/shared build
+          pnpm -F @rr/llm build
+          pnpm -F @rr/llm test
+
       - name: "@rr/engine2 (lint, test)"
         run: |
           pnpm -F @rr/engine2 lint
           pnpm -F @rr/engine2 test
+
+      - name: "@rr/server (lint, test)"
+        run: |
+          pnpm -F @rr/server lint
+          pnpm -F @rr/server test
 
       - name: "@rr/web (lint, test, build)"
         run: |

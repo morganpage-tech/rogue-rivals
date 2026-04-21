@@ -2,7 +2,7 @@
  * Resolution overlay layer (ported from tools/v2/render_replay.py renderMap overlays).
  */
 
-import type { RegionId, Tribe } from "@rr/engine2";
+import type { RegionId, Tribe } from "@rr/shared";
 import type { ReactNode } from "react";
 import type { ReplayFrame } from "./types.js";
 

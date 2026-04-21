@@ -1,19 +1,25 @@
 /**
- * Run full v2 LLM matches using @rr/engine2 + Python `tools.v2.llm_orders_stdio`
- * (same LLM stack as `python -m tools.v2.run_batch`, but simulation is TypeScript).
- *
- * Writes jsonl traces compatible with `python -m tools.v2.render_replay`.
+ * Run full v2 LLM matches using @rr/engine2 + @rr/llm (same prompts as legacy Python batch).
  *
  * Usage (repo root):
  *   pnpm --filter @rr/engine2 batch:llm -- --out-dir simulations/ts_llm --ticks 10
  *
- * Requires: LLM API keys in env (see tools/llm_client.py), python3 on PATH.
+ * Requires: LLM API keys in env (see README / @rr/llm), repo root as cwd for tsx.
  */
 
-import { spawnSync } from "node:child_process";
+import "dotenv/config";
+
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { assertLlmEnvironmentConfigured, decideOrdersPacketJson } from "@rr/llm";
+import {
+  ordersFromChooseIds,
+  ordersFromLlmMessageList,
+  sanitizePlayerOrders,
+} from "@rr/shared";
+import type { ProjectedView } from "@rr/shared";
 
 import {
   CONTINENT_6P_DEFAULT_TRIBES,
@@ -21,14 +27,11 @@ import {
   initMatch,
   projectForPlayer,
   tick,
-  type ForceTier,
   type GameState,
   type Order,
   type OrderPacket,
-  type Proposal,
   type Tribe,
 } from "../index.js";
-import type { StructureKind } from "../types.js";
 
 const PERSONA_6P: Record<Tribe, string> = {
   arctic: "frostmarshal",
@@ -57,71 +60,6 @@ function resolveOutDir(dir: string): string {
   return join(repoRoot(), dir);
 }
 
-/** Python `decide_orders` emits `{ kind, payload }` with snake_case payload keys. */
-function orderFromPythonRow(row: {
-  kind: string;
-  payload?: Record<string, unknown>;
-}): Order {
-  const pl = row.payload ?? {};
-  const S = (a: string, b?: string) => String(pl[a] ?? (b ? pl[b] : ""));
-  switch (row.kind) {
-    case "move":
-      return {
-        kind: "move",
-        forceId: S("force_id", "forceId"),
-        destinationRegionId: S("destination_region_id", "destinationRegionId"),
-      };
-    case "recruit":
-      return {
-        kind: "recruit",
-        regionId: S("region_id", "regionId"),
-        tier: Number(pl.tier ?? 1) as ForceTier,
-      };
-    case "build": {
-      const rid = S("region_id", "regionId");
-      const struct = S("structure") as StructureKind;
-      const rt = pl.road_target ?? pl.roadTarget;
-      if (struct === "road" && typeof rt === "string" && rt) {
-        return { kind: "build", regionId: rid, structure: "road", roadTarget: rt };
-      }
-      return { kind: "build", regionId: rid, structure: struct };
-    }
-    case "scout":
-      return {
-        kind: "scout",
-        fromRegionId: S("from_region_id", "fromRegionId"),
-        targetRegionId: S("target_region_id", "targetRegionId"),
-      };
-    case "propose": {
-      const raw = (pl.proposal ?? {}) as Record<string, unknown>;
-      const proposal: Proposal = {
-        id: String(raw.id ?? "pending"),
-        kind: raw.kind as Proposal["kind"],
-        from: String(raw.from_tribe ?? raw.from ?? "") as Tribe,
-        to: String(raw.to_tribe ?? raw.to ?? "") as Tribe,
-        lengthTicks: Number(raw.length_ticks ?? raw.lengthTicks ?? 0),
-        amountInfluence: Number(raw.amount_influence ?? raw.amountInfluence ?? 0),
-        expiresTick: Number(raw.expires_tick ?? raw.expiresTick ?? 0),
-      };
-      return { kind: "propose", proposal };
-    }
-    case "respond":
-      return {
-        kind: "respond",
-        proposalId: S("proposal_id", "proposalId"),
-        response: (pl.response === "decline" ? "decline" : "accept") as "accept" | "decline",
-      };
-    case "message":
-      return {
-        kind: "message",
-        to: S("to") as Tribe,
-        text: String(pl.text ?? ""),
-      };
-    default:
-      throw new Error(`unknown order kind from LLM: ${row.kind}`);
-  }
-}
-
 function orderToTracePayload(o: Order): Record<string, unknown> {
   switch (o.kind) {
     case "move":
@@ -135,7 +73,6 @@ function orderToTracePayload(o: Order): Record<string, unknown> {
     case "scout":
       return { from_region_id: o.fromRegionId, target_region_id: o.targetRegionId };
     case "propose": {
-      // Align with tools/v2/fog.py legal_order_options — Python engine_tick reads proposal["to"].
       const p = o.proposal;
       const proposal: Record<string, unknown> = { kind: p.kind, to: p.to };
       if (p.kind === "nap" || p.kind === "shared_vision") {
@@ -153,38 +90,23 @@ function orderToTracePayload(o: Order): Record<string, unknown> {
   }
 }
 
-function llmOrders(projectedView: object, persona: string): Order[] {
-  const py = process.env.PYTHON ?? "python3";
-  const r = spawnSync(
-    py,
-    ["-m", "tools.v2.llm_orders_stdio"],
-    {
-      cwd: repoRoot(),
-      input: JSON.stringify({ projectedView, persona }),
-      encoding: "utf-8",
-      maxBuffer: 128 * 1024 * 1024,
-    },
-  );
-  if (r.error) {
-    throw r.error;
-  }
-  if (r.status !== 0) {
-    console.error(r.stderr || r.stdout);
-    throw new Error(`llm_orders_stdio failed with ${r.status}`);
-  }
-  const out = JSON.parse(r.stdout) as { orders?: { kind: string; payload?: Record<string, unknown> }[] };
-  const raw = out.orders ?? [];
-  return raw.map((o) => orderFromPythonRow(o));
+async function llmOrders(projectedView: object, persona: string): Promise<Order[]> {
+  const view = projectedView as ProjectedView;
+  const json = await decideOrdersPacketJson(view, persona);
+  const fromChoose = ordersFromChooseIds(view, json.choose ?? []);
+  const fromMessages = ordersFromLlmMessageList(view, json.messages ?? []);
+  const merged = [...fromChoose, ...fromMessages];
+  return sanitizePlayerOrders(view.myPlayerState.influence, merged);
 }
 
-function runMatch(opts: {
+async function runMatch(opts: {
   matchIdx: number;
   seed: number;
   maxTicks: number;
   mapPreset: "continent6p" | "expanded";
   outPath: string;
   verbose: boolean;
-}): Record<string, unknown> {
+}): Promise<Record<string, unknown>> {
   const config =
     opts.mapPreset === "continent6p"
       ? {
@@ -223,7 +145,7 @@ function runMatch(opts: {
       const persona = personas[tribe] ?? "opportunist";
       let orders: Order[] = [];
       try {
-        orders = llmOrders(view, persona);
+        orders = await llmOrders(view, persona);
         llmCalls += 1;
       } catch (e) {
         diagnostics.push(`${tribe}: ${e instanceof Error ? e.message : String(e)}`);
@@ -310,7 +232,8 @@ function parseArgs(argv: string[]) {
   return { outDir, matches, ticks, seed, mapPreset, verbose };
 }
 
-function main() {
+async function main(): Promise<void> {
+  assertLlmEnvironmentConfigured();
   const opts = parseArgs(process.argv.slice(2));
   const outDir = resolveOutDir(opts.outDir);
   mkdirSync(outDir, { recursive: true });
@@ -318,7 +241,7 @@ function main() {
   const summaries: Record<string, unknown>[] = [];
   for (let i = 0; i < opts.matches; i++) {
     const outPath = join(outDir, `match_${String(i).padStart(3, "0")}.jsonl`);
-    const s = runMatch({
+    const s = await runMatch({
       matchIdx: i,
       seed: opts.seed + i,
       maxTicks: opts.ticks,
@@ -343,4 +266,7 @@ function main() {
   console.log(`wrote ${join(outDir, "batch_summary.json")}`);
 }
 
-main();
+void main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

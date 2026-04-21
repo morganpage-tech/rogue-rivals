@@ -6,7 +6,6 @@
 import type {
   Caravan,
   Force,
-  GameState,
   Pact,
   PlayerState,
   Proposal,
@@ -14,8 +13,8 @@ import type {
   Scout,
   Trail,
   Tribe,
-} from "@rr/engine2";
-import type { ProjectedView } from "@rr/engine2";
+} from "@rr/shared";
+import type { ProjectedView } from "@rr/shared";
 import { DEFAULT_TICK_LIMIT } from "./replayConstants.js";
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -176,6 +175,8 @@ function parsePact(j: Record<string, unknown>): Pact {
 
 export interface ParsedReplayState {
   readonly tick: number;
+  /** When set (e.g. spectator or replay meta), overrides default tick cap in omniscient views. */
+  readonly tickLimit?: number;
   readonly tribesAlive: Tribe[];
   readonly winner: Tribe | Tribe[] | null;
   readonly regions: Record<string, Region>;
@@ -248,8 +249,15 @@ export function parseReplayStateSnapshot(raw: unknown): ParsedReplayState | null
   else if (Array.isArray(w)) winner = (w as unknown[]).map(tribe) as Tribe[];
   else winner = tribe(w);
 
+  const tlRaw = raw.tick_limit ?? raw.tickLimit;
+  const tickLimitParsed =
+    tlRaw != null && tlRaw !== "" ? Number(tlRaw) : undefined;
+  const tickLimit =
+    tickLimitParsed != null && Number.isFinite(tickLimitParsed) ? tickLimitParsed : undefined;
+
   return {
     tick: Number(raw.tick ?? 0),
+    tickLimit,
     tribesAlive,
     winner,
     regions,
@@ -296,13 +304,13 @@ export function buildOmniscientProjectedViewFromState(
     pactsInvolvingMe: state.pacts.filter((p) => p.parties.includes(forTribe)),
     legalOrderOptions: [],
     tribesAlive: state.tribesAlive,
-    tickLimit: DEFAULT_TICK_LIMIT,
+    tickLimit: state.tickLimit ?? DEFAULT_TICK_LIMIT,
   };
 }
 
 /** Minimal GameState-like object for components that need full state (scoreboard). */
 export function parsedStateToGameStateSnapshot(state: ParsedReplayState): Pick<
-  GameState,
+  ParsedReplayState,
   | "tick"
   | "tribesAlive"
   | "winner"
@@ -328,8 +336,8 @@ export function parsedStateToGameStateSnapshot(state: ParsedReplayState): Pick<
   };
 }
 
-/** Build ParsedReplayState from a live engine GameState (for shared scoreboard / trail ticks). */
-export function parsedReplayStateFromGameState(state: GameState): ParsedReplayState {
+/** Build ParsedReplayState from a replay snapshot (same shape as engine state for these fields). */
+export function parsedReplayStateFromGameState(state: ParsedReplayState): ParsedReplayState {
   const regions: Record<string, Region> = { ...state.regions };
   const forces: Record<string, Force> = { ...state.forces };
   const scouts: Record<string, Scout> = { ...state.scouts };
@@ -337,6 +345,7 @@ export function parsedReplayStateFromGameState(state: GameState): ParsedReplaySt
   const players: Record<Tribe, PlayerState> = { ...state.players };
   return {
     tick: state.tick,
+    tickLimit: state.tickLimit,
     tribesAlive: [...state.tribesAlive],
     winner: state.winner,
     regions,

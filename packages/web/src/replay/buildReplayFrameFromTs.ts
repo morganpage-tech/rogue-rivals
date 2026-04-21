@@ -1,10 +1,11 @@
 import type {
-  GameState,
   OrderPacket,
   ProjectedView,
   ResolutionEvent,
   Tribe,
-} from "@rr/engine2";
+} from "@rr/shared";
+
+import type { ParsedReplayState } from "./parseReplayStateSnapshot.js";
 import { buildTickSummaryFromPackets } from "./buildTickSummary.js";
 import { orderToReplayPayload } from "./orderToReplayPayload.js";
 import { serializeProjectedViewForReplay } from "./projectedViewReplay.js";
@@ -37,7 +38,7 @@ function eventsToJson(events: readonly ResolutionEvent[]): unknown[] {
 
 export function buildReplayFrameFromTs(opts: {
   label: string;
-  state: GameState;
+  state: ParsedReplayState;
   stateHash: string;
   packets: Record<Tribe, OrderPacket>;
   events: readonly ResolutionEvent[];

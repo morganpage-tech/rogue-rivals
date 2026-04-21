@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Order, Proposal } from "@rr/engine2";
+import type { Order, Proposal } from "@rr/shared";
 import { orderToReplayPayload } from "./orderToReplayPayload.js";
 
 const baseProposal: Proposal = {

@@ -4,11 +4,11 @@ import { defineConfig } from "vitest/config";
 
 const _root = dirname(fileURLToPath(import.meta.url));
 
-/** No React plugin: tests are Node-only; avoids Vite major-version skew with Vitest. */
+/** Hook tests use `*.hook.test.ts` + `@vitest-environment jsdom` (no JSX → no React Vite plugin). */
 export default defineConfig({
   resolve: {
     alias: {
-      "@rr/engine2": resolve(_root, "../engine2/src/index.ts"),
+      "@rr/shared": resolve(_root, "../shared/src/index.ts"),
     },
   },
   test: {

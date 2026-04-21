@@ -1,4 +1,4 @@
-import type { Order, OrderPacket, Tribe } from "@rr/engine2";
+import type { Order, OrderPacket, Tribe } from "@rr/shared";
 import type { TickSummary } from "./types.js";
 
 /** Mirrors tools/v2/render_replay._tick_summary_from_record for live frames. */

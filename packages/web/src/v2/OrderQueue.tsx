@@ -1,6 +1,6 @@
-import type { LegalOrderOption, ProjectedView } from "@rr/engine2";
+import type { LegalOrderOption, ProjectedView } from "@rr/shared";
 import { useState } from "react";
-import { legalOptionMatchesRegion, scoutOptionRedundantForMapIntel } from "./ordersFromLegal.js";
+import { legalOptionMatchesRegion, scoutOptionRedundantForMapIntel } from "./legalOrders.js";
 
 interface OrderQueueProps {
   view: ProjectedView;

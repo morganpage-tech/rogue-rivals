@@ -1,4 +1,4 @@
-import type { Tribe } from "@rr/engine2";
+import type { Tribe } from "@rr/shared";
 
 const TRIBE_LABEL: Record<Tribe, string> = {
   orange: "Orange",

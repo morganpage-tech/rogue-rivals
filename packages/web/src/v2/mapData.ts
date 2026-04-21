@@ -1,7 +1,7 @@
 /**
  * 6p continent schematic — mirrors `tools/v2/mapgen.py` (HTML/SVG coords only).
  */
-import type { RegionId } from "@rr/engine2";
+import type { RegionId } from "@rr/shared";
 
 export const CONTINENT_6P_REGION_LAYOUT: Record<RegionId, readonly [number, number]> = {
   r_core_foxfire_ruins: [382, 259],
@@ -78,3 +78,33 @@ export const CONTINENT_6P_TRAILS: readonly (readonly [RegionId, RegionId])[] = [
   ["r_br_reeky_canopy", "r_core_moon_ford"],
   ["r_or_windy_plains", "r_core_moon_ford"],
 ];
+
+/** Hand-play minimal map — same coordinates as `engine2` `replayLayouts.json` → `minimal`. */
+export const HAND_MINIMAL_REGION_LAYOUT: Record<string, readonly [number, number]> = {
+  r_orange_plains: [0, 0],
+  r_ruins_center: [300, 0],
+  r_grey_mountains: [600, 0],
+  r_brown_swamps: [0, 200],
+  r_desert_wastes: [300, 200],
+  r_red_desert: [600, 200],
+};
+
+/** Expanded hand map — same as `replayLayouts.json` → `expanded`. */
+export const EXPANDED_REGION_LAYOUT: Record<string, readonly [number, number]> = {
+  r_or_plains: [0, 0],
+  r_gr_mountains: [1000, 0],
+  r_or_forest: [200, 120],
+  r_or_hills: [0, 240],
+  r_gr_peaks: [800, 120],
+  r_gr_gap: [1000, 240],
+  r_dark_forest: [400, 120],
+  r_shrine_vale: [400, 300],
+  r_ruins_ctr: [600, 300],
+  r_river_xing: [600, 480],
+  r_br_fields: [200, 420],
+  r_br_shore: [200, 600],
+  r_rd_oasis: [800, 420],
+  r_rd_dunes: [800, 600],
+  r_br_swamps: [0, 540],
+  r_rd_desert: [1000, 540],
+};
