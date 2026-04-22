@@ -1,27 +1,15 @@
-import type { MatchLogStatusResponse, Tribe } from "@rr/shared";
+import type { MatchLogStatusResponse } from "@rr/shared";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { DebugPanel } from "../components/DebugPanel.js";
+import { SpectatorMap } from "../components/SpectatorMap.js";
 import { SpectatorScoreboard } from "../components/SpectatorScoreboard.js";
 import { SpectatorTimeline } from "../components/SpectatorTimeline.js";
 import { apiUrl } from "../config.js";
 
-import {
-  buildOmniscientProjectedViewFromState,
-} from "../replay/parseReplayStateSnapshot.js";
-import { ReplayMapStub } from "../replay/ReplayMapStub.js";
-import {
-  getSpectatorMapKind,
-  getSpectatorMapLayout,
-  type SpectatorMapKind,
-} from "../replay/spectatorMapLayout.js";
-import { spectatorViewToParsedReplayState } from "../replay/spectatorViewToParsedReplayState.js";
-import { trailBaseTicksMap } from "../replay/trailBaseTicksMap.js";
-import type { ReplayFrame } from "../replay/types.js";
 import { useSpectatorCurrentView, useSpectatorStore } from "../state/spectatorStore.js";
 import { useDebugStore, useDebugTickForIndex } from "../state/debugStore.js";
-import { V2Map } from "../v2/V2Map.js";
 
 export function WatchMatch(): React.ReactElement {
   const { matchId } = useParams<{ matchId: string }>();
@@ -57,54 +45,6 @@ export function WatchMatch(): React.ReactElement {
   }, [matchId, showDebug, debugConnect, debugDisconnect]);
 
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
-
-  const [lockedMapKind, setLockedMapKind] = useState<SpectatorMapKind | null>(null);
-
-  useEffect(() => {
-    setLockedMapKind(null);
-  }, [matchId]);
-
-  useEffect(() => {
-    if (!v || Object.keys(v.regions).length === 0) return;
-    if (lockedMapKind !== null) return;
-    const k = getSpectatorMapKind(Object.keys(v.regions));
-    if (k !== "unknown") setLockedMapKind(k);
-  }, [v, lockedMapKind]);
-
-  const regionIds = useMemo(() => (v ? Object.keys(v.regions) : []), [v, tickIndex]);
-  const mapKind = lockedMapKind ?? getSpectatorMapKind(regionIds);
-  const mapLayout = useMemo(() => getSpectatorMapLayout(regionIds), [regionIds]);
-  const is6p = mapKind === "continent6p";
-
-  const parsedForV2 = useMemo(() => {
-    if (!v || !is6p) return null;
-    return spectatorViewToParsedReplayState(v);
-  }, [v, is6p, tickIndex]);
-
-  const mapView = useMemo(() => {
-    if (!parsedForV2) return null;
-    const roster = (parsedForV2.tribesAlive[0] ?? "orange") as Tribe;
-    return buildOmniscientProjectedViewFromState(parsedForV2, roster);
-  }, [parsedForV2, tickIndex]);
-
-  const trailTicks = useMemo(
-    () => (parsedForV2 ? trailBaseTicksMap(parsedForV2) : new Map<string, number>()),
-    [parsedForV2, tickIndex],
-  );
-
-  const glyphState = useMemo(() => {
-    if (!parsedForV2) return null;
-    return {
-      forces: Object.values(parsedForV2.forces),
-      scouts: Object.values(parsedForV2.scouts),
-      caravans: Object.values(parsedForV2.caravans),
-    };
-  }, [parsedForV2, tickIndex]);
-
-  const stubFrame = useMemo((): ReplayFrame | null => {
-    if (!v) return null;
-    return { state: { regions: v.regions } } as ReplayFrame;
-  }, [v, tickIndex]);
 
   const [logStatus, setLogStatus] = useState<MatchLogStatusResponse | null>(null);
   const [logErr, setLogErr] = useState<string | null>(null);
@@ -178,24 +118,11 @@ export function WatchMatch(): React.ReactElement {
       <div className="pw-body">
         <section className="pw-map-area">
           {v ? (
-            is6p && mapView && glyphState ? (
-              <V2Map
-                view={mapView}
-                selectedRegionId={selectedRegionId}
-                onSelectRegion={setSelectedRegionId}
-                trailBaseTicks={trailTicks}
-                showUnitGlyphs
-                glyphState={glyphState}
-              />
-            ) : mapLayout && stubFrame ? (
-              <ReplayMapStub frame={stubFrame} layout={mapLayout} />
-            ) : (
-              <p className="muted">
-                Unknown map layout for these region ids — cannot draw schematic. (Regions:{" "}
-                {regionIds.slice(0, 8).join(", ")}
-                {regionIds.length > 8 ? "…" : ""})
-              </p>
-            )
+            <SpectatorMap
+              view={v}
+              selectedRegionId={selectedRegionId}
+              onSelectRegion={setSelectedRegionId}
+            />
           ) : (
             <div className="pw-loading">
               <p>Waiting for data…</p>

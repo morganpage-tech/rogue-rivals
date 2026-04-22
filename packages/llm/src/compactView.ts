@@ -1,13 +1,28 @@
-/**
- * Render normalized ProjectedView (snake_case) as prompt text.
- * Port of tools/v2/llm_agent._compact_view.
- */
+import type { NarrativeBuffer } from "./narrativeBuffer.js";
+
+export interface TickHistory {
+  readonly lastChooseIds: readonly string[];
+  readonly lastFailedActions: readonly { id: string; reason: string }[];
+  readonly lastSucceededActions: readonly string[];
+  readonly stateDelta: {
+    readonly influenceBefore: number;
+    readonly influenceAfter: number;
+    readonly regionsGained: number;
+    readonly regionsLost: number;
+    readonly forcesLost: number;
+    readonly structuresBuilt: number;
+  };
+}
 
 function str(x: unknown): string {
   return x === undefined || x === null ? "" : String(x);
 }
 
-export function compactView(view: Record<string, unknown>): string {
+export function compactView(
+  view: Record<string, unknown>,
+  tickHistory?: TickHistory,
+  narrative?: NarrativeBuffer,
+): string {
   const lines: string[] = [];
   lines.push(`Tick: ${str(view.tick)}  (you are ${str(view.for_tribe)})`);
   lines.push(`Tribes alive: ${((view.tribes_alive as string[]) ?? []).join(", ")}`);
@@ -17,6 +32,38 @@ export function compactView(view: Record<string, unknown>): string {
     `Your Influence: ${str(ps.influence)}   ` +
       `Reputation penalty until tick: ${str(ps.reputation_penalty_expires_tick)}`,
   );
+
+  if (tickHistory && Number(view.tick) > 1) {
+    lines.push("");
+    lines.push("=== LAST TICK RESULTS ===");
+    if (tickHistory.lastChooseIds.length > 0) {
+      lines.push(`Your orders: ${tickHistory.lastChooseIds.join(", ")}`);
+    }
+    if (tickHistory.lastSucceededActions.length > 0) {
+      lines.push(`Succeeded: ${tickHistory.lastSucceededActions.join(", ")}`);
+    }
+    if (tickHistory.lastFailedActions.length > 0) {
+      for (const f of tickHistory.lastFailedActions) {
+        lines.push(`FAILED: ${f.id} (reason: ${f.reason}) -- DO NOT REPEAT THIS ACTION`);
+      }
+    }
+    const d = tickHistory.stateDelta;
+    const influenceChange = d.influenceAfter - d.influenceBefore;
+    const sign = influenceChange >= 0 ? "+" : "";
+    const parts: string[] = [];
+    parts.push(`Influence ${sign}${influenceChange} (now ${d.influenceAfter})`);
+    if (d.regionsGained > 0) parts.push(`regions +${d.regionsGained}`);
+    if (d.regionsLost > 0) parts.push(`regions -${d.regionsLost}`);
+    if (d.forcesLost > 0) parts.push(`${d.forcesLost} force(s) lost`);
+    if (d.structuresBuilt > 0) parts.push(`${d.structuresBuilt} structure(s) built`);
+    lines.push(`State change: ${parts.join(", ")}`);
+  }
+
+  if (narrative && narrative.length > 0) {
+    lines.push("");
+    lines.push("=== MATCH HISTORY (key events) ===");
+    lines.push(narrative.render(15));
+  }
 
   lines.push("");
   lines.push("Your forces:");

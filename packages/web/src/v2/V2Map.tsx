@@ -9,17 +9,11 @@ import type {
   VisibleTransit,
 } from "@rr/shared";
 import type { ReactNode } from "react";
-import React, {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useMemo } from "react";
 import { REPLAY_TRIBE_STROKE } from "../replay/replayTheme.js";
 import { CONTINENT_6P_REGION_LAYOUT, CONTINENT_6P_TRAILS } from "./mapData.js";
 import { regionShortName } from "./formatV2.js";
+import { useMapPanZoom } from "./useMapPanZoom.js";
 
 const TERRAIN_CLASS: Record<string, string> = {
   plains: "terrain-plains",
@@ -31,13 +25,7 @@ const TERRAIN_CLASS: Record<string, string> = {
   river_crossing: "terrain-river",
 };
 
-const MIN_ZOOM = 0.45;
-const MAX_ZOOM = 8;
 const WHEEL_FACTOR = 1.12;
-
-/** Match SVG circles (`r={42}`) and labels (`y = cy + 58`, ~11px font). */
-const NODE_R = 42;
-const LABEL_BELOW_CENTER = 58 + 18;
 
 function tribeClass(owner: Tribe | null): string {
   if (!owner) return "";
@@ -69,7 +57,6 @@ export interface V2MapGlyphState {
   readonly caravans: readonly Caravan[];
 }
 
-/** Garrison tier labels: live/fog uses `view.myForces`; omniscient replay uses full `glyphState.forces`. */
 function garrisonForceForRegion(
   regionId: string,
   view: ProjectedView,
@@ -89,46 +76,10 @@ interface V2MapProps {
   view: ProjectedView;
   selectedRegionId: string | null;
   onSelectRegion: (id: string | null) => void;
-  /** `${regionA}|${regionB}` sorted lexicographically → base trail length in ticks */
   trailBaseTicks?: ReadonlyMap<string, number>;
-  /** Draw scouts, transits, caravans, and structure/garrison badges (live + replay). */
   showUnitGlyphs?: boolean;
-  /** When set (e.g. omniscient replay), draw glyphs from full state instead of fog view. */
   glyphState?: V2MapGlyphState | null;
-  /** Extra SVG content (e.g. replay resolution overlays). Rendered above regions, below glyphs. */
   overlayChildren?: ReactNode;
-}
-
-/** Clamp view center so the viewBox stays near the authored bounds (with slack for labels). */
-function clampCenter(
-  cx: number,
-  cy: number,
-  zoom: number,
-  ox: number,
-  oy: number,
-  bw: number,
-  bh: number,
-): { cx: number; cy: number } {
-  const vw = bw / zoom;
-  const vh = bh / zoom;
-  const slack = 140;
-  let ncx = cx;
-  let ncy = cy;
-  if (vw <= bw + 1e-6) {
-    const minCx = ox + vw / 2 - slack;
-    const maxCx = ox + bw - vw / 2 + slack;
-    ncx = Math.min(maxCx, Math.max(minCx, cx));
-  } else {
-    ncx = ox + bw / 2;
-  }
-  if (vh <= bh + 1e-6) {
-    const minCy = oy + vh / 2 - slack;
-    const maxCy = oy + bh - vh / 2 + slack;
-    ncy = Math.min(maxCy, Math.max(minCy, cy));
-  } else {
-    ncy = oy + bh / 2;
-  }
-  return { cx: ncx, cy: ncy };
 }
 
 export function V2Map({
@@ -142,177 +93,19 @@ export function V2Map({
 }: V2MapProps) {
   const ids = Object.keys(view.visibleRegions);
   const layout = CONTINENT_6P_REGION_LAYOUT;
-  const toolbarId = useId();
 
-  const bounds = useMemo(() => {
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity;
-    for (const id of ids) {
-      const p = layout[id];
-      if (!p) continue;
-      minX = Math.min(minX, p[0]);
-      minY = Math.min(minY, p[1]);
-      maxX = Math.max(maxX, p[0]);
-      maxY = Math.max(maxY, p[1]);
-    }
-    if (!Number.isFinite(minX) || !Number.isFinite(maxX)) {
-      return { ox: 0, oy: 0, w: 400, h: 400 };
-    }
-    // Bounds from full ink: circles + labels, not just node centers (prevents Fit from
-    // framing tight on centers and clipping names at the bottom).
-    const minXe = minX - NODE_R;
-    const maxXe = maxX + NODE_R;
-    const minYe = minY - NODE_R;
-    const maxYe = maxY + LABEL_BELOW_CENTER;
-    const padX = 48;
-    const padTop = 32;
-    const padBottom = 32;
-    const w = maxXe - minXe + padX * 2;
-    const h = maxYe - minYe + padTop + padBottom;
-    const ox = minXe - padX;
-    const oy = minYe - padTop;
-    return { ox, oy, w, h };
-  }, [ids, layout]);
-
-  const idsKey = useMemo(() => [...ids].sort().join(","), [ids]);
-
-  const [zoom, setZoom] = useState(1);
-  const [center, setCenter] = useState(() => ({
-    cx: bounds.ox + bounds.w / 2,
-    cy: bounds.oy + bounds.h / 2,
-  }));
-  const [panning, setPanning] = useState(false);
-
-  const svgRef = useRef<SVGSVGElement>(null);
-  const zoomRef = useRef(zoom);
-  const centerRef = useRef(center);
-  const boundsRef = useRef(bounds);
-  zoomRef.current = zoom;
-  centerRef.current = center;
-  boundsRef.current = bounds;
-
-  const panDragRef = useRef<{
-    lastX: number;
-    lastY: number;
-  } | null>(null);
-
-  useEffect(() => {
-    const { ox, oy, w, h } = bounds;
-    const c = clampCenter(ox + w / 2, oy + h / 2, 1, ox, oy, w, h);
-    setZoom(1);
-    setCenter(c);
-  }, [idsKey, bounds.ox, bounds.oy, bounds.w, bounds.h]);
-
-  const viewW = bounds.w / zoom;
-  const viewH = bounds.h / zoom;
-  const vx = center.cx - viewW / 2;
-  const vy = center.cy - viewH / 2;
-  const viewBoxStr = `${vx} ${vy} ${viewW} ${viewH}`;
-
-  const clientToContent = useCallback(
-    (clientX: number, clientY: number) => {
-      const svg = svgRef.current;
-      if (!svg) return null;
-      const rect = svg.getBoundingClientRect();
-      const vb = svg.viewBox.baseVal;
-      const x = vb.x + ((clientX - rect.left) / rect.width) * vb.width;
-      const y = vb.y + ((clientY - rect.top) / rect.height) * vb.height;
-      return { x, y };
-    },
-    [],
-  );
-
-  const zoomAtScreenCenter = useCallback(
-    (factor: number) => {
-      const b = boundsRef.current;
-      const svg = svgRef.current;
-      if (!svg) return;
-      const rect = svg.getBoundingClientRect();
-      const pt = clientToContent(
-        rect.left + rect.width / 2,
-        rect.top + rect.height / 2,
-      );
-      if (!pt) return;
-
-      let newZoom = zoomRef.current * factor;
-      newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newZoom));
-
-      const oldVw = b.w / zoomRef.current;
-      const oldVh = b.h / zoomRef.current;
-      const oldVx = centerRef.current.cx - oldVw / 2;
-      const oldVy = centerRef.current.cy - oldVh / 2;
-
-      const newVw = b.w / newZoom;
-      const newVh = b.h / newZoom;
-      const newVx = pt.x - (pt.x - oldVx) * (newVw / oldVw);
-      const newVy = pt.y - (pt.y - oldVy) * (newVh / oldVh);
-      let ncx = newVx + newVw / 2;
-      let ncy = newVy + newVh / 2;
-      const c = clampCenter(ncx, ncy, newZoom, b.ox, b.oy, b.w, b.h);
-      setZoom(newZoom);
-      setCenter({ cx: c.cx, cy: c.cy });
-    },
-    [clientToContent],
-  );
-
-  const resetView = useCallback(() => {
-    const b = boundsRef.current;
-    const c = clampCenter(b.ox + b.w / 2, b.oy + b.h / 2, 1, b.ox, b.oy, b.w, b.h);
-    setZoom(1);
-    setCenter(c);
-  }, []);
-
-  const onPointerDownPan = useCallback(
-    (e: React.PointerEvent) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
-      panDragRef.current = { lastX: e.clientX, lastY: e.clientY };
-      setPanning(true);
-    },
-    [],
-  );
-
-  const onPointerMovePan = useCallback(
-    (e: React.PointerEvent) => {
-      const drag = panDragRef.current;
-      if (!drag) return;
-      const svg = svgRef.current;
-      if (!svg) return;
-      const rect = svg.getBoundingClientRect();
-      const vb = svg.viewBox.baseVal;
-      const dx = e.clientX - drag.lastX;
-      const dy = e.clientY - drag.lastY;
-      drag.lastX = e.clientX;
-      drag.lastY = e.clientY;
-      const dcx = -(dx / rect.width) * vb.width;
-      const dcy = -(dy / rect.height) * vb.height;
-      const b = boundsRef.current;
-      const c = clampCenter(
-        centerRef.current.cx + dcx,
-        centerRef.current.cy + dcy,
-        zoomRef.current,
-        b.ox,
-        b.oy,
-        b.w,
-        b.h,
-      );
-      setCenter(c);
-    },
-    [],
-  );
-
-  const onPointerUpPan = useCallback((e: React.PointerEvent) => {
-    try {
-      (e.currentTarget as SVGElement).releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-    panDragRef.current = null;
-    setPanning(false);
-  }, []);
+  const {
+    svgRef,
+    viewBoxStr,
+    bounds,
+    panning,
+    toolbarId,
+    zoomAtScreenCenter,
+    resetView,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+  } = useMapPanZoom({ regionIds: ids, layout });
 
   const trails = CONTINENT_6P_TRAILS.filter(
     ([a, b]) => ids.includes(a) && ids.includes(b),
@@ -618,10 +411,10 @@ export function V2Map({
             width={w}
             height={h}
             className="v2-map-pan-layer"
-            onPointerDown={onPointerDownPan}
-            onPointerMove={onPointerMovePan}
-            onPointerUp={onPointerUpPan}
-            onPointerCancel={onPointerUpPan}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
             onDoubleClick={(e) => {
               e.preventDefault();
               resetView();
@@ -634,10 +427,10 @@ export function V2Map({
             const dx = pb[0] - pa[0];
             const dy = pb[1] - pa[1];
             const len = Math.hypot(dx, dy) || 1;
-            const ox = (-dy / len) * 20;
-            const oy = (dx / len) * 20;
-            const mx = (pa[0] + pb[0]) / 2 + ox;
-            const my = (pa[1] + pb[1]) / 2 + oy;
+            const lox = (-dy / len) * 20;
+            const loy = (dx / len) * 20;
+            const mx = (pa[0] + pb[0]) / 2 + lox;
+            const my = (pa[1] + pb[1]) / 2 + loy;
             const edgeKey = trailEdgeKey(a, b);
             const tickLabel = trailBaseTicks?.get(edgeKey);
             return (
@@ -714,7 +507,6 @@ export function V2Map({
           })}
           {glyphSvg}
           {overlayChildren}
-          {/* Garrison tier last so transit/scout/structure glyphs never paint over it */}
           {showUnitGlyphs &&
             ids.map((id) => {
               const p = layout[id];

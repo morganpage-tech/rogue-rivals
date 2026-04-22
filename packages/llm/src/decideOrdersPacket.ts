@@ -1,9 +1,10 @@
 import { config as loadDotenv } from "dotenv";
 import { COMPACT_RULES_V2 } from "./compactRules.js";
-import { compactView } from "./compactView.js";
+import { compactView, type TickHistory } from "./compactView.js";
 import { LLMClient, LLMError } from "./llmClient.js";
 import type { LlmUsageMeta } from "./llmClient.js";
 import { normalizeProjectedViewForLlm } from "./normalizeProjectedViewForLlm.js";
+import { type NarrativeBuffer } from "./narrativeBuffer.js";
 import { ORDER_PACKET_SCHEMA } from "./orderPacketSchema.js";
 import { PERSONA_BY_ID } from "./personas.js";
 
@@ -29,6 +30,8 @@ export interface DecideOrdersPacketOptions {
   readonly client?: LLMClient;
   readonly diagnostics?: string[];
   readonly systemPromptAppend?: string;
+  readonly tickHistory?: TickHistory;
+  readonly narrative?: NarrativeBuffer;
 }
 
 async function callLlmOrderPacket(
@@ -37,6 +40,8 @@ async function callLlmOrderPacket(
   client: LLMClient | undefined,
   diagnostics: string[] | undefined,
   systemPromptAppend: string | undefined,
+  tickHistory: TickHistory | undefined,
+  narrative: NarrativeBuffer | undefined,
 ): Promise<{ data: Record<string, unknown>; rawResponse: string; usage: LlmUsageMeta; systemPrompt: string; userPrompt: string } | null> {
   const persona = PERSONA_BY_ID[personaId];
   if (!persona) {
@@ -59,7 +64,11 @@ async function callLlmOrderPacket(
     return null;
   }
 
-  let systemPrompt = `${persona.system_prompt}\n\n${COMPACT_RULES_V2}\n\n`;
+  let systemPrompt = `${persona.system_prompt}\n\n`;
+  if (persona.adaptation_rules) {
+    systemPrompt += `ADAPTATION RULES:\n${persona.adaptation_rules}\n\n`;
+  }
+  systemPrompt += `${COMPACT_RULES_V2}\n\n`;
   if (systemPromptAppend?.trim()) {
     systemPrompt += `${systemPromptAppend.trim()}\n\n`;
   }
@@ -75,7 +84,9 @@ async function callLlmOrderPacket(
     "Keep messages under 200 characters.";
 
   const userPrompt =
-    "CURRENT VIEW:\n" + `${compactView(view)}\n\n` + "Return JSON: choose[] uses only ids from Legal order options above; messages[] for any prose.";
+    "CURRENT VIEW:\n" +
+    `${compactView(view, tickHistory, narrative)}\n\n` +
+    "Return JSON: choose[] uses only ids from Legal order options above; messages[] for any prose.";
 
   const maxAttempts = 2;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -146,6 +157,8 @@ export async function decideOrdersPacketJson(
     options?.client,
     options?.diagnostics,
     options?.systemPromptAppend,
+    options?.tickHistory,
+    options?.narrative,
   );
   if (result === null) return { choose: [], messages: [] };
 
@@ -182,6 +195,8 @@ export async function decideOrdersPacketWithDebug(
     options?.client,
     diagnostics,
     options?.systemPromptAppend,
+    options?.tickHistory,
+    options?.narrative,
   );
 
   if (result === null) {
