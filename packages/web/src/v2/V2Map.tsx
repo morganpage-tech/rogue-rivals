@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { REPLAY_TRIBE_STROKE } from "../replay/replayTheme.js";
 import { CONTINENT_6P_REGION_LAYOUT, CONTINENT_6P_TRAILS } from "./mapData.js";
-import { regionShortName } from "./formatV2.js";
+import { regionShortName, tribeLabel } from "./formatV2.js";
 import { useMapPanZoom } from "./useMapPanZoom.js";
 
 const TERRAIN_CLASS: Record<string, string> = {
@@ -23,6 +23,16 @@ const TERRAIN_CLASS: Record<string, string> = {
   ruins: "terrain-ruins",
   forest: "terrain-forest",
   river_crossing: "terrain-river",
+};
+
+const TERRAIN_DISPLAY: Record<string, string> = {
+  plains: "Plains",
+  mountains: "Mtns",
+  swamps: "Swamps",
+  desert: "Desert",
+  ruins: "Ruins",
+  forest: "Forest",
+  river_crossing: "River X",
 };
 
 const WHEEL_FACTOR = 1.12;
@@ -72,6 +82,13 @@ function garrisonForceForRegion(
   );
 }
 
+function visibleForceByRegionCheck(
+  regionId: string,
+  view: ProjectedView,
+): boolean {
+  return view.visibleForces.some((vf) => vf.regionId === regionId);
+}
+
 interface V2MapProps {
   view: ProjectedView;
   selectedRegionId: string | null;
@@ -110,6 +127,18 @@ export function V2Map({
   const trails = CONTINENT_6P_TRAILS.filter(
     ([a, b]) => ids.includes(a) && ids.includes(b),
   );
+
+  const roadEdges = useMemo(() => {
+    const set = new Set<string>();
+    for (const id of ids) {
+      const r = view.visibleRegions[id] as Region | undefined;
+      if (!r) continue;
+      for (const target of Object.values(r.roadTargets)) {
+        set.add(trailEdgeKey(id, target));
+      }
+    }
+    return set;
+  }, [ids, view.visibleRegions]);
 
   const glyphSvg = useMemo(() => {
     if (!showUnitGlyphs && !glyphState) return null;
@@ -432,6 +461,7 @@ export function V2Map({
             const mx = (pa[0] + pb[0]) / 2 + lox;
             const my = (pa[1] + pb[1]) / 2 + loy;
             const edgeKey = trailEdgeKey(a, b);
+            const isRoad = roadEdges.has(edgeKey);
             const tickLabel = trailBaseTicks?.get(edgeKey);
             return (
               <g key={`${a}-${b}-${i}`}>
@@ -440,7 +470,7 @@ export function V2Map({
                   y1={pa[1]}
                   x2={pb[0]}
                   y2={pb[1]}
-                  className="v2-trail"
+                  className={`v2-trail${isRoad ? " v2-trail-road" : ""}`}
                 />
                 {tickLabel != null && (
                   <g>
@@ -466,6 +496,7 @@ export function V2Map({
             const sel = selectedRegionId === id;
             const short = regionShortName(id);
             const tc = TERRAIN_CLASS[r.type] ?? "terrain-plains";
+            const terrainLabel = TERRAIN_DISPLAY[r.type] ?? r.type;
             const myGarrison = showUnitGlyphs
               ? garrisonForceForRegion(id, view, glyphState)
               : undefined;
@@ -502,6 +533,24 @@ export function V2Map({
                 >
                   {short.length > 14 ? `${short.slice(0, 12)}…` : short}
                 </text>
+                <text
+                  x={p[0]}
+                  y={p[1] + 70}
+                  textAnchor="middle"
+                  className="v2-map-terrain-label"
+                >
+                  {terrainLabel}
+                </text>
+                {r.owner && (
+                  <text
+                    x={p[0]}
+                    y={p[1] - 18}
+                    textAnchor="middle"
+                    className="v2-map-tribe-name"
+                  >
+                    {tribeLabel(r.owner)}
+                  </text>
+                )}
               </g>
             );
           })}
@@ -526,6 +575,35 @@ export function V2Map({
                 </text>
               );
             })}
+          {showUnitGlyphs &&
+            ids.map((id) => {
+              const p = layout[id];
+              if (!p) return null;
+              const myG = garrisonForceForRegion(id, view, glyphState);
+              const hasVisibleEnemy = !myG && visibleForceByRegionCheck(id, view);
+              if (myG || hasVisibleEnemy) return null;
+              const r = view.visibleRegions[id] as Region | undefined;
+              if (!r?.owner) return null;
+              return (
+                <circle
+                  key={`garrison-empty-${id}`}
+                  cx={p[0]}
+                  cy={p[1]}
+                  r={8}
+                  className="v2-map-garrison-empty"
+                  pointerEvents="none"
+                />
+              );
+            })}
+          <text
+            x={ox + w - 8}
+            y={oy + 20}
+            textAnchor="end"
+            className="v2-map-tick-overlay"
+            pointerEvents="none"
+          >
+            Tick {view.tick}/{view.tickLimit}
+          </text>
         </svg>
       </div>
     </div>

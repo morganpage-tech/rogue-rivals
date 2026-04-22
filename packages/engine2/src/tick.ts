@@ -1,4 +1,5 @@
 import {
+  CARAVAN_DECLINE_REFUND_FRACTION,
   CARAVAN_INTERCEPT_MIN_TIER,
   COMBAT_DEFENDER_OWN_REGION_BONUS,
   COMBAT_FORT_BONUS,
@@ -478,6 +479,17 @@ function applyPropose(
     return;
   }
 
+  if (kind === "trade_offer") {
+    const escrowTotal = amount + 1;
+    const senderPs = state.players[tribe]!;
+    if (senderPs.influence < escrowTotal) {
+      events.push({ kind: "trade_propose_failed", reason: "sender_insolvent" });
+      return;
+    }
+    senderPs.influence -= escrowTotal;
+    (proposal as { escrowedInfluence?: number }).escrowedInfluence = escrowTotal;
+  }
+
   state.players[toTribe]!.outstandingProposals.push(proposal);
   state.players[toTribe]!.inbox.push({
     tick: state.tick + 1,
@@ -518,7 +530,20 @@ function applyRespond(
   }
 
   if (response !== "accept") {
-    events.push({ kind: "proposal_declined", id: proposalId });
+    const escrowed = match.escrowedInfluence ?? 0;
+    if (escrowed > 0) {
+      const refund = Math.floor(escrowed * CARAVAN_DECLINE_REFUND_FRACTION);
+      state.players[match.from]!.influence += refund;
+      events.push({
+        kind: "trade_declined_refund",
+        id: proposalId,
+        from: match.from,
+        escrowed,
+        refund,
+      });
+    } else {
+      events.push({ kind: "proposal_declined", id: proposalId });
+    }
     return;
   }
 
@@ -559,12 +584,11 @@ function applyRespond(
       pact: "shared_vision",
     });
   } else if (match.kind === "trade_offer") {
-    const sender = state.players[match.from]!;
-    if (sender.influence < match.amountInfluence + 1) {
-      events.push({ kind: "trade_accept_failed", reason: "sender_insolvent" });
+    const escrowed = match.escrowedInfluence ?? 0;
+    if (escrowed === 0) {
+      events.push({ kind: "trade_accept_failed", reason: "no_escrow" });
       return;
     }
-    sender.influence -= match.amountInfluence + 1;
     const path = caravanPath(state, match.from, match.to);
     const cid = `c_${String(state.nextCaravanIdx).padStart(4, "0")}`;
     state.nextCaravanIdx += 1;
@@ -973,6 +997,10 @@ export function tick(
       if (p.expiresTick > state.tick) {
         fresh.push(p);
       } else {
+        const escrowed = p.escrowedInfluence ?? 0;
+        if (escrowed > 0 && state.tribesAlive.includes(p.from)) {
+          state.players[p.from]!.influence += escrowed;
+        }
         events.push({
           kind: "proposal_expired",
           id: p.id,

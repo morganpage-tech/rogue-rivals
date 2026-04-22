@@ -177,6 +177,8 @@ export interface Proposal {
   /** Influence to transfer on acceptance (trade_offer only). */
   readonly amountInfluence: number;
   readonly expiresTick: number;
+  /** Influence debited at propose-time for trade_offer escrow (amount + caravan fee). */
+  readonly escrowedInfluence?: number;
 }
 
 /**

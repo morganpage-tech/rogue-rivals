@@ -21,3 +21,5 @@ export {
   sanitizePlayerOrders,
   wouldClipOrders,
 } from "@rr/shared";
+export { cloneState } from "./cloneState.js";
+export { rebuildStateAtTick, type RebuildResult, type TickPacketRecord } from "./rebuildState.js";

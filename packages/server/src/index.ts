@@ -10,6 +10,7 @@ import type { WebSocket } from "ws";
 import type { CreateMatchRequest, JoinMatchRequest, SubmitOrdersRequest } from "@rr/shared";
 
 import { verifyPlayerToken } from "./auth/jwt.js";
+import { registerDebugRoutes } from "./debug/debugRoutes.js";
 import { ensureDataDir } from "./persistence/matchLog.js";
 import { jwtSecret, MatchManager } from "./match/matchManager.js";
 import { handlePlayerConnection } from "./ws/playerHub.js";
@@ -167,6 +168,8 @@ export async function buildApp(
     const q = req.query as Record<string, string>;
     handleDebugConnection(socket as WebSocket, q.matchId ?? "", matchManager);
   });
+
+  await registerDebugRoutes(server, matchManager);
 
   return { server, matchManager };
 }

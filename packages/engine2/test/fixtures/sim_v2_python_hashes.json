@@ -1,7 +1,7 @@
 [
   { "step": 0, "tickAfter": 1, "stateHash": "sha256:2fb30d9c66071d86f72bb93663ce41eeabd911e79f5e3099140c1eb8542ecdc4" },
   { "step": 1, "tickAfter": 2, "stateHash": "sha256:74a35ac41b373d5cad14cf7560d746661f2e30aa90184f2b2b376c2daf2ddf91" },
-  { "step": 2, "tickAfter": 3, "stateHash": "sha256:ee4165c910b285ea36ca792aca5c45e703b4503b495397cfacb54ca54e6e7f57" },
+  { "step": 2, "tickAfter": 3, "stateHash": "sha256:e70abb7e7a5fa7c9bd2ff5b1a195b8b406efeafc459c3ac551a4699fc8299c14" },
   { "step": 3, "tickAfter": 4, "stateHash": "sha256:339f86c582009ad150c494a47e70f8a53a3389cbfe2137cd996fdbf881e7722c" },
   { "step": 4, "tickAfter": 5, "stateHash": "sha256:5bf671dcbbe1572434e662c18c9b3f45a2c4cbfcf56693bc1b8365fc40107525" },
   { "step": 5, "tickAfter": 6, "stateHash": "sha256:32e647d5088093839ad760b263c15d5925ef9ca1de996631924fddca15b984c6" },

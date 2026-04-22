@@ -1,4 +1,7 @@
 import type { Order, Tribe } from "@rr/shared";
+import { projectForPlayer } from "@rr/engine2";
+import { type TickHistory } from "@rr/llm";
+import { buildTickHistory } from "@rr/shared";
 
 import type { ActiveMatch } from "../match/activeMatch.js";
 import { resolveTick } from "../match/resolution.js";
@@ -20,10 +23,19 @@ export async function runAutoPlayLoop(
         const slot = match.slots.get(tribe)!;
         if (slot.type === "pass") return [tribe, [] as Order[]] as const;
         if (slot.type === "llm" && slot.llmConfig) {
+          const prev = match.prevTickState.get(tribe);
+          const view = projectForPlayer(match.state, tribe);
+          let tickHistory: TickHistory | undefined;
+          if (prev) {
+            tickHistory = buildTickHistory(prev, view, match.prevTickEvents, tribe);
+          }
+          const narrative = match.narrativeBuffers.get(tribe);
           const { orders, debug } = await generateLlmOrders(
             match.state,
             tribe,
             slot.llmConfig,
+            tickHistory,
+            narrative,
           );
           return [tribe, orders, debug] as const;
         }

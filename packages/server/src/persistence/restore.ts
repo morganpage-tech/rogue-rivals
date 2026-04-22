@@ -6,7 +6,15 @@ import {
   tick,
 } from "@rr/engine2";
 import type { GameState } from "@rr/engine2";
-import type { CreateMatchRequest, ProjectedView, Tribe } from "@rr/shared";
+import { NarrativeBuffer } from "@rr/llm";
+import type {
+  CreateMatchRequest,
+  PrevTickState,
+  ProjectedView,
+  ResolutionEvent,
+  Tribe,
+} from "@rr/shared";
+import { computeNarrativeForTribe, countOwnedRegions } from "@rr/shared";
 
 import type { TickBufferEntry } from "../match/activeMatch.js";
 import type { MatchLogRecord } from "./matchLog.js";
@@ -18,6 +26,9 @@ export interface ReplayResult {
   tickTimeoutSeconds: number;
   state: GameState;
   tickBuffer: TickBufferEntry[];
+  narrativeBuffers: Map<Tribe, NarrativeBuffer>;
+  prevTickState: Map<Tribe, PrevTickState>;
+  prevTickEvents: ResolutionEvent[];
   finished: boolean;
 }
 
@@ -63,7 +74,14 @@ export function replayMatchFromLog(rawLines: string[]): ReplayResult {
 
   let state: GameState = initMatch(config);
   const tickBuffer: TickBufferEntry[] = [];
+  const narrativeBuffers = new Map<Tribe, NarrativeBuffer>();
+  const prevTickState = new Map<Tribe, PrevTickState>();
+  let prevTickEvents: ResolutionEvent[] = [];
   let finished = false;
+
+  for (const t of state.tribesAlive) {
+    narrativeBuffers.set(t, new NarrativeBuffer());
+  }
 
   for (let i = 1; i < records.length; i++) {
     const rec = records[i];
@@ -90,6 +108,28 @@ export function replayMatchFromLog(rawLines: string[]): ReplayResult {
         events: [...result.events],
         packetsByTribe: rec.packetsByTribe,
       });
+
+      for (const t of result.state.tribesAlive) {
+        const narrativeEntries = computeNarrativeForTribe(result.events, t);
+        const buf = narrativeBuffers.get(t);
+        if (buf) {
+          for (const ne of narrativeEntries) {
+            buf.add(result.state.tick, ne);
+          }
+        }
+      }
+
+      for (const t of result.state.tribesAlive) {
+        const pv = projectedViews[t];
+        if (!pv) continue;
+        prevTickState.set(t, {
+          influence: pv.myPlayerState.influence,
+          regionCount: countOwnedRegions(pv),
+          chooseIds: [],
+        });
+      }
+      prevTickEvents = [...result.events];
+
       state = result.state;
     } else if (rec.kind === "match_end") {
       finished = true;
@@ -103,6 +143,9 @@ export function replayMatchFromLog(rawLines: string[]): ReplayResult {
     tickTimeoutSeconds: first.tickTimeoutSeconds,
     state,
     tickBuffer,
+    narrativeBuffers,
+    prevTickState,
+    prevTickEvents,
     finished,
   };
 }

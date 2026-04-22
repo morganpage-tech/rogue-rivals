@@ -4,8 +4,14 @@ import {
   tick,
 } from "@rr/engine2";
 import type { GameState, OrderPacket, Tribe } from "@rr/engine2";
+import { type TickHistory } from "@rr/llm";
 import type { LlmDecisionDebug, Order, ProjectedView, TickDebug } from "@rr/shared";
-import { sanitizePlayerOrders } from "@rr/shared";
+import {
+  buildTickHistory,
+  computeNarrativeForTribe,
+  countOwnedRegions,
+  sanitizePlayerOrders,
+} from "@rr/shared";
 
 import { generateLlmOrders } from "../autoplay/llmOpponent.js";
 import { appendPacketTick, assertMatchLogTickCount } from "../persistence/matchLog.js";
@@ -15,6 +21,7 @@ interface PacketWithDebug {
   packet: OrderPacket;
   debug?: LlmDecisionDebug;
   orderDescriptions: string[];
+  chooseIds: string[];
 }
 
 async function buildPackets(match: ActiveMatch): Promise<Record<Tribe, PacketWithDebug>> {
@@ -36,6 +43,7 @@ async function buildPackets(match: ActiveMatch): Promise<Record<Tribe, PacketWit
         packets[tribe] = {
           packet: { tribe, tick: tickNum, orders },
           orderDescriptions: orders.map(describeOrder),
+          chooseIds: [],
         };
         return;
       }
@@ -44,16 +52,27 @@ async function buildPackets(match: ActiveMatch): Promise<Record<Tribe, PacketWit
         packets[tribe] = {
           packet: { tribe, tick: tickNum, orders: [] },
           orderDescriptions: [],
+          chooseIds: [],
         };
         return;
       }
 
       if (slot.type === "llm" && slot.llmConfig) {
-        const { orders, debug } = await generateLlmOrders(st, tribe, slot.llmConfig);
+        const prev = match.prevTickState.get(tribe);
+        const view = projectForPlayer(st, tribe);
+        let tickHistory: TickHistory | undefined;
+        if (prev) {
+          tickHistory = buildTickHistory(prev, view, match.prevTickEvents, tribe);
+        }
+        const narrative = match.narrativeBuffers.get(tribe);
+        const { orders, debug, chooseIds } = await generateLlmOrders(
+          st, tribe, slot.llmConfig, tickHistory, narrative,
+        );
         packets[tribe] = {
           packet: { tribe, tick: tickNum, orders },
           debug,
           orderDescriptions: orders.map(describeOrder),
+          chooseIds,
         };
         return;
       }
@@ -61,6 +80,7 @@ async function buildPackets(match: ActiveMatch): Promise<Record<Tribe, PacketWit
       packets[tribe] = {
         packet: { tribe, tick: tickNum, orders: [] },
         orderDescriptions: [],
+        chooseIds: [],
       };
     }),
   );
@@ -130,6 +150,27 @@ export async function resolveTick(match: ActiveMatch, matchId: string): Promise<
   match.tickBuffer.push(entry);
   match.debugBuffer.push(tickDebug);
   match.submittedOrders.clear();
+
+  for (const tribe of result.state.tribesAlive) {
+    const narrativeEntries = computeNarrativeForTribe(result.events, tribe);
+    const buf = match.narrativeBuffers.get(tribe);
+    if (buf) {
+      for (const ne of narrativeEntries) {
+        buf.add(result.state.tick, ne);
+      }
+    }
+  }
+
+  for (const tribe of result.state.tribesAlive) {
+    const newPv = projectedViews[tribe];
+    if (!newPv) continue;
+    match.prevTickState.set(tribe, {
+      influence: newPv.myPlayerState.influence,
+      regionCount: countOwnedRegions(newPv),
+      chooseIds: packetsWithDebug[tribe]?.chooseIds ?? [],
+    });
+  }
+  match.prevTickEvents = [...result.events];
 
   appendPacketTick(matchId, {
     kind: "tick",

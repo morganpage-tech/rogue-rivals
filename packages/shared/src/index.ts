@@ -7,3 +7,4 @@ export * from "./spectator.js";
 export * from "./wsMessages.js";
 export * from "./auth.js";
 export * from "./debug.js";
+export * from "./tickHistory.js";

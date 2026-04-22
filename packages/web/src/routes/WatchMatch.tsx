@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { DebugPanel } from "../components/DebugPanel.js";
+import { DebugSandboxPanel } from "../components/DebugSandboxPanel.js";
 import { SpectatorMap } from "../components/SpectatorMap.js";
 import { SpectatorScoreboard } from "../components/SpectatorScoreboard.js";
 import { SpectatorTimeline } from "../components/SpectatorTimeline.js";
@@ -28,6 +29,7 @@ export function WatchMatch(): React.ReactElement {
   const stepBack = useSpectatorStore((s) => s.stepBack);
 
   const [showDebug, setShowDebug] = useState(false);
+  const [showSandbox, setShowSandbox] = useState(false);
   const debugConnect = useDebugStore((s) => s.connect);
   const debugDisconnect = useDebugStore((s) => s.disconnect);
   const debugTick = useDebugTickForIndex(tickIndex);
@@ -91,6 +93,13 @@ export function WatchMatch(): React.ReactElement {
           <h1>Rogue Rivals — Spectating</h1>
           <button
             type="button"
+            className={`dp-toggle-btn ${showSandbox ? "dp-toggle-active" : ""}`}
+            onClick={() => setShowSandbox(!showSandbox)}
+          >
+            Sandbox
+          </button>
+          <button
+            type="button"
             className={`dp-toggle-btn ${showDebug ? "dp-toggle-active" : ""}`}
             onClick={() => setShowDebug(!showDebug)}
           >
@@ -139,6 +148,12 @@ export function WatchMatch(): React.ReactElement {
         {showDebug && (
           <aside className="pw-sidebar pw-debug-sidebar">
             <DebugPanel debug={debugTick} />
+          </aside>
+        )}
+
+        {showSandbox && matchId && (
+          <aside className="pw-sidebar pw-debug-sidebar">
+            <DebugSandboxPanel matchId={matchId} currentTickIndex={tickIndex} />
           </aside>
         )}
       </div>

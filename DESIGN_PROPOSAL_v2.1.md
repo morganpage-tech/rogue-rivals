@@ -61,7 +61,7 @@ Instead of adding artificial cost/cooldown/delay levers, tie inter-tribe proposa
 
 ### 2.2 Rebalance the defender stack
 
-- `**COMBAT_FORT_BONUS`: 1 → 0**, OR cap `fort_home_combined_bonus = 1`. `packages/engine2/src/constants.ts:85`. Defender already has terrain, garrison recruit, and ally-reinforcement options; stacking fort on top makes home regions unbreakable at equal tier.
+- **Cap `fort_home_combined_bonus = 1`.** Add `COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP = 1` in `constants.ts`. Resolution applies `min(own_region_bonus + fort_bonus, cap)`. `COMBAT_FORT_BONUS` stays at 1, but the combined home+fort stack is clamped. Rationale: forts remain meaningfully defensive — a tribe that invests in a fort gets a tangible benefit — but an equal-tier attacker in a home region faces +1 instead of +2, making aggression viable. Defender still retains terrain, garrison recruit, and ally-reinforcement options; this is a targeted fix for the double-stack problem, not a blanket defender nerf.
 - **Allow multi-force attacker stacking at the combat tick.** Current `arrival_rejected_garrison_cap` fires 6+ times per match, often blocking the second wave of an attack. Update force-arrival resolution in `tick.ts` to combine co-arriving attackers before applying the garrison cap.
 - **Attacker scout-intel bonus: +1 when attacker scouted the target ≥2 ticks before force arrival.** Mirrors the existing `COMBAT_SCOUT_REVEAL_PENALTY = -1`. Gives scouts offensive utility and rewards planning.
 
@@ -92,16 +92,66 @@ Flavor in prompts is not enough. Give each persona a small mechanical kit:
 
 ### 2.5 Speed up the clock
 
-- **Reduce victory sustain from 3 → 1 tick** for diplomatic, economic, and territorial wins. `tick.ts` victory check. With the peace-lock lifted, sustain-3 becomes achievable again, but sustain-1 guarantees the paths can actually trigger.
+- **Reduce victory sustain from 3 → 2 ticks** for diplomatic, economic, and territorial wins. `tick.ts` victory check. Sustain-1 was considered and rejected: it eliminates the reaction window core to the GDD's "orders in flight" drama — a tribe could win between ticks with no chance for rivals to respond. Sustain-2 preserves exactly one reaction tick: rivals see the dominance condition ticking and have one tick to break it via combat, diplomacy, or resource denial. This is achievable now that the peace-lock is lifted, while still protecting the signature tension of delayed consequences.
 - **Add late-game region-yield decay.** New constants `YIELD_DECAY_START_TICK = 30`, `YIELD_DECAY_PER_TICK = 0.05` (multiplicative, floor at 1 Influence/region). Accumulation becomes unsustainable past tick 30; dominant tribes must commit or lose their lead.
 - `**DEFAULT_TICK_LIMIT`: 60 → 40** once yield decay lands. `constants.ts:149`. Matches finish in a reasonable number of LLM calls.
 
 ### 2.6 Give messages mechanical weight
 
-- **Optional `commitment` on messages.** Payload shape: `{ kind: "no_attack" | "no_scout", target_region_id: string, length_ticks: number }`. Breaking a commitment triggers the same reputation penalty as pact-break.
-- Files: `packages/shared/src/engineTypes.ts` (Order + message payload), `tick.ts` (commitment tracking and break detection).
 - **Cap at 3 messages per tribe per tick.** `tick.ts` order validation. Observed peak is 16 in a single tick; the cap forces LLMs to pick signal.
-- Commitments turn free chat into a diplomatic ledger — lies become detectable and costly, which is what the GDD's "diplomatic double-life" pillar asked for.
+- **Optional `commitment` attached to any message.** Commitments are unilateral, binding promises — the sender binds themselves with no acceptance required from the target. They turn free chat into a diplomatic ledger: lies become detectable and costly, which is what the GDD's "diplomatic double-life" pillar asked for.
+
+  **Commitment types:**
+
+  | Kind | Violation condition |
+  | --- | --- |
+  | `no_attack` | Any combat event where the committer's force is the attacker in `target_region_id` during the commitment window. Includes forces already in transit — a tribe should not make promises it cannot keep. |
+  | `no_scout` | Any scout owned by the committer arriving in `target_region_id` during the commitment window. |
+
+  Region-scoped only (not tribe-scoped). Region-scoped commitments are more strategically expressive — "I won't attack your capital" is a different signal than "I won't attack you at all" — and avoid edge cases around captured/transferred regions. An LLM that wants tribe-scope approximation can issue multiple region-scoped commitments.
+
+  **Mechanics:**
+
+  - **Binding:** unilateral. No acceptance required. The commitment is recorded in `GameState` at message-dispatch time.
+  - **Visibility:** active commitments are visible to sender + target tribe only (same channel as messages). However, a *breach* is announced publicly (same as pact-break announcements) — the diplomatic double-life becomes public when the lie is exposed.
+  - **Enforcement:** breached orders still execute — the engine does not block the violating order. Instead, a `commitment_breach` event fires, applying the reputation penalty. Rationale: blocking orders would let a tribe "accidentally" probe whether an enemy has a commitment-protected region by attempting to move and checking for rejection.
+  - **Max:** 1 commitment per message. A tribe can hold multiple active commitments across multiple messages.
+  - **Expiry:** `length_ticks` after the tick the message was sent (range 1–5, capped by `COMMITMENT_MAX_LENGTH_TICKS`). Expired commitments are silently removed from state.
+  - **Breach penalty:** separate from pact-break. New constant `COMMITMENT_BREACH_REPUTATION_PENALTY = 2` ticks (flat, no early/late distinction). Lighter than pact-break (early: 4, late: 2) because commitments are lighter-weight diplomatic instruments than formal pacts.
+
+  **Payload and state types** (`packages/shared/src/engineTypes.ts`):
+
+  ```ts
+  type Commitment = {
+    kind: "no_attack" | "no_scout";
+    target_region_id: string;
+    length_ticks: number;   // 1–5
+  };
+
+  type ActiveCommitment = {
+    id: string;
+    sender: Tribe;
+    target: Tribe;
+    commitment: Commitment;
+    issued_tick: number;
+    expires_tick: number;
+    breached: boolean;
+  };
+  ```
+
+  The existing message payload gains an optional field:
+
+  ```ts
+  type MessagePayload = {
+    text: string;
+    commitment?: Commitment;
+  };
+  ```
+
+  **Files:**
+  - `packages/shared/src/engineTypes.ts` — `Commitment`, `ActiveCommitment`, `MessagePayload` types.
+  - `packages/engine2/src/constants.ts` — `COMMITMENT_BREACH_REPUTATION_PENALTY = 2`, `COMMITMENT_MAX_LENGTH_TICKS = 5`.
+  - `packages/engine2/src/tick.ts` — commitment recording on message dispatch, breach detection during combat/scout resolution, expiry cleanup at end-of-tick.
 
 ### 2.7 Widen LLM legal-option grammar + improve error feedback
 
@@ -164,7 +214,6 @@ Store phase outputs under `simulations/v2_1_phaseA/`, `/phaseB/`, etc. to keep d
 1. **Persona kits first, or prompt-only variance first?** Kits are a larger architectural change; it may be worth confirming prompt-only personas stay flat after Phases A–C before committing.
 2. **Visibility gate — should `shared_vision` proposals be exempt?** Current draft gates them too (consistency). Counter-argument: `shared_vision` is itself a reveal mechanism, so letting an isolated tribe offer it unsolicited could be a legit broker play.
 3. **Yield decay:** flat 5% per tick after 30, or stepped (10% after 45, 20% after 55)?
-4. **Commitments:** same reputation stream as pact-break, or a separate `promise_break` event with its own penalty duration?
 
 ---
 

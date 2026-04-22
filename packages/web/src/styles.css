@@ -857,6 +857,38 @@ code,
   pointer-events: none;
 }
 
+.v2-trail-road {
+  stroke: #7a8a58;
+  stroke-width: 3;
+  stroke-dasharray: 8 4;
+}
+
+.v2-map-terrain-label {
+  font-size: 9px;
+  fill: #556;
+  pointer-events: none;
+}
+
+.v2-map-tribe-name {
+  font-size: 9px;
+  font-weight: 700;
+  fill: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+
+.v2-map-garrison-empty {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.25);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.v2-map-tick-overlay {
+  fill: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .v2-queue-list {
   margin: 8px 0 0 18px;
   font-size: 12px;
@@ -1821,4 +1853,185 @@ code,
   color: var(--muted);
   font-size: 12px;
   margin: 8px 0 16px;
+}
+
+/* ─── Debug Sandbox Panel ─────────────────────────────────────────── */
+
+.dsp-panel {
+  padding: 12px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dsp-title {
+  margin: 0;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.dsp-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.dsp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dsp-info {
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dsp-winner {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.dsp-scrubber {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dsp-slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.dsp-scrub-btns {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.dsp-frame-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dsp-orders {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dsp-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.dsp-textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.dsp-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dsp-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.dsp-btn {
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.dsp-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.dsp-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dsp-btn-primary {
+  background: var(--accent);
+  color: #241a0a;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.dsp-btn-primary:hover:not(:disabled) {
+  background: #f3be75;
+}
+
+.dsp-btn-small {
+  font-size: 10px;
+  padding: 3px 8px;
+}
+
+.dsp-error {
+  color: var(--bad);
+  font-size: 11px;
+  margin: 0;
+  padding: 4px 8px;
+  background: rgba(225, 100, 100, 0.1);
+  border-radius: 4px;
+}
+
+.dsp-events {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.dsp-events-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin: 0 0 6px 0;
+}
+
+.dsp-events-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dsp-event-item {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.4;
+  padding: 3px 6px;
+  background: var(--panel-2);
+  border-radius: 3px;
+  color: var(--muted);
+  word-break: break-all;
 }

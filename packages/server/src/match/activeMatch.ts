@@ -1,11 +1,13 @@
 import type { WebSocket } from "ws";
 
 import type { GameState } from "@rr/engine2";
+import { NarrativeBuffer } from "@rr/llm";
 import type {
   CreateMatchRequest,
   LlmDecisionDebug,
   Order,
   OrderPacket,
+  PrevTickState,
   ProjectedView,
   ResolutionEvent,
   SubmitOrdersResponse,
@@ -56,6 +58,9 @@ export class ActiveMatch {
   tickTimeoutSeconds: number;
   acceptingWork = true;
   pendingDecisions: LlmDecisionDebug[] = [];
+  narrativeBuffers: Map<Tribe, NarrativeBuffer> = new Map();
+  prevTickState: Map<Tribe, PrevTickState> = new Map();
+  prevTickEvents: ResolutionEvent[] = [];
 
   private _lock: Promise<void> = Promise.resolve();
 
@@ -77,6 +82,9 @@ export class ActiveMatch {
     this.status = autoPlay ? "running" : "lobby";
     this.autoPlay = autoPlay;
     this.tickTimeoutSeconds = tickTimeoutSeconds;
+    for (const t of state.tribesAlive) {
+      this.narrativeBuffers.set(t, new NarrativeBuffer());
+    }
   }
 
   async withLock<T>(op: () => Promise<T>): Promise<T> {

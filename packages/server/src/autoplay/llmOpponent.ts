@@ -7,6 +7,7 @@ import { ordersFromChooseIds, ordersFromLlmMessageList } from "./orderFromLegal.
 
 export interface LlmOrdersWithDebug {
   orders: Order[];
+  chooseIds: string[];
   debug: LlmDecisionDebug;
 }
 
@@ -33,6 +34,7 @@ export async function generateLlmOrders(
   const orders = sanitizePlayerOrders(view.myPlayerState.influence, merged);
   return {
     orders,
+    chooseIds: result.choose ?? [],
     debug: { ...debug, tribe },
   };
 }

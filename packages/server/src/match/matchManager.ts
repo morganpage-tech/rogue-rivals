@@ -551,6 +551,9 @@ export class MatchManager {
         replay.tickTimeoutSeconds,
       );
       match.tickBuffer = replay.tickBuffer;
+      match.narrativeBuffers = replay.narrativeBuffers;
+      match.prevTickState = replay.prevTickState;
+      match.prevTickEvents = replay.prevTickEvents;
       const isFinished = replay.finished || match.state.winner !== null;
       match.status = isFinished ? "finished" : "running";
       this.matches.set(matchId, match);
