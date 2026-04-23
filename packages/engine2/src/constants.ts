@@ -85,6 +85,7 @@ export const COMBAT_DEFENDER_OWN_REGION_BONUS = 1;
 export const COMBAT_FORT_BONUS = 1;
 export const COMBAT_REINFORCEMENT_BONUS_PER_ALLY = 1;
 export const COMBAT_REINFORCEMENT_BONUS_CAP = 2;
+export const COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP = 1;
 export const COMBAT_SCOUT_REVEAL_PENALTY = -1;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,6 +151,7 @@ export const DEFAULT_TICK_LIMIT = 60;
 
 export const DEFAULT_NAP_LENGTH = 4;
 export const DEFAULT_SHARED_VISION_LENGTH = 5;
+export const MESSAGE_CAP_PER_TRIBE = 3;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Victory (§8)

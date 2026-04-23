@@ -83,7 +83,7 @@ describe("projectForPlayer", () => {
     expect(targets).not.toContain("red");
   });
 
-  it("declare_war is available even without visibility", () => {
+  it("declare_war requires visibility", () => {
     const state = handMinimalState();
     const pv = projectForPlayer(state, "orange");
     const warOpts = pv.legalOrderOptions.filter((o) => o.id.startsWith("propose:declare_war:"));
@@ -91,9 +91,9 @@ describe("projectForPlayer", () => {
       const match = o.id.match(/^propose:declare_war:(\w+)/);
       return match ? match[1] : null;
     });
-    expect(warTargets).toContain("grey");
-    expect(warTargets).toContain("red");
     expect(warTargets).toContain("brown");
+    expect(warTargets).toContain("grey");
+    expect(warTargets).not.toContain("red");
   });
 
   it("includes tribesAlive", () => {

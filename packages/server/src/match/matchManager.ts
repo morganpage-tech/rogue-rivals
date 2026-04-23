@@ -571,6 +571,12 @@ export class MatchManager {
       const isFinished = replay.finished || match.state.winner !== null;
       match.status = isFinished ? "finished" : "paused";
       this.matches.set(matchId, match);
+      if (!isFinished) {
+        const ok = this.resumeMatch(matchId);
+        if (!ok) {
+          console.error(`[restore] resumeMatch failed for ${matchId} (status=${this.matches.get(matchId)?.status})`);
+        }
+      }
     }
   }
 

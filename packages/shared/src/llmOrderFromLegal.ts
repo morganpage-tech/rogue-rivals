@@ -84,14 +84,34 @@ function optionIdLookupKeys(rawId: string): string[] {
   return keys;
 }
 
+export interface ChooseIdRejection {
+  readonly rawId: string;
+  readonly prefix: string;
+  readonly legalAlternatives: readonly string[];
+}
+
+export interface OrdersFromChooseIdsResult {
+  readonly orders: Order[];
+  readonly rejected: readonly ChooseIdRejection[];
+}
+
+function inferPrefix(rawId: string): string {
+  const parts = rawId.split(":");
+  if (parts.length < 2) return rawId;
+  if (parts[0] === "propose" && parts.length >= 3) return `${parts[0]}:${parts[1]}:${parts[2]}`;
+  if (parts[0] === "respond") return "respond";
+  return parts.slice(0, 2).join(":");
+}
+
 export function ordersFromChooseIds(
   view: ProjectedView,
   chooseIds: readonly string[],
-): Order[] {
+): OrdersFromChooseIdsResult {
   const optionMap = new Map<string, LegalOrderOption>(
     view.legalOrderOptions.map((o) => [o.id, o]),
   );
   const orders: Order[] = [];
+  const rejected: ChooseIdRejection[] = [];
   const seenRaw = new Set<string>();
   const seenLegalId = new Set<string>();
 
@@ -112,7 +132,14 @@ export function ordersFromChooseIds(
       opt = optionMap.get(key);
       if (opt) break;
     }
-    if (!opt) continue;
+    if (!opt) {
+      const prefix = inferPrefix(trimmed);
+      const alternatives = view.legalOrderOptions
+        .filter((o) => o.id.startsWith(prefix))
+        .map((o) => o.id);
+      rejected.push({ rawId: trimmed, prefix, legalAlternatives: alternatives });
+      continue;
+    }
     if (seenLegalId.has(opt.id)) continue;
     seenLegalId.add(opt.id);
     try {
@@ -121,7 +148,7 @@ export function ordersFromChooseIds(
       /* drop invalid */
     }
   }
-  return orders;
+  return { orders, rejected };
 }
 
 export function ordersFromLlmMessageList(

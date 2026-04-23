@@ -4,10 +4,12 @@ import type { GameState, Order } from "@rr/engine2";
 import { sanitizePlayerOrders, type LlmDecisionDebug } from "@rr/shared";
 import type { LlmSlotConfig, Tribe } from "@rr/shared";
 import { ordersFromChooseIds, ordersFromLlmMessageList } from "./orderFromLegal.js";
+import type { ChooseIdRejection } from "@rr/shared";
 
 export interface LlmOrdersWithDebug {
   orders: Order[];
   chooseIds: string[];
+  rejectedChooseIds: readonly ChooseIdRejection[];
   debug: LlmDecisionDebug;
 }
 
@@ -28,13 +30,14 @@ export async function generateLlmOrders(
       narrative,
     },
   );
-  const fromChoose = ordersFromChooseIds(view, result.choose ?? []);
+  const { orders: fromChoose, rejected } = ordersFromChooseIds(view, result.choose ?? []);
   const fromMessages = ordersFromLlmMessageList(view, result.messages ?? []);
   const merged = [...fromChoose, ...fromMessages];
   const orders = sanitizePlayerOrders(view.myPlayerState.influence, merged);
   return {
     orders,
     chooseIds: result.choose ?? [],
+    rejectedChooseIds: rejected,
     debug: { ...debug, tribe },
   };
 }

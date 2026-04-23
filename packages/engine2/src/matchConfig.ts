@@ -21,7 +21,7 @@ export const DEFAULT_MATCH_CONFIG: Omit<MatchConfig, "seed"> = {
   regionCount: 20,
   tickLimit: 60,
   victorySustainTicks: 3,
-  napDefaultLength: 8,
+  napDefaultLength: 4,
   sharedVisionDefaultLength: 5,
   caravanTravelTicks: 2,
 } as const;

@@ -325,6 +325,88 @@ describe("tick scout", () => {
   });
 });
 
+describe("tick combat defender bonus cap", () => {
+  it("defender own_region + fort bonus is capped at 1", () => {
+    const state = handMinimalState();
+    const defenderRegion = Object.keys(state.regions).find(
+      (rid) => state.regions[rid]!.owner === "orange",
+    )!;
+    state.regions[defenderRegion]!.structures.push("fort");
+
+    const defenderForce = Object.values(state.forces).find(
+      (f) => f.owner === "orange",
+    )!;
+    const attackerForceId = `f_test_attacker`;
+    state.forces[attackerForceId] = {
+      id: attackerForceId,
+      owner: "grey",
+      tier: defenderForce.tier,
+      location: { kind: "garrison", regionId: defenderRegion },
+    };
+
+    const result = tick(state, emptyPackets(state));
+
+    const combatEvents = result.events.filter((e) => e.kind === "combat");
+    expect(combatEvents.length).toBe(1);
+    const combat = combatEvents[0] as any;
+    expect(combat.d_eff).toBe(defenderForce.tier + 1);
+    expect(combat.a_eff).toBe(defenderForce.tier);
+    expect(combat.result).toBe("defender_wins");
+  });
+
+  it("defender in unfortified home region still gets +1", () => {
+    const state = handMinimalState();
+    const defenderRegion = Object.keys(state.regions).find(
+      (rid) => state.regions[rid]!.owner === "orange",
+    )!;
+
+    const defenderForce = Object.values(state.forces).find(
+      (f) => f.owner === "orange",
+    )!;
+    const attackerForceId = `f_test_attacker`;
+    state.forces[attackerForceId] = {
+      id: attackerForceId,
+      owner: "grey",
+      tier: defenderForce.tier,
+      location: { kind: "garrison", regionId: defenderRegion },
+    };
+
+    const result = tick(state, emptyPackets(state));
+
+    const combatEvents = result.events.filter((e) => e.kind === "combat");
+    expect(combatEvents.length).toBe(1);
+    const combat = combatEvents[0] as any;
+    expect(combat.d_eff).toBe(defenderForce.tier + 1);
+    expect(combat.result).toBe("defender_wins");
+  });
+});
+
+describe("tick message cap", () => {
+  it("allows up to 3 messages per tribe per tick", () => {
+    const state = handMinimalState();
+    const msgs = ["grey", "brown", "red"].map(
+      (to) => ({ kind: "message" as const, to: to as any, text: `hello ${to}` }),
+    );
+    const result = tick(state, packetsWithOrders(state, { orange: msgs }));
+    const sent = result.events.filter((e) => e.kind === "message_sent" && (e as any).from === "orange");
+    expect(sent.length).toBe(3);
+  });
+
+  it("rejects messages beyond the cap", () => {
+    const state = handMinimalState();
+    const targets = (state.tribesAlive.filter((t) => t !== "orange") as string[]);
+    while (targets.length < 5) targets.push(targets[0]!);
+    const msgs = targets.map(
+      (to, i) => ({ kind: "message" as const, to: to as any, text: `msg ${i}` }),
+    );
+    const result = tick(state, packetsWithOrders(state, { orange: msgs }));
+    const sent = result.events.filter((e) => e.kind === "message_sent" && (e as any).from === "orange");
+    const failed = result.events.filter((e) => e.kind === "message_failed" && (e as any).from === "orange");
+    expect(sent.length).toBe(3);
+    expect(failed.length).toBe(msgs.length - 3);
+  });
+});
+
 describe("tick influence production", () => {
   it("credits influence to all tribes each tick", () => {
     const state = handMinimalState();

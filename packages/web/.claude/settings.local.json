@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm exec *)",
+      "Bash(xargs ls *)",
+      "Bash(awk '{print $NF}')",
+      "Bash(xargs -I {} bash -c 'echo \"=== {} ===\" && wc -l {} && head -1 {} | jq -c \"{seed:.seed, tick:.tick}\" && tail -1 {} | jq -c \"{winner:.winner, tick_final:.tick_final, llm_calls:.llm_calls, llm_errors:.llm_errors}\"')",
+      "Bash(xargs -I {} bash -c 'echo \"=== {} ===\" && cat {}')",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
+    ]
+  }
+}

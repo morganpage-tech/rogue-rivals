@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import type { Order, ProjectedView, Tribe } from "@rr/shared";
+import type { SubmitOrdersResponse } from "@rr/shared";
 
 import { apiUrl, wsUrl } from "../config.js";
 
@@ -62,37 +63,53 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     const lockedMatchId = matchId;
     get().disconnect();
     set({ connection: "connecting" });
-    const ws = new WebSocket(wsUrl(`/ws/play?matchId=${encodeURIComponent(matchId)}`));
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "auth", token }));
-    };
-    ws.onmessage = (ev) => {
-      if (get().matchId !== lockedMatchId) return;
-      const msg = JSON.parse(ev.data as string) as {
-        type?: string;
-        projectedView?: ProjectedView;
-        tick?: number;
-        tribes?: Tribe[];
-      };
-      if (msg.type === "view" && msg.projectedView) {
-        set({
-          view: msg.projectedView,
-          connection: "connected",
-          chosenIds: [],
-          submittedThisTick: false,
-          pendingPacketId: null,
-          pendingForTick: null,
-          waitingFor: [],
+    void (async () => {
+      try {
+        const snap = await fetch(apiUrl(`/api/matches/${lockedMatchId}`), {
+          headers: { Authorization: `Bearer ${token}` },
         });
-      } else if (msg.type === "waiting_for" && msg.tribes) {
-        set({ waitingFor: msg.tribes });
+        if (snap.ok) {
+          const j = (await snap.json()) as { matchStatus?: string };
+          if (j.matchStatus === "paused") {
+            await fetch(apiUrl(`/api/matches/${lockedMatchId}/resume`), { method: "POST" });
+          }
+        }
+      } catch {
+        /* non-fatal; server may be older */
       }
-    };
-    ws.onclose = () => {
       if (get().matchId !== lockedMatchId) return;
-      set({ ws: null, connection: "disconnected" });
-    };
-    set({ ws });
+      const ws = new WebSocket(wsUrl(`/ws/play?matchId=${encodeURIComponent(matchId)}`));
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "auth", token }));
+      };
+      ws.onmessage = (ev) => {
+        if (get().matchId !== lockedMatchId) return;
+        const msg = JSON.parse(ev.data as string) as {
+          type?: string;
+          projectedView?: ProjectedView;
+          tick?: number;
+          tribes?: Tribe[];
+        };
+        if (msg.type === "view" && msg.projectedView) {
+          set({
+            view: msg.projectedView,
+            connection: "connected",
+            chosenIds: [],
+            submittedThisTick: false,
+            pendingPacketId: null,
+            pendingForTick: null,
+            waitingFor: [],
+          });
+        } else if (msg.type === "waiting_for" && msg.tribes) {
+          set({ waitingFor: msg.tribes });
+        }
+      };
+      ws.onclose = () => {
+        if (get().matchId !== lockedMatchId) return;
+        set({ ws: null, connection: "disconnected" });
+      };
+      set({ ws });
+    })();
   },
 
   disconnect() {
@@ -130,9 +147,18 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         }),
       });
       if (!res.ok) throw new Error(await res.text());
-      const body = (await res.json()) as { status: string };
+      const body = (await res.json()) as SubmitOrdersResponse;
       if (body.status === "accepted") {
-        set({ submittedThisTick: true });
+        set({ submittedThisTick: true, waitingFor: body.pendingTribes });
+      } else if (body.status === "resolved" && body.view) {
+        set({
+          view: body.view,
+          chosenIds: [],
+          submittedThisTick: false,
+          pendingPacketId: null,
+          pendingForTick: null,
+          waitingFor: [],
+        });
       }
     } catch (e) {
       set({ error: String(e) });

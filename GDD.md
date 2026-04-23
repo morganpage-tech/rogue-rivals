@@ -9,7 +9,11 @@
 
 ## 0. Revision Notes
 
-- **v2.0 (2026-04-18):** Ground-up pivot from synchronous hot-seat resource race to **asynchronous-on-submit territorial strategy**, in the spirit of *Neptune's Pride*. Worldbuilding and tribal identities from v0.x are preserved; the core mechanical loop is replaced. See �10 for what carries over.
+- **v2.0 (2026-04-18):** Ground-up pivot from synchronous hot-seat resource race to **asynchronous-on-submit territorial strategy**, in the spirit of *Neptune's Pride*. Worldbuilding and tribal identities from v0.x are preserved; the core mechanical loop is replaced. See §10 for what carries over.
+
+### Implementation status (audited 2026-04-23)
+
+The architecture described in this document is largely implemented: tick-based async resolution, fog of war, abstract force tiers, structured diplomacy, map generation, 6-player continent map, server-authoritative architecture (see `SERVER_MIGRATION.md`), LLM opponents with persona-driven prompts, and a thin web client. The **major gap** is victory conditions: only *Last standing* and *Tick limit weighted score* are implemented in the engine. The multi-path conditions below (*Territorial dominance*, *Economic supremacy*, *Cultural ascendancy*, *Diplomatic hegemony*) and their sustain counters are specified in `RULES.md` §8 but not yet coded in `@rr/engine2`. Without them, matches can only end via elimination or tick-limit timeout.
 
 ---
 

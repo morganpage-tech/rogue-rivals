@@ -367,10 +367,10 @@ describe("REST API", () => {
       url: `/api/matches/${matchId}`,
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().stopped).toBe(true);
-
-    const match = matchManager.getMatch(matchId);
-    expect(match?.status).toBe("finished");
+    const body = res.json();
+    expect(body.deleted).toBe(true);
+    expect(body.matchId).toBe(matchId);
+    expect(matchManager.getMatch(matchId)).toBeUndefined();
   });
 
   it("DELETE /api/matches/:id on finished match deletes it", async () => {

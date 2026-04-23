@@ -110,7 +110,7 @@ async function llmOrders(
     tickHistory,
     narrative,
   });
-  const fromChoose = ordersFromChooseIds(view, json.choose ?? []);
+  const { orders: fromChoose } = ordersFromChooseIds(view, json.choose ?? []);
   const fromMessages = ordersFromLlmMessageList(view, json.messages ?? []);
   const merged = [...fromChoose, ...fromMessages];
   const orders = sanitizePlayerOrders(view.myPlayerState.influence, merged);

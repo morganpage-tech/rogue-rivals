@@ -79,7 +79,7 @@ describe("restoreMatches", () => {
     }
   });
 
-  it("restores an in-progress match missing match_end as paused", async () => {
+  it("restores an in-progress match missing match_end and auto-resumes", async () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "rr-restore-paused-"));
     process.env.DATA_DIR = tmp;
 
@@ -122,7 +122,7 @@ describe("restoreMatches", () => {
       mgr2.restoreMatches();
       const restored = mgr2.getMatch(matchId);
       expect(restored).toBeDefined();
-      expect(restored!.status).toBe("paused");
+      expect(restored!.status).toBe("running");
       expect(restored!.tickBuffer.length).toBeGreaterThanOrEqual(1);
       await mgr2.drain();
     } finally {
@@ -130,7 +130,7 @@ describe("restoreMatches", () => {
     }
   });
 
-  it("can resume a paused match and drive it to completion", { timeout: 30_000 }, async () => {
+  it("drives a restored in-progress autoPlay match to completion without manual resume", { timeout: 30_000 }, async () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "rr-restore-resume-"));
     process.env.DATA_DIR = tmp;
 
@@ -173,10 +173,7 @@ describe("restoreMatches", () => {
       mgr2.restoreMatches();
       const restored = mgr2.getMatch(matchId);
       expect(restored).toBeDefined();
-      expect(restored!.status).toBe("paused");
-
-      const ok = mgr2.resumeMatch(matchId);
-      expect(ok).toBe(true);
+      expect(restored!.status).toBe("running");
 
       await new Promise<void>((resolve, reject) => {
         const deadline = Date.now() + 30_000;

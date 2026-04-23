@@ -12,6 +12,20 @@ This document is the **canonical** rules specification for Rogue Rivals. Every n
 
 - **v2.0 (2026-04-18):** Full async-pivot ruleset. Tick-based simultaneous resolution, fog of war, abstract force tiers, structured diplomacy. The retired synchronous v0.x hot-seat ruleset has been removed from the repository.
 
+### Implementation status (audited 2026-04-23)
+
+This document is the canonical specification. Not all sections are yet implemented in `@rr/engine2`. Key gaps:
+
+- **§2 Match Configuration** — `nap_default_length` is `4` in the engine (`constants.ts`), not `8` as listed in the default table. `matchConfig.ts` still declares `8` — known discrepancy.
+- **§5 Tick Resolution** — implemented and conformant.
+- **§6 Movement** — implemented and conformant.
+- **§7 Combat Resolution** — implemented and conformant.
+- **§8 Victory Conditions** — **partially implemented.** Only *Last standing* (§8.1) and *Tick limit* weighted score (§8.6) exist in the engine. The four sustained/deterministic conditions — *Territorial dominance*, *Economic supremacy*, *Cultural ascendancy*, and *Diplomatic hegemony* — and their sustain counters (`victory_counters`) are **not yet implemented**. Matches end only when one tribe controls all regions or the tick limit is reached.
+- **§9 Fog of War** — implemented, including `canSeeTribe()` used for visibility-gated diplomacy (a `DESIGN_PROPOSAL_v2.1.md` §2.1 adoption).
+- **§11 Map Generation** — implemented, including the 6-player continent map (`MAP_6P_v2.md`).
+- **§13 Sample Worked Tick** — the sample is consistent with the engine but uses `nap_default_length: 8`; the engine now defaults to `4`.
+- **Visibility-gated diplomacy** (from `DESIGN_PROPOSAL_v2.1.md` §2.1) — proposal dispatch and acceptance for `nap`, `shared_vision`, and `trade_offer` require mutual visibility via `canSeeTribe()`. This is a v2.1-era change adopted into the v2.0 engine. Trade escrow (v2.1 §2.3) is also adopted: sender Influence is debited at propose-time, refunded on decline/expiry.
+
 ---
 
 ## 1. Determinism Contract
@@ -37,7 +51,7 @@ A match is specified by a `MatchConfig`:
   "region_count": 20,
   "tick_limit": 60,
   "victory_sustain_ticks": 3,
-  "nap_default_length": 8,
+  "nap_default_length": 4,
   "shared_vision_default_length": 5,
   "caravan_travel_ticks": 2
 }
@@ -51,7 +65,7 @@ Default `MatchConfig`:
 | `region_count`                 | 20 (range 15–25)           |
 | `tick_limit`                   | 60                         |
 | `victory_sustain_ticks`        | 3                          |
-| `nap_default_length`           | 8                          |
+| `nap_default_length`           | **4** (engine; was 8 in early v2.0 drafts — spec updated) |
 | `shared_vision_default_length` | 5                          |
 | `caravan_travel_ticks`         | 2                          |
 | `map_preset`                   | `"procedural"` (uses seed) |
@@ -564,6 +578,8 @@ Ownership transfers when a non-owner garrisons a region after combat. Structures
 
 ## 8. Victory Conditions
 
+> **Engine status (2026-04-23):** Only conditions 1 (Last standing) and 6 (Tick limit) are implemented in `@rr/engine2`. Conditions 2–5 and their sustain counters (`victory_counters`) are **not yet implemented**. This is the single largest engine gap relative to this specification.
+
 Checked at the end of §5.10. Conditions evaluated in this order; the first match wins:
 
 1. **Last standing.** Only one tribe has any owned regions. That tribe wins immediately.
@@ -742,14 +758,17 @@ Tick 8 and onward proceed similarly. Grey's scout arrives at r_02 on tick 8; the
 
 These are acknowledged incomplete and scheduled for a v2.1 revision after the first playable batch:
 
+- **Victory conditions 2–5 not implemented.** Territorial dominance, economic supremacy, cultural ascendancy, and diplomatic hegemony — including sustain counters — are specified in §8 but not yet coded in `@rr/engine2/tick.ts`. This is a critical prerequisite gap; without it, matches can only end via last-standing elimination or tick-limit weighted score.
 - 5–8 player tribe definitions — **partially addressed**: Arctic and Tricoloured implemented for 6-player in `MAP_6P_v2.md` and `@rr/engine2/continent6pMap.ts`; full tribe definitions not yet in this document.
 - Recruitment delay ticks: currently zero — a recruited force is available the same tick. Consider adding a 1-tick delay for higher tiers.
 - Pact-breaker reputation mechanics: currently tag-only (no mechanical penalty). Consider adding a proposal-rejection probability for LLM personas.
 - Caravan path recomputation: currently frozen at dispatch. Consider recomputing if path regions change ownership mid-flight.
 - Ruins relics: GDD mentions Red starts with a relic (counts ½ Shrine). The mechanics of picking up relics from ruins regions is not yet specified — currently Red's bonus is Influence-only.
 - Forge as Tier IV gate: clarify whether Tier IV can *move through* regions without a forge (current spec: yes, the forge is only a recruitment gate, not a maintenance gate).
+- **NAP peace-lock** — **partially addressed** by visibility-gated diplomacy (`DESIGN_PROPOSAL_v2.1.md` §2.1): proposals to invisible tribes are blocked; `DEFAULT_NAP_LENGTH` reduced to 4. Remaining: defender stack cap, multi-force stacking, persona kits, commitments, yield decay.
+- **Trade escrow** — **implemented** via `DESIGN_PROPOSAL_v2.1.md` §2.3: sender debited at propose-time, refunded on decline/expiry.
 
-Detailed proposals for addressing balance issues (NAP peace-lock, defender stack, trade escrow, persona kits, pacing) are tracked in `DESIGN_PROPOSAL_v2.1.md`.
+Detailed proposals for addressing remaining balance issues (defender stack, persona kits, pacing, commitments) are tracked in `DESIGN_PROPOSAL_v2.1.md`.
 
 ---
 

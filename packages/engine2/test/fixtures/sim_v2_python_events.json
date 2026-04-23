@@ -326,7 +326,7 @@
       {
         "a_eff": 2,
         "attacker": "orange",
-        "d_eff": 4,
+        "d_eff": 3,
         "defender": "grey",
         "kind": "combat",
         "region": "r_grey_mountains",

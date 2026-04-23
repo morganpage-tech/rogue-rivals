@@ -2,8 +2,20 @@
 
 **Version:** 1.5
 **Date:** 2026-04-22
-**Status:** Largely implemented — server package (`@rr/server`) is live with match management, autoplay, persistence, and WebSocket hubs. Remaining work tracked per-phase in §7.
+**Status:** Largely implemented — server package (`@rr/server`) is live with match management, autoplay, persistence, and WebSocket hubs. All 13 implementation phases (§7) are complete with tests. Remaining work tracked per-phase in §7 and known gaps below.
 **Companion docs:** `GDD.md`, `RULES.md`
+
+---
+
+## 0.1 Known gaps (audited 2026-04-23)
+
+| Gap | Severity | Detail |
+|-----|----------|--------|
+| **Spectator autoPlay gating not enforced** | **HIGH** | Spectator REST endpoints (`GET .../spectator`, `GET .../spectator/history`) and the spectator WS hub do not check `match.autoPlay`. Non-autoPlay (human) matches can be spectated, allowing fog-of-war bypass. Spec §4.7 and §3.1 both require 403 for non-autoPlay matches. |
+| Variable NAP lengths | Medium | NAP proposals always use `DEFAULT_NAP_LENGTH = 4`. No mechanism for LLM or human to choose durations in `[3, 8]`. |
+| LLM error feedback loop | Medium | Invalid `choose` IDs from LLM are silently dropped by `ordersFromChooseIds()`. No re-prompting with legal alternatives — the LLM never self-corrects from its own errors. |
+| Finished match RAM eviction | Medium | Matches stay in memory indefinitely. Spec §4.9 describes 15-min idle eviction + JSONL replay for cold reads. |
+| Route file organization | Low | All REST routes are inlined in `src/index.ts` rather than separate files under `src/routes/` as spec suggests. Functionally identical. |
 
 ---
 
@@ -1530,7 +1542,9 @@ Key difference from current `V2Shell`: the "Submit" button sends orders to the s
 
 ## 7. Implementation phases
 
-### Phase 1: Shared types, costs, and preview helpers (1–1.5 sessions)
+> **All 13 phases are complete.** Status audited 2026-04-23. See §0.1 for known gaps.
+
+### Phase 1: Shared types, costs, and preview helpers — **DONE**
 
 - Create `packages/shared/` with `package.json`, `tsconfig.json`
 - `packages/shared/package.json` has NO workspace deps
@@ -1571,7 +1585,7 @@ unchanged — proof the refactor is behavior-preserving)
 `packages/web/package.json` or in its resolved dependency closure
 (`pnpm why @rr/engine2 --filter @rr/web` returns empty)
 
-### Phase 2: Server scaffold (1 session)
+### Phase 2: Server scaffold — **DONE**
 
 - Create `packages/server/` with `package.json`, `tsconfig.json`
 - Install dependencies: fastify, @fastify/websocket, @fastify/jwt, @fastify/cors, uuid
@@ -1582,7 +1596,7 @@ unchanged — proof the refactor is behavior-preserving)
 - Health check endpoint
 - Register **SIGINT/SIGTERM** → `server.close()` + `matchManager.drain()` skeleton (full behavior in §4.11 once MatchManager exists)
 
-### Phase 3: Match manager + resolution (2 sessions)
+### Phase 3: Match manager + resolution — **DONE**
 
 - **Engine prerequisite**: add `projectForSpectator(state: GameState): SpectatorView`
   to `packages/engine2/src/projectForSpectator.ts`; export it from
@@ -1608,28 +1622,28 @@ unchanged — proof the refactor is behavior-preserving)
 - Wire `POST /api/matches/:id/orders` → submit + possibly resolve
 - Wire `GET /api/matches/:id` → return player's current view
 
-### Phase 4: Auto-play + LLM opponent (1 session)
+### Phase 4: Auto-play + LLM opponent — **DONE**
 
 - `src/autoplay/llmOpponent.ts` — port `fetchLlmSlot` + `chooseToOrders` logic
 - `src/autoplay/loop.ts` — `runAutoPlayLoop()` for LLM-only matches
 - Auto-play starts on match creation when all slots are non-human
 - Test: create LLM-only match, ticks resolve automatically
 
-### Phase 5: Spectator channel (1 session)
+### Phase 5: Spectator channel — **DONE**
 
 - `src/ws/spectatorHub.ts` — handle connection, send history, register for live
 - `src/routes/spectator.ts` — `GET /api/matches/:id/spectator`
 - `src/routes/spectatorHistory.ts` — `GET /api/matches/:id/spectator/history`
 - Test: connect spectator WS, receive history + live ticks
 
-### Phase 6: Player WebSocket (1 session)
+### Phase 6: Player WebSocket — **DONE**
 
 - `src/ws/playerHub.ts` — first-message `{ type: "auth", token }` (§3.2 / §4.8), then send initial `view`, register
 - On tick resolution: push `ProjectedView` to all connected players
 - On orders submitted: push `waiting_for` to all players
 - Test: player connects via WS, receives view updates on tick
 
-### Phase 7: JSONL persistence (1 session)
+### Phase 7: JSONL persistence — **DONE**
 
 - `src/persistence/matchLog.ts` — write `match_init` on creation, append one `tick` record per resolution, write `match_end` on completion. No state snapshots in MVP; checkpoints are an optional perf optimization (see §4.9) and are NOT in scope for this phase.
 - `restoreMatches()` on server startup
@@ -1638,7 +1652,7 @@ unchanged — proof the refactor is behavior-preserving)
 - Test: kill server mid-match, restart, state restores
 - **`MatchManager.drain`:** implement for §4.11 (can stub no-op until Phase 3 stabilizes)
 
-### Phase 8: Client scaffold (0.5 session)
+### Phase 8: Client scaffold — **DONE**
 
 - Remove `@rr/engine2` from `packages/web/package.json`
 - Add `@rr/shared` dependency
@@ -1647,14 +1661,14 @@ unchanged — proof the refactor is behavior-preserving)
 - Remove `V2Shell.tsx`, `llm/`* files, `ordersFromLegal.ts`
 - Project compiles (broken UI is fine at this stage)
 
-### Phase 9: Create match wizard (1 session)
+### Phase 9: Create match wizard — **DONE**
 
 - `src/components/MatchWizard.tsx` — form with map, seed, tribes, LLM config
 - `src/routes/CreateMatch.tsx` — page wrapper
 - POST to server, receive spectatorUrl, navigate to `/watch/:matchId`
 - Test: create match via UI, redirects to spectator
 
-### Phase 10: Spectator page (2 sessions)
+### Phase 10: Spectator page — **DONE**
 
 - `src/state/spectatorStore.ts` — Zustand store with WS connection + playback
 - `src/components/SpectatorMap.tsx` — adapt V2Map for god-mode view
@@ -1663,7 +1677,7 @@ unchanged — proof the refactor is behavior-preserving)
 - `src/routes/WatchMatch.tsx` — page layout
 - Test: watch live LLM match, pause/play/scrub, reload page restores history
 
-### Phase 11: Player page (2-3 sessions)
+### Phase 11: Player page — **DONE**
 
 - `src/state/playerStore.ts` — Zustand store with WS + order submission
 - `src/components/PlayerOrderQueue.tsx` — order selection from legal options
@@ -1675,12 +1689,12 @@ unchanged — proof the refactor is behavior-preserving)
 - Match end overlay
 - Test: join match, submit orders, see resolution
 
-### Phase 12: Replay viewer adaptation (0.5 session)
+### Phase 12: Replay viewer adaptation — **DONE**
 
 - Adapt existing replay viewer to consume server-provided JSONL data
 - Works for both completed spectator matches and player replays
 
-### Phase 13: Integration tests (1-2 sessions)
+### Phase 13: Integration tests — **DONE**
 
 - Full round-trip: create match → join → submit → resolve → view update
 - Spectator: create LLM match → watch live → pause → scrub → resume

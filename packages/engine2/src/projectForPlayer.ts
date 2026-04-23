@@ -265,7 +265,7 @@ function legalOrderOptions(state: GameState, tribe: Tribe): LegalOrderOption[] {
         },
       );
     }
-    if (!hasWar) {
+    if (!hasWar && canSeeOther) {
       addOption(
         `propose:declare_war:${other}`,
         "propose",

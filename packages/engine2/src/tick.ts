@@ -1,12 +1,14 @@
 import {
   CARAVAN_DECLINE_REFUND_FRACTION,
   CARAVAN_INTERCEPT_MIN_TIER,
+  COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP,
   COMBAT_DEFENDER_OWN_REGION_BONUS,
   COMBAT_FORT_BONUS,
   COMBAT_REINFORCEMENT_BONUS_CAP,
   COMBAT_REINFORCEMENT_BONUS_PER_ALLY,
   COMBAT_SCOUT_REVEAL_PENALTY,
   DEFAULT_NAP_LENGTH,
+  MESSAGE_CAP_PER_TRIBE,
   DEFAULT_SHARED_VISION_LENGTH,
   DEFAULT_TICK_LIMIT,
   FINAL_SCORE_WEIGHTS,
@@ -202,10 +204,11 @@ function resolveCombatAt(
     }
 
     let dEff = defender.tier;
-    dEff += COMBAT_DEFENDER_OWN_REGION_BONUS;
+    let dBonus = COMBAT_DEFENDER_OWN_REGION_BONUS;
     if (region.structures.includes("fort")) {
-      dEff += COMBAT_FORT_BONUS;
+      dBonus += COMBAT_FORT_BONUS;
     }
+    dEff += Math.min(dBonus, COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP);
     let reinf = 0;
     for (const adjId of adjacentRegions(state, regionId)) {
       const adj = state.regions[adjId]!;
@@ -454,7 +457,7 @@ function applyPropose(
     events.push({ kind: "proposal_failed", reason: "invalid_target" });
     return;
   }
-  if (kind === "nap" || kind === "shared_vision" || kind === "trade_offer") {
+  if (kind === "nap" || kind === "shared_vision" || kind === "trade_offer" || kind === "declare_war") {
     if (!canSeeTribe(state, tribe, toTribe)) {
       events.push({ kind: "proposal_failed", reason: "no_visibility" });
       return;
@@ -886,6 +889,8 @@ export function tick(
 
   const tribeOrder = [...state.tribesAlive].sort((a, b) => a.localeCompare(b));
 
+  const messageCountByTribe = new Map<Tribe, number>();
+
   for (const tribe of tribeOrder) {
     const packet = packetsByTribe[tribe]!;
     for (const order of packet.orders) {
@@ -893,7 +898,15 @@ export function tick(
       else if (order.kind === "recruit") applyRecruit(state, tribe, order, events);
       else if (order.kind === "propose") applyPropose(state, tribe, order, events);
       else if (order.kind === "respond") applyRespond(state, tribe, order, events);
-      else if (order.kind === "message") applyMessage(state, tribe, order, events);
+      else if (order.kind === "message") {
+        const sent = messageCountByTribe.get(tribe) ?? 0;
+        if (sent >= MESSAGE_CAP_PER_TRIBE) {
+          events.push({ kind: "message_failed", from: tribe, to: order.to, reason: "cap_exceeded" });
+          continue;
+        }
+        messageCountByTribe.set(tribe, sent + 1);
+        applyMessage(state, tribe, order, events);
+      }
     }
   }
 

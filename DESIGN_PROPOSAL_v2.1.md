@@ -1,8 +1,33 @@
 # Rogue Rivals v2.1 — Balance & Behavior Proposal
 
-**Status:** proposal, not yet adopted
+**Status:** partially adopted (see implementation status below)
 **Baseline:** `RULES.md` v2.0, observed in `simulations/v2_6p_batch_legal_rerun/`
 **Scope:** balance + diplomacy + trade + persona + pacing adjustments. No change to wire format, map generation, or core order grammar.
+
+### Implementation status (audited 2026-04-23, updated during implementation)
+
+| Phase | Item | Status |
+|-------|------|--------|
+| **A — Diplomacy squeeze** | §2.1 Visibility-gated proposal dispatch | **DONE** — `tick.ts` `applyPropose()` blocks nap/shared_vision/trade_offer to invisible tribes |
+| | §2.1 Visibility-gated proposal acceptance | **DONE** — `tick.ts` `applyRespond()` has symmetric `canSeeTribe` check |
+| | §2.1 `canSeeTribe` helper | **DONE** — `projectForPlayer.ts` exports `canSeeTribe()` and `visibleRegionSet()` |
+| | §2.1 `DEFAULT_NAP_LENGTH` 8→4 | **DONE** in `constants.ts` and `matchConfig.ts` |
+| | §2.6 Message cap (3/tribe/tick) | **DONE** — `MESSAGE_CAP_PER_TRIBE=3` in `constants.ts`, enforced in `tick.ts` order loop |
+| | §2.7 Legal-option grammar (variable NAP lengths [3,8]) | **NOT DONE** — NAP always uses fixed length |
+| | §2.7 Error feedback (surface legal alternatives to LLM) | **DONE** — `ordersFromChooseIds` returns `ChooseIdRejection[]` with legal alternatives |
+| **B — Combat rebalance** | §2.2 Defender combined cap (own_region + fort ≤ 1) | **DONE** — `COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP=1` clamps combined bonus |
+| | §2.2 Multi-force attacker stacking | **NOT DONE** — second co-arriving attacker still destroyed via garrison cap |
+| | §2.2 Attacker scout-intel bonus (+1) | **NOT DONE** — only defender scout-reveal penalty exists |
+| | §2.3 Trade escrow at propose-time | **DONE** — sender debited at propose; refund on decline/expiry |
+| **C — Pace + commitments** | §2.5 Victory sustain 3→2 | **NOT DONE** — sustain logic itself is missing entirely from `tick.ts` |
+| | §2.5 Late-game yield decay | **NOT DONE** |
+| | §2.5 `DEFAULT_TICK_LIMIT` 60→40 | **NOT DONE** — still 60 |
+| | §2.6 Commitment system (types, recording, breach, penalties) | **NOT DONE** — no `Commitment`, `ActiveCommitment`, or `MessagePayload` types |
+| **D — Persona kits** | §2.4 `personas.ts` mechanical kit table | **NOT DONE** — personas remain prompt-only in `@rr/llm` |
+| | §2.4 Persona integration in tick resolution | **NOT DONE** |
+| | §2.4 Match config `persona_kit` field | **NOT DONE** |
+
+**Critical discovery:** the v2.0 baseline engine (`tick.ts`) only implements 2 of the 5 victory conditions described in `RULES.md` §8: *last_standing* and *tick_limit* weighted score. The sustained conditions (territorial, economic, diplomatic) and cultural ascendancy (4 shrines) are absent. This is a prerequisite gap that predates and blocks v2.1 pacing work.
 
 ---
 
@@ -47,7 +72,7 @@ Instead of adding artificial cost/cooldown/delay levers, tie inter-tribe proposa
 - **Proposal dispatch requires proposer → target visibility.** Proposer must currently see a region owned by the target tribe (via own regions + adjacency, scouts, watchtower, or `shared_vision` pact).
 - **Proposal acceptance requires target → proposer visibility at response time.** Symmetric rule on the accepting side. Net effect: both parties must have seen each other at some point in the propose → accept window.
 - **Maintenance does not require visibility.** Once a NAP is formed, it holds for its full length even if a scout expires or a watchtower is lost. Rationale: pacts shouldn't silently dissolve on info loss; that would punish scout investment and create spooky-action-at-a-distance.
-- **Applies to `nap`, `shared_vision`, and `trade_offer` proposals.** Consistency — all inter-tribe proposals gated on seeing the other side.
+- **Applies to `nap`, `shared_vision`, `trade_offer`, and `declare_war` proposals.** Consistency — all inter-tribe proposals gated on seeing the other side. `break_pact` is exempt (you can only break a pact you already have, so the relationship was established when you had visibility).
 - **Reduce `DEFAULT_NAP_LENGTH`: 8 → 4 ticks.** `packages/engine2/src/constants.ts:151`. Orthogonal to visibility — about renewal pressure, not formation spam.
 
 **Expected effect on the baseline batch:** tick 1 blanket-NAPs are literally impossible (no tribe sees any other at tick 1). First proposals emerge ~tick 3–5 once initial scouts resolve. Distant tribes stay diplomatically dark until someone invests in reach. Watchtowers and `shared_vision` gain a real strategic role as diplomatic amplifiers.

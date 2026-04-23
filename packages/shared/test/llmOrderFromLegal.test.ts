@@ -137,14 +137,14 @@ describe("ordersFromChooseIds", () => {
         },
       ],
     };
-    const orders = ordersFromChooseIds(view, ["move:f1:r_b", "recruit:r_a:t1"]);
+    const { orders } = ordersFromChooseIds(view, ["move:f1:r_b", "recruit:r_a:t1"]);
     expect(orders).toHaveLength(2);
     expect(orders[0]).toEqual({ kind: "move", forceId: "f1", destinationRegionId: "r_b" });
     expect(orders[1]).toEqual({ kind: "recruit", regionId: "r_a", tier: 1 });
   });
 
   it("skips unknown IDs", () => {
-    const orders = ordersFromChooseIds(baseView, ["nonexistent"]);
+    const { orders } = ordersFromChooseIds(baseView, ["nonexistent"]);
     expect(orders).toHaveLength(0);
   });
 
@@ -155,24 +155,24 @@ describe("ordersFromChooseIds", () => {
         { id: "move:f1:r_b", kind: "move", summary: "", payload: { forceId: "f1", destinationRegionId: "r_b" } },
       ],
     };
-    const orders = ordersFromChooseIds(view, ["move:f1:r_b", "move:f1:r_b"]);
+    const { orders } = ordersFromChooseIds(view, ["move:f1:r_b", "move:f1:r_b"]);
     expect(orders).toHaveLength(1);
   });
 
   it("handles message:tribe:text choose IDs as message orders", () => {
-    const orders = ordersFromChooseIds(baseView, ["message:grey:hello there"]);
+    const { orders } = ordersFromChooseIds(baseView, ["message:grey:hello there"]);
     expect(orders).toHaveLength(1);
     expect(orders[0]).toEqual({ kind: "message", to: "grey", text: "hello there" });
   });
 
   it("skips message to self", () => {
-    const orders = ordersFromChooseIds(baseView, ["message:orange:hello"]);
+    const { orders } = ordersFromChooseIds(baseView, ["message:orange:hello"]);
     expect(orders).toHaveLength(0);
   });
 
   it("skips message to dead tribe", () => {
     const view: ProjectedView = { ...baseView, tribesAlive: ["orange"] };
-    const orders = ordersFromChooseIds(view, ["message:grey:hello"]);
+    const { orders } = ordersFromChooseIds(view, ["message:grey:hello"]);
     expect(orders).toHaveLength(0);
   });
 
@@ -190,7 +190,7 @@ describe("ordersFromChooseIds", () => {
         },
       ],
     };
-    const orders = ordersFromChooseIds(view, ["propose:nap:grey:3"]);
+    const { orders } = ordersFromChooseIds(view, ["propose:nap:grey:3"]);
     expect(orders).toHaveLength(1);
     expect(orders[0]!.kind).toBe("propose");
   });
@@ -209,18 +209,34 @@ describe("ordersFromChooseIds", () => {
         },
       ],
     };
-    const orders = ordersFromChooseIds(view, ["propose:trade_offer:grey"]);
+    const { orders } = ordersFromChooseIds(view, ["propose:trade_offer:grey"]);
     expect(orders).toHaveLength(1);
   });
 
   it("skips non-string entries", () => {
-    const orders = ordersFromChooseIds(baseView, [123 as unknown as string]);
+    const { orders } = ordersFromChooseIds(baseView, [123 as unknown as string]);
     expect(orders).toHaveLength(0);
   });
 
   it("skips empty strings", () => {
-    const orders = ordersFromChooseIds(baseView, [""]);
+    const { orders } = ordersFromChooseIds(baseView, [""]);
     expect(orders).toHaveLength(0);
+  });
+
+  it("returns rejected IDs with legal alternatives", () => {
+    const view: ProjectedView = {
+      ...baseView,
+      legalOrderOptions: [
+        { id: "propose:nap:grey:3", kind: "propose", summary: "", payload: { proposal: { id: "pending", kind: "nap", from: "orange", to: "grey", lengthTicks: 3, amountInfluence: 0, expiresTick: 3 } } },
+        { id: "propose:nap:grey:4", kind: "propose", summary: "", payload: { proposal: { id: "pending", kind: "nap", from: "orange", to: "grey", lengthTicks: 4, amountInfluence: 0, expiresTick: 3 } } },
+      ],
+    };
+    const { orders, rejected } = ordersFromChooseIds(view, ["propose:nap:grey:8"]);
+    expect(orders).toHaveLength(0);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]!.rawId).toBe("propose:nap:grey:8");
+    expect(rejected[0]!.legalAlternatives).toContain("propose:nap:grey:3");
+    expect(rejected[0]!.legalAlternatives).toContain("propose:nap:grey:4");
   });
 });
 
