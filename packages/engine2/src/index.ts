@@ -12,7 +12,7 @@ export { CONTINENT_6P_DEFAULT_TRIBES } from "./continent6pMap.js";
 export { initMatch } from "./initMatch.js";
 export { hashState, sortKeysDeep } from "./hashState.js";
 export { tick, checkVictory } from "./tick.js";
-export { projectForPlayer } from "./projectForPlayer.js";
+export { projectForPlayer, canSeeTribe, visibleRegionSet } from "./projectForPlayer.js";
 export { projectForSpectator, type ProjectForSpectatorOptions } from "./projectForSpectator.js";
 export {
   filterOrdersByInfluenceBudget,

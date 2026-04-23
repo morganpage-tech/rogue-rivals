@@ -68,11 +68,32 @@ describe("projectForPlayer", () => {
     expect(moveOpts.length).toBeGreaterThan(0);
   });
 
-  it("legal order options include propose options for other tribes", () => {
+  it("legal order options only include proposals to visible tribes", () => {
     const state = handMinimalState();
     const pv = projectForPlayer(state, "orange");
-    const proposeOpts = pv.legalOrderOptions.filter((o) => o.kind === "propose");
-    expect(proposeOpts.length).toBeGreaterThan(0);
+    const gatedOpts = pv.legalOrderOptions.filter(
+      (o) => o.kind === "propose" && (o.id.startsWith("propose:nap:") || o.id.startsWith("propose:shared_vision:") || o.id.startsWith("propose:trade_offer:")),
+    );
+    const targets = gatedOpts.map((o) => {
+      const match = o.id.match(/^propose:\w+:(\w+)/);
+      return match ? match[1] : null;
+    });
+    expect(targets).toContain("brown");
+    expect(targets).toContain("grey");
+    expect(targets).not.toContain("red");
+  });
+
+  it("declare_war is available even without visibility", () => {
+    const state = handMinimalState();
+    const pv = projectForPlayer(state, "orange");
+    const warOpts = pv.legalOrderOptions.filter((o) => o.id.startsWith("propose:declare_war:"));
+    const warTargets = warOpts.map((o) => {
+      const match = o.id.match(/^propose:declare_war:(\w+)/);
+      return match ? match[1] : null;
+    });
+    expect(warTargets).toContain("grey");
+    expect(warTargets).toContain("red");
+    expect(warTargets).toContain("brown");
   });
 
   it("includes tribesAlive", () => {

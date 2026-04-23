@@ -148,7 +148,7 @@ export const FUZZY_TIER_FOR: Record<ForceTier, FuzzyTier> = {
 /** Fallback tick cap for victory scoring when not reading match config (Python oracle). */
 export const DEFAULT_TICK_LIMIT = 60;
 
-export const DEFAULT_NAP_LENGTH = 8;
+export const DEFAULT_NAP_LENGTH = 4;
 export const DEFAULT_SHARED_VISION_LENGTH = 5;
 
 // ─────────────────────────────────────────────────────────────────────────────

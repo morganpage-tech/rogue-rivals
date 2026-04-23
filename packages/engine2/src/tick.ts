@@ -26,7 +26,7 @@ import {
 } from "./constants.js";
 import { adjacentRegions, trailBetween } from "./graph.js";
 import { hashState } from "./hashState.js";
-import { projectForPlayer } from "./projectForPlayer.js";
+import { projectForPlayer, canSeeTribe } from "./projectForPlayer.js";
 import type {
   Caravan,
   Force,
@@ -454,6 +454,12 @@ function applyPropose(
     events.push({ kind: "proposal_failed", reason: "invalid_target" });
     return;
   }
+  if (kind === "nap" || kind === "shared_vision" || kind === "trade_offer") {
+    if (!canSeeTribe(state, tribe, toTribe)) {
+      events.push({ kind: "proposal_failed", reason: "no_visibility" });
+      return;
+    }
+  }
   const pid = `p_${String(state.nextProposalIdx).padStart(4, "0")}`;
   state.nextProposalIdx += 1;
   const length =
@@ -545,6 +551,13 @@ function applyRespond(
       events.push({ kind: "proposal_declined", id: proposalId });
     }
     return;
+  }
+
+  if (match.kind === "nap" || match.kind === "shared_vision" || match.kind === "trade_offer") {
+    if (!canSeeTribe(state, tribe, match.from)) {
+      events.push({ kind: "respond_failed", reason: "no_visibility", id: proposalId });
+      return;
+    }
   }
 
   if (match.kind === "nap") {

@@ -124,7 +124,7 @@ describe("tick diplomacy", () => {
     expect(state.players["orange"]!.reputationPenaltyExpiresTick).toBeGreaterThan(0);
   });
 
-  it("shared_vision proposal is sent", () => {
+  it("shared_vision proposal is sent when proposer can see target", () => {
     const state = handMinimalState();
     const proposeOrder = {
       kind: "propose" as const,
@@ -132,7 +132,7 @@ describe("tick diplomacy", () => {
         id: "pending",
         kind: "shared_vision" as const,
         from: "orange" as const,
-        to: "grey" as const,
+        to: "brown" as const,
         lengthTicks: 5,
         amountInfluence: 0,
         expiresTick: 0,
@@ -141,16 +141,36 @@ describe("tick diplomacy", () => {
 
     const result = tick(state, packetsWithOrders(state, { orange: [proposeOrder] }));
     expect(result.events.some((e) => e.kind === "proposal_sent")).toBe(true);
-    expect(state.players["grey"]!.outstandingProposals.some((p) => p.kind === "shared_vision")).toBe(true);
+    expect(state.players["brown"]!.outstandingProposals.some((p) => p.kind === "shared_vision")).toBe(true);
   });
 
-  it("shared_vision accept creates pact", () => {
+  it("proposal fails when proposer cannot see target", () => {
     const state = handMinimalState();
-    state.players["grey"]!.outstandingProposals.push({
+    const proposeOrder = {
+      kind: "propose" as const,
+      proposal: {
+        id: "pending",
+        kind: "shared_vision" as const,
+        from: "orange" as const,
+        to: "red" as const,
+        lengthTicks: 5,
+        amountInfluence: 0,
+        expiresTick: 0,
+      },
+    };
+
+    const result = tick(state, packetsWithOrders(state, { orange: [proposeOrder] }));
+    expect(result.events.some((e) => e.kind === "proposal_failed" && (e as { reason: string }).reason === "no_visibility")).toBe(true);
+    expect(state.players["red"]!.outstandingProposals.some((p) => p.kind === "shared_vision")).toBe(false);
+  });
+
+  it("shared_vision accept creates pact when acceptor can see proposer", () => {
+    const state = handMinimalState();
+    state.players["brown"]!.outstandingProposals.push({
       id: "p_0001",
       kind: "shared_vision",
       from: "orange",
-      to: "grey",
+      to: "brown",
       lengthTicks: 5,
       amountInfluence: 0,
       expiresTick: 10,
@@ -162,9 +182,32 @@ describe("tick diplomacy", () => {
       response: "accept" as const,
     };
 
-    const result = tick(state, packetsWithOrders(state, { grey: [respondOrder] }));
+    const result = tick(state, packetsWithOrders(state, { brown: [respondOrder] }));
     expect(result.events.some((e) => e.kind === "pact_formed")).toBe(true);
     expect(state.pacts.some((p) => p.kind === "shared_vision")).toBe(true);
+  });
+
+  it("accept fails when acceptor cannot see proposer", () => {
+    const state = handMinimalState();
+    state.players["red"]!.outstandingProposals.push({
+      id: "p_0001",
+      kind: "shared_vision",
+      from: "orange",
+      to: "red",
+      lengthTicks: 5,
+      amountInfluence: 0,
+      expiresTick: 10,
+    });
+
+    const respondOrder = {
+      kind: "respond" as const,
+      proposalId: "p_0001",
+      response: "accept" as const,
+    };
+
+    const result = tick(state, packetsWithOrders(state, { red: [respondOrder] }));
+    expect(result.events.some((e) => e.kind === "respond_failed" && (e as { reason: string }).reason === "no_visibility")).toBe(true);
+    expect(state.pacts.some((p) => p.kind === "shared_vision")).toBe(false);
   });
 });
 

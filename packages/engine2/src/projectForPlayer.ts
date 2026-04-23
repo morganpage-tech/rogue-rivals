@@ -24,7 +24,7 @@ import type {
   VisibleTransit,
 } from "./types.js";
 
-function visibleRegionSet(state: GameState, tribe: Tribe): Set<RegionId> {
+export function visibleRegionSet(state: GameState, tribe: Tribe): Set<RegionId> {
   const visible = new Set<RegionId>();
   const owned = Object.keys(state.regions).filter(
     (rid) => state.regions[rid]!.owner === tribe,
@@ -65,6 +65,14 @@ function visibleRegionSet(state: GameState, tribe: Tribe): Set<RegionId> {
     }
   }
   return visible;
+}
+
+export function canSeeTribe(state: GameState, observer: Tribe, target: Tribe): boolean {
+  const visible = visibleRegionSet(state, observer);
+  for (const rid of visible) {
+    if (state.regions[rid]?.owner === target) return true;
+  }
+  return false;
 }
 
 function hasPact(state: GameState, kind: string, a: Tribe, b: Tribe): boolean {
@@ -183,8 +191,9 @@ function legalOrderOptions(state: GameState, tribe: Tribe): LegalOrderOption[] {
     const hasNap = hasPact(state, "nap", tribe, other);
     const hasSharedVision = hasPact(state, "shared_vision", tribe, other);
     const hasWar = hasPact(state, "war", tribe, other);
+    const canSeeOther = canSeeTribe(state, tribe, other);
 
-    if (!hasNap && !hasWar) {
+    if (!hasNap && !hasWar && canSeeOther) {
       addOption(
         `propose:nap:${other}`,
         "propose",
@@ -202,7 +211,7 @@ function legalOrderOptions(state: GameState, tribe: Tribe): LegalOrderOption[] {
         },
       );
     }
-    if (!hasSharedVision && !hasWar) {
+    if (!hasSharedVision && !hasWar && canSeeOther) {
       addOption(
         `propose:shared_vision:${other}`,
         "propose",
@@ -220,7 +229,7 @@ function legalOrderOptions(state: GameState, tribe: Tribe): LegalOrderOption[] {
         },
       );
     }
-    if (ps.influence >= 6) {
+    if (ps.influence >= 6 && canSeeOther) {
       addOption(
         `propose:trade_offer:${other}:5`,
         "propose",
