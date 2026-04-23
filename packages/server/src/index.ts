@@ -49,7 +49,8 @@ export async function buildApp(
     if (match.status === "running" || match.status === "lobby" || match.status === "paused") {
       const ok = await matchManager.stopMatch(req.params.id);
       if (!ok) return reply.code(409).send({ error: "could not stop" });
-      return { stopped: true, matchId: req.params.id };
+      await matchManager.deleteMatch(req.params.id);
+      return { deleted: true, matchId: req.params.id };
     }
     if (match.status === "finished") {
       const ok = await matchManager.deleteMatch(req.params.id);
