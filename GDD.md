@@ -74,7 +74,7 @@ The world is a graph of **regions** connected by **trails**.
 
 ### 4.2 Tribes
 
-Four canonical tribes with asymmetric starts (keeping the v0.x personas):
+**Four canonical tribes** with asymmetric starts (keeping the v0.x personas), plus **Arctic** and **Tricoloured** for 6-player matches (see `MAP_6P_v2.md`):
 
 - **Orange** � Plains. Starts with **+1 Influence/tick** on Plains regions.
 - **Grey** � Mountains. Starts with one **Fort** pre-built in its home.
@@ -230,9 +230,9 @@ Three modes share the engine:
 
 - Tribes: Orange / Grey / Brown / Red, with their climate and flavor.
 - Regions: Plains / Mountains / Swamps / Desert / Ruins as terrain types.
-- The existing monorepo (`packages/engine2`, `packages/web`, `tools/`).
+- The existing monorepo (`packages/engine2`, `packages/web`).
 - Deterministic seeded PRNG pattern; replay-determinism test convention.
-- Batch runner architecture in `tools/` (parallel ProcessPool, resumable partial traces).
+- Batch runner architecture in `@rr/engine2` CLI (`pnpm --filter @rr/engine2 batch:llm`).
 - LLM client + persona infrastructure.
 - React shell styling, event log pattern, theme variables.
 

@@ -74,7 +74,7 @@ export interface MatchLogStatusResponse {
 
 export interface SharedMatchSummary {
   readonly matchId: string;
-  readonly status: "lobby" | "running" | "finished";
+  readonly status: "lobby" | "running" | "finished" | "paused";
   readonly tick: number;
   readonly tickLimit: number;
   readonly tribesAlive: Tribe[];

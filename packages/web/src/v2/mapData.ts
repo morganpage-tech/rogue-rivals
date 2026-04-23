@@ -33,6 +33,40 @@ export const CONTINENT_6P_REGION_LAYOUT: Record<RegionId, readonly [number, numb
   r_gr_lower_high_mountains: [-138, -43],
 };
 
+/**
+ * 6p continent: short UI labels (one or two words). Ids not listed here still use
+ * `regionShortName` in `formatV2.ts` (e.g. hand / replay test maps).
+ */
+export const REGION_DISPLAY_NAME: Partial<Record<RegionId, string>> = {
+  r_core_foxfire_ruins: "Foxfire Ruins",
+  r_core_three_trails_market: "Trails Market",
+  r_core_moon_ford: "Moon Ford",
+  r_border_snowpine_reach: "Snowpine",
+  r_border_glasswood_verge: "Glasswood",
+  r_border_saltfen_crossing: "Saltfen",
+  r_border_hillmire_gate: "Hillmire",
+  r_border_howling_pass: "Howling Pass",
+  r_border_frostpass: "Frostpass",
+  r_arc_frosthold: "Frosthold",
+  r_arc_ice_shelf: "Ice Shelf",
+  r_arc_white_wastes: "White Wastes",
+  r_tri_hidden_grove: "Hidden Grove",
+  r_tri_tricky_woods: "Tricky Woods",
+  r_tri_whisper_thicket: "Whisper Thicket",
+  r_red_mirage_camp: "Mirage Camp",
+  r_red_vast_dunes: "Vast Dunes",
+  r_red_rare_veins: "Rare Veins",
+  r_br_root_cities: "Root Cities",
+  r_br_reeky_canopy: "Reeky Canopy",
+  r_br_mire_channels: "Mire Channels",
+  r_or_vulpgard: "Vulpgard",
+  r_or_windy_plains: "Windy Plains",
+  r_or_rocky_hills: "Rocky Hills",
+  r_gr_middle_high_mountains: "Middle Peaks",
+  r_gr_upper_high_mountains: "Upper Peaks",
+  r_gr_lower_high_mountains: "Lower Peaks",
+};
+
 /** Undirected trail edges for drawing lines (same as `_CONTINENT_6P_TRAILS`). */
 export const CONTINENT_6P_TRAILS: readonly (readonly [RegionId, RegionId])[] = [
   ["r_arc_frosthold", "r_arc_ice_shelf"],
@@ -78,6 +112,23 @@ export const CONTINENT_6P_TRAILS: readonly (readonly [RegionId, RegionId])[] = [
   ["r_br_reeky_canopy", "r_core_moon_ford"],
   ["r_or_windy_plains", "r_core_moon_ford"],
 ];
+
+export function buildAdjacencyMap(
+  trails: readonly (readonly [string, string])[],
+): ReadonlyMap<string, readonly string[]> {
+  const m = new Map<string, string[]>();
+  for (const [a, b] of trails) {
+    let la = m.get(a);
+    if (!la) { la = []; m.set(a, la); }
+    la.push(b);
+    let lb = m.get(b);
+    if (!lb) { lb = []; m.set(b, lb); }
+    lb.push(a);
+  }
+  return m;
+}
+
+export const CONTINENT_6P_ADJACENCY = buildAdjacencyMap(CONTINENT_6P_TRAILS);
 
 /** Hand-play minimal map — same coordinates as `engine2` `replayLayouts.json` → `minimal`. */
 export const HAND_MINIMAL_REGION_LAYOUT: Record<string, readonly [number, number]> = {

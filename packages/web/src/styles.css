@@ -700,6 +700,9 @@ code,
   flex-direction: column;
   gap: 8px;
   width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
 }
 
 .v2-map-toolbar {
@@ -732,12 +735,12 @@ code,
   margin-left: 4px;
 }
 
-/* Fixed height + flex so the SVG scales down uniformly; `width:100%` + `height:auto`
+/* Flex child so the SVG scales down uniformly; `width:100%` + `height:auto`
    alone can exceed max-height and clip the bottom (where labels sit). */
 .v2-map-wrap {
   width: 100%;
-  height: min(52vh, 520px);
-  max-height: min(52vh, 520px);
+  flex: 1 1 0;
+  min-height: 0;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -746,6 +749,7 @@ code,
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .v2-map-wrap.v2-map-panning {
@@ -754,13 +758,10 @@ code,
 
 .v2-map-svg {
   display: block;
-  flex: 0 1 auto;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
 }
 
 .v2-map-pan-layer {
@@ -883,10 +884,149 @@ code,
   stroke-dasharray: 3 3;
 }
 
-.v2-map-tick-overlay {
-  fill: rgba(255, 255, 255, 0.4);
-  font-size: 12px;
+.v2-map-production-label {
+  fill: #c9a84c;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.v2-trail-pact {
+  stroke-width: 2;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.v2-trail-pact-nap {
+  stroke: #4a8a4a;
+  stroke-dasharray: 6 4;
+}
+
+.v2-trail-pact-sv {
+  stroke: #4a6ac9;
+  stroke-dasharray: 6 4;
+}
+
+.v2-trail-pact-war {
+  stroke: #c13030;
+  stroke-dasharray: none;
+}
+
+.v2-vis-glow-adjacent {
+  fill: rgba(255, 255, 255, 0.04);
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.v2-vis-glow-tower {
+  fill: rgba(74, 106, 201, 0.04);
+  stroke: rgba(74, 106, 201, 0.14);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.v2-vis-glow-scout {
+  fill: rgba(201, 180, 74, 0.04);
+  stroke: rgba(201, 180, 74, 0.14);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.v2-vis-glow-shared {
+  fill: rgba(160, 74, 201, 0.04);
+  stroke: rgba(160, 74, 201, 0.14);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.v2-map-watchtower-range {
+  fill: rgba(74, 106, 201, 0.06);
+  stroke: rgba(74, 106, 201, 0.18);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  pointer-events: none;
+}
+
+.v2-map-victory-overlay {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(12, 14, 18, 0.88);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 10px;
+  color: var(--muted);
+  pointer-events: none;
+  min-width: 180px;
+}
+
+.v2-victory-title {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 6px;
+}
+
+.v2-victory-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.v2-victory-row:last-child {
+  margin-bottom: 0;
+}
+
+.v2-victory-label {
+  width: 52px;
+  flex-shrink: 0;
   font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.v2-victory-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.v2-victory-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.v2-victory-fill-territory {
+  background: #4a8a4a;
+}
+
+.v2-victory-fill-economy {
+  background: #c9a84c;
+}
+
+.v2-victory-fill-culture {
+  background: #a04ac9;
+}
+
+.v2-victory-fill-diplo {
+  background: #4a6ac9;
+}
+
+.v2-victory-value {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-family: var(--mono);
+  color: rgba(255, 255, 255, 0.45);
+  text-align: right;
+  min-width: 55px;
 }
 
 .v2-queue-list {
@@ -984,11 +1124,12 @@ code,
   flex: 1 1 0;
   min-height: 0;
   display: flex;
-  align-items: stretch;
-  justify-content: center;
+  flex-direction: column;
   overflow: hidden;
 }
 .pw-map-area > * {
+  flex: 1 1 0;
+  min-height: 0;
   width: 100%;
 }
 .pw-loading {
@@ -1300,6 +1441,11 @@ code,
   font-weight: 600;
 }
 
+.pp-income {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .pp-dot {
   width: 8px;
   height: 8px;
@@ -1332,6 +1478,9 @@ code,
 .pp-main {
   flex: 1 1 0;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .pp-sidebar {

@@ -7,6 +7,7 @@ import { OrderQueue } from "../v2/OrderQueue.js";
 import { V2Map } from "../v2/V2Map.js";
 import { DiplomacyPanel } from "../v2/DiplomacyPanel.js";
 import { tribeLabel } from "../v2/formatV2.js";
+import { regionProduction } from "../v2/mapConstants.js";
 import { usePlayerStore } from "../state/playerStore.js";
 import { orderFromLegalOption } from "../v2/legalOrders.js";
 
@@ -87,6 +88,11 @@ export function PlayMatch(): React.ReactElement {
   const connDot =
     connection === "connected" ? "pp-dot-ok" : connection === "connecting" ? "pp-dot-wait" : "pp-dot-off";
 
+  let myIncome = 0;
+  for (const r of Object.values(view.visibleRegions)) {
+    if (r.owner === view.forTribe) myIncome += regionProduction(r);
+  }
+
   return (
     <div className="page-play">
       <header className="pp-header">
@@ -99,6 +105,9 @@ export function PlayMatch(): React.ReactElement {
           </span>
         </div>
         <div className="pp-header-right">
+          <span className="pp-income">
+            Income: <span className="mono">+{myIncome}/tick</span>
+          </span>
           <span className="pp-influence">
             Influence: <span className="mono">{view.myPlayerState.influence}</span>
           </span>

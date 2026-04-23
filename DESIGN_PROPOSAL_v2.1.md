@@ -53,6 +53,7 @@ Instead of adding artificial cost/cooldown/delay levers, tie inter-tribe proposa
 **Expected effect on the baseline batch:** tick 1 blanket-NAPs are literally impossible (no tribe sees any other at tick 1). First proposals emerge ~tick 3–5 once initial scouts resolve. Distant tribes stay diplomatically dark until someone invests in reach. Watchtowers and `shared_vision` gain a real strategic role as diplomatic amplifiers.
 
 **Files:**
+
 - `packages/engine2/src/tick.ts` — add visibility checks in propose-dispatch and respond-accept resolution.
 - Visibility / fog-of-war module under `packages/engine2/src/` — expose a `canSee(observerTribe, targetTribe, state): boolean` helper.
 - `packages/server/src/autoplay/llmOpponent.ts` — legal-option enumeration must omit proposals to invisible tribes (otherwise LLMs get legal-option drift on unreachable targets).
@@ -100,27 +101,22 @@ Flavor in prompts is not enough. Give each persona a small mechanical kit:
 
 - **Cap at 3 messages per tribe per tick.** `tick.ts` order validation. Observed peak is 16 in a single tick; the cap forces LLMs to pick signal.
 - **Optional `commitment` attached to any message.** Commitments are unilateral, binding promises — the sender binds themselves with no acceptance required from the target. They turn free chat into a diplomatic ledger: lies become detectable and costly, which is what the GDD's "diplomatic double-life" pillar asked for.
+**Commitment types:**
 
-  **Commitment types:**
-
-  | Kind | Violation condition |
-  | --- | --- |
+  | Kind        | Violation condition                                                                                                                                                                                    |
+  | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
   | `no_attack` | Any combat event where the committer's force is the attacker in `target_region_id` during the commitment window. Includes forces already in transit — a tribe should not make promises it cannot keep. |
-  | `no_scout` | Any scout owned by the committer arriving in `target_region_id` during the commitment window. |
+  | `no_scout`  | Any scout owned by the committer arriving in `target_region_id` during the commitment window.                                                                                                          |
 
   Region-scoped only (not tribe-scoped). Region-scoped commitments are more strategically expressive — "I won't attack your capital" is a different signal than "I won't attack you at all" — and avoid edge cases around captured/transferred regions. An LLM that wants tribe-scope approximation can issue multiple region-scoped commitments.
-
   **Mechanics:**
-
   - **Binding:** unilateral. No acceptance required. The commitment is recorded in `GameState` at message-dispatch time.
   - **Visibility:** active commitments are visible to sender + target tribe only (same channel as messages). However, a *breach* is announced publicly (same as pact-break announcements) — the diplomatic double-life becomes public when the lie is exposed.
   - **Enforcement:** breached orders still execute — the engine does not block the violating order. Instead, a `commitment_breach` event fires, applying the reputation penalty. Rationale: blocking orders would let a tribe "accidentally" probe whether an enemy has a commitment-protected region by attempting to move and checking for rejection.
   - **Max:** 1 commitment per message. A tribe can hold multiple active commitments across multiple messages.
   - **Expiry:** `length_ticks` after the tick the message was sent (range 1–5, capped by `COMMITMENT_MAX_LENGTH_TICKS`). Expired commitments are silently removed from state.
   - **Breach penalty:** separate from pact-break. New constant `COMMITMENT_BREACH_REPUTATION_PENALTY = 2` ticks (flat, no early/late distinction). Lighter than pact-break (early: 4, late: 2) because commitments are lighter-weight diplomatic instruments than formal pacts.
-
   **Payload and state types** (`packages/shared/src/engineTypes.ts`):
-
   ```ts
   type Commitment = {
     kind: "no_attack" | "no_scout";
@@ -138,16 +134,13 @@ Flavor in prompts is not enough. Give each persona a small mechanical kit:
     breached: boolean;
   };
   ```
-
   The existing message payload gains an optional field:
-
   ```ts
   type MessagePayload = {
     text: string;
     commitment?: Commitment;
   };
   ```
-
   **Files:**
   - `packages/shared/src/engineTypes.ts` — `Commitment`, `ActiveCommitment`, `MessagePayload` types.
   - `packages/engine2/src/constants.ts` — `COMMITMENT_BREACH_REPUTATION_PENALTY = 2`, `COMMITMENT_MAX_LENGTH_TICKS = 5`.
@@ -166,12 +159,12 @@ Flavor in prompts is not enough. Give each persona a small mechanical kit:
 Phased to de-risk and allow A/B attribution of each effect.
 
 
-| Phase                      | Scope                                                                                  | Expected impact                                      |
-| -------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Phase                      | Scope                                                                                                                      | Expected impact                                                                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | **A — Diplomacy squeeze**  | 2.1 (visibility-gated proposals + shorter NAP length), 2.7 (legal grammar), 2.6 cap-only (message cap, no commitments yet) | Tick-1 NAP spam eliminated by fog; first proposals emerge after initial scouts; first real combats by tick 8–10 |
-| **B — Combat rebalance**   | 2.2 (defender stack), 2.3 (trade escrow)                                               | Attacker win rate > 0; merchant persona functional   |
-| **C — Pace + commitments** | 2.5 (sustain + decay + cap), 2.6 commitments                                           | Winners reached; commitments give messages teeth     |
-| **D — Persona kits**       | 2.4                                                                                    | Persona variance visible in match traces             |
+| **B — Combat rebalance**   | 2.2 (defender stack), 2.3 (trade escrow)                                                                                   | Attacker win rate > 0; merchant persona functional                                                              |
+| **C — Pace + commitments** | 2.5 (sustain + decay + cap), 2.6 commitments                                                                               | Winners reached; commitments give messages teeth                                                                |
+| **D — Persona kits**       | 2.4                                                                                                                        | Persona variance visible in match traces                                                                        |
 
 
 At each phase boundary, re-run the seed triplet (202604191, 202604192, 202604193) and diff against baseline.

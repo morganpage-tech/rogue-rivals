@@ -1,4 +1,4 @@
-# Python
+# Python (legacy)
 __pycache__/
 *.py[cod]
 *$py.class
@@ -6,7 +6,7 @@ __pycache__/
 venv/
 .env
 
-# Node (for future prototype build)
+# Node
 node_modules/
 dist/
 build/
@@ -21,7 +21,7 @@ build/
 *.swp
 
 # Local run artefacts
-matches/
+data/matches/
 *.log
 *.sqlite
 *.db

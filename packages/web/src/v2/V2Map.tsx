@@ -10,56 +10,40 @@ import type {
 } from "@rr/shared";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
-import { REPLAY_TRIBE_STROKE } from "../replay/replayTheme.js";
-import { CONTINENT_6P_REGION_LAYOUT, CONTINENT_6P_TRAILS } from "./mapData.js";
-import { regionShortName, tribeLabel } from "./formatV2.js";
+import {
+  CONTINENT_6P_ADJACENCY,
+  CONTINENT_6P_REGION_LAYOUT,
+  CONTINENT_6P_TRAILS,
+} from "./mapData.js";
+import {
+  TERRAIN_CLASS,
+  WHEEL_FACTOR,
+  regionProduction,
+} from "./mapConstants.js";
+import {
+  VictoryOverlay,
+  renderCaravanBadge,
+  renderEmptyGarrisonCircle,
+  renderGarrisonTierText,
+  renderProductionLabel,
+  renderScoutBadge,
+  renderStructureBadges,
+  renderTerrainLabel,
+  renderTrailTimeLabel,
+  renderTribeNameLabel,
+  trailEdgeKey,
+  transitMidpoint,
+  tribeClass,
+  tribeStrokeHex,
+} from "./mapSvgHelpers.js";
+import type { VictoryProgressData } from "./mapSvgHelpers.js";
+import {
+  estimateTransitBadgeWidth,
+  regionDisplayName,
+  tribeLabel,
+  transitToDestinationBadge,
+} from "./formatV2.js";
 import { useMapPanZoom } from "./useMapPanZoom.js";
-
-const TERRAIN_CLASS: Record<string, string> = {
-  plains: "terrain-plains",
-  mountains: "terrain-mountains",
-  swamps: "terrain-swamps",
-  desert: "terrain-desert",
-  ruins: "terrain-ruins",
-  forest: "terrain-forest",
-  river_crossing: "terrain-river",
-};
-
-const TERRAIN_DISPLAY: Record<string, string> = {
-  plains: "Plains",
-  mountains: "Mtns",
-  swamps: "Swamps",
-  desert: "Desert",
-  ruins: "Ruins",
-  forest: "Forest",
-  river_crossing: "River X",
-};
-
-const WHEEL_FACTOR = 1.12;
-
-function tribeClass(owner: Tribe | null): string {
-  if (!owner) return "";
-  return `owner-${owner}`;
-}
-
-function trailEdgeKey(a: string, b: string): string {
-  return a < b ? `${a}|${b}` : `${b}|${a}`;
-}
-
-function tribeStrokeHex(tribe: Tribe): string {
-  return REPLAY_TRIBE_STROKE[tribe] ?? "#888";
-}
-
-function transitMidpoint(
-  from: string,
-  to: string,
-  layout: Record<string, readonly [number, number]>,
-): [number, number] | null {
-  const a = layout[from];
-  const b = layout[to];
-  if (!a || !b) return null;
-  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-}
 
 export interface V2MapGlyphState {
   readonly forces: readonly Force[];
@@ -140,6 +124,107 @@ export function V2Map({
     return set;
   }, [ids, view.visibleRegions]);
 
+  const pactSets = useMemo(() => {
+    const nap = new Set<Tribe>();
+    const sv = new Set<Tribe>();
+    const war = new Set<Tribe>();
+    for (const p of view.pactsInvolvingMe) {
+      const partner = p.parties[0] === view.forTribe ? p.parties[1] : p.parties[0];
+      if (p.kind === "nap") nap.add(partner);
+      else if (p.kind === "shared_vision") sv.add(partner);
+      else if (p.kind === "war") war.add(partner);
+    }
+    return { napPartners: nap, sharedVisionPartners: sv, warTargets: war };
+  }, [view.pactsInvolvingMe, view.forTribe]);
+
+  const visibilitySource = useMemo(() => {
+    const src = new Map<string, string>();
+    const owned = new Set<string>();
+    for (const id of ids) {
+      if ((view.visibleRegions[id] as Region)?.owner === view.forTribe) owned.add(id);
+    }
+    for (const id of owned) src.set(id, "own");
+    const adjacentToOwned = new Set<string>();
+    for (const id of owned) {
+      for (const nb of CONTINENT_6P_ADJACENCY.get(id) ?? []) {
+        if (!owned.has(nb) && ids.includes(nb)) adjacentToOwned.add(nb);
+      }
+    }
+    for (const id of adjacentToOwned) src.set(id, "adjacent");
+    for (const s of view.myScouts) {
+      if (s.location.kind === "arrived" && !src.has(s.location.regionId)) {
+        src.set(s.location.regionId, "scout");
+      }
+    }
+    const towerRange = new Set<string>();
+    for (const id of owned) {
+      const r = view.visibleRegions[id] as Region | undefined;
+      if (!r?.structures.includes("watchtower")) continue;
+      for (const nb of CONTINENT_6P_ADJACENCY.get(id) ?? []) {
+        for (const nb2 of CONTINENT_6P_ADJACENCY.get(nb) ?? []) {
+          if (!owned.has(nb2) && !adjacentToOwned.has(nb2) && ids.includes(nb2)) {
+            towerRange.add(nb2);
+          }
+        }
+      }
+    }
+    for (const id of towerRange) src.set(id, "tower");
+    if (pactSets.sharedVisionPartners.size > 0) {
+      for (const id of ids) {
+        if (!src.has(id)) src.set(id, "shared");
+      }
+    }
+    return src;
+  }, [ids, view.visibleRegions, view.forTribe, view.myScouts, pactSets.sharedVisionPartners]);
+
+  const watchtowerRangeIds = useMemo(() => {
+    const out = new Set<string>();
+    for (const id of ids) {
+      const r = view.visibleRegions[id] as Region | undefined;
+      if (r?.owner !== view.forTribe) continue;
+      if (!r.structures.includes("watchtower")) continue;
+      for (const nb of CONTINENT_6P_ADJACENCY.get(id) ?? []) {
+        for (const nb2 of CONTINENT_6P_ADJACENCY.get(nb) ?? []) {
+          if (!ids.includes(nb2)) continue;
+          const r2 = view.visibleRegions[nb2] as Region | undefined;
+          if (r2?.owner !== view.forTribe) out.add(nb2);
+        }
+      }
+    }
+    return out;
+  }, [ids, view.visibleRegions, view.forTribe]);
+
+  const victoryProgress: VictoryProgressData = useMemo(() => {
+    const totalRegions = Object.keys(CONTINENT_6P_REGION_LAYOUT).length;
+    let ownedCount = 0;
+    let shrineCount = 0;
+    let ownedIncome = 0;
+    let totalVisibleIncome = 0;
+    for (const id of ids) {
+      const r = view.visibleRegions[id] as Region;
+      const prod = regionProduction(r);
+      totalVisibleIncome += prod;
+      if (r.owner === view.forTribe) {
+        ownedCount++;
+        ownedIncome += prod;
+        for (const s of r.structures) {
+          if (s === "shrine") shrineCount++;
+        }
+      }
+    }
+    const napCount = view.pactsInvolvingMe.filter(p => p.kind === "nap").length;
+    const aliveOthers = view.tribesAlive.filter(t => t !== view.forTribe).length;
+    return {
+      regionsOwned: ownedCount,
+      totalRegions,
+      income: ownedIncome,
+      totalVisibleIncome,
+      shrines: shrineCount,
+      naps: napCount,
+      aliveOthers,
+    };
+  }, [ids, view.visibleRegions, view.forTribe, view.pactsInvolvingMe, view.tribesAlive]);
+
   const glyphSvg = useMemo(() => {
     if (!showUnitGlyphs && !glyphState) return null;
     const L = CONTINENT_6P_REGION_LAYOUT;
@@ -155,25 +240,26 @@ export function V2Map({
       : view.myForces.filter((f) => f.location.kind === "transit");
     for (const f of forces) {
       if (f.location.kind !== "transit") continue;
-      const mid = transitMidpoint(
-        f.location.directionFrom,
-        f.location.directionTo,
-        L,
-      );
+      const mid = transitMidpoint(f.location.directionFrom, f.location.directionTo, L);
       if (!mid) continue;
       const [cx, cy] = mid;
-      const label = `${f.owner.slice(0, 2).toUpperCase()} T${f.tier} → ${regionShortName(f.location.directionTo)} (${f.location.ticksRemaining})`;
+      const fullTo = regionDisplayName(f.location.directionTo);
+      let pillLabel = transitToDestinationBadge(f.location.directionTo, f.tier, f.location.ticksRemaining);
+      if (pillLabel.length > 36) {
+        pillLabel = `T${f.tier} → ${fullTo.slice(0, 9)}… · ${f.location.ticksRemaining}t`;
+      }
+      const pillW = estimateTransitBadgeWidth(pillLabel);
       out.push(
         <g key={`ft-${f.id}`}>
           <title>
             {f.owner === view.forTribe
-              ? `Your army — tier ${f.tier}, ${f.location.ticksRemaining} ticks to arrival`
-              : `Enemy transit — ${f.owner}`}
+              ? `Your ${tribeLabel(f.owner)} army — tier ${f.tier}, ${f.location.ticksRemaining} ticks to ${fullTo}`
+              : `${tribeLabel(f.owner)} army — tier ${f.tier}, ${f.location.ticksRemaining} ticks to ${fullTo}`}
           </title>
           <rect
-            x={cx - 34}
+            x={cx - pillW / 2}
             y={cy - 10}
-            width={68}
+            width={pillW}
             height={20}
             rx={8}
             fill={tribeStrokeHex(f.owner)}
@@ -187,7 +273,7 @@ export function V2Map({
             fontWeight="bold"
             textAnchor="middle"
           >
-            {label.length > 28 ? `${label.slice(0, 26)}…` : label}
+            {pillLabel}
           </text>
         </g>,
       );
@@ -228,44 +314,18 @@ export function V2Map({
     const scoutsSrc: Scout[] = glyphState
       ? glyphState.scouts.filter((s) => s.location.kind === "arrived")
       : view.myScouts.filter((s) => s.location.kind === "arrived");
-    const visibleScouts: VisibleScout[] = glyphState ? [] : [...view.visibleScouts];
     for (const s of scoutsSrc) {
       if (s.location.kind !== "arrived") continue;
-      const rid = s.location.regionId;
-      const p = L[rid];
+      const p = L[s.location.regionId];
       if (!p) continue;
-      const cx = p[0] - 30;
-      const cy = p[1] + 28;
-      out.push(
-        <g key={`sc-${s.id}`}>
-          <circle cx={cx} cy={cy} r={10} fill="#111" stroke={tribeStrokeHex(s.owner)} strokeWidth={2} />
-          <text x={cx} y={cy + 4} fill="#fff" fontSize={9} fontWeight="bold" textAnchor="middle">
-            S
-          </text>
-        </g>,
-      );
+      out.push(renderScoutBadge(`sc-${s.id}`, p, s.owner));
     }
+
+    const visibleScouts: VisibleScout[] = glyphState ? [] : [...view.visibleScouts];
     for (const vs of visibleScouts) {
       const p = L[vs.regionId];
       if (!p) continue;
-      const cx = p[0] - 30;
-      const cy = p[1] + 28;
-      out.push(
-        <g key={`vsc-${vs.regionId}-${vs.owner}`}>
-          <circle
-            cx={cx}
-            cy={cy}
-            r={10}
-            fill="#111"
-            stroke={tribeStrokeHex(vs.owner)}
-            strokeWidth={2}
-            opacity={0.9}
-          />
-          <text x={cx} y={cy + 4} fill="#fff" fontSize={9} fontWeight="bold" textAnchor="middle">
-            S
-          </text>
-        </g>,
-      );
+      out.push(renderScoutBadge(`vsc-${vs.regionId}-${vs.owner}`, p, vs.owner, 0.9));
     }
 
     const caravans: Caravan[] = glyphState ? [...glyphState.caravans] : [...view.myCaravans];
@@ -275,24 +335,7 @@ export function V2Map({
       if (!rid) continue;
       const p = L[rid];
       if (!p) continue;
-      const cx = p[0] + 30;
-      const cy = p[1] - 30;
-      out.push(
-        <g key={`cv-${c.id}`}>
-          <rect
-            x={cx - 18}
-            y={cy - 10}
-            width={36}
-            height={20}
-            rx={8}
-            fill="#d1b254"
-            stroke="#111"
-          />
-          <text x={cx} y={cy + 4} fill="#111" fontSize={9} fontWeight="bold" textAnchor="middle">
-            C{c.amountInfluence}
-          </text>
-        </g>,
-      );
+      out.push(renderCaravanBadge(`cv-${c.id}`, p, c.amountInfluence));
     }
 
     if (showUnitGlyphs || glyphState) {
@@ -300,43 +343,7 @@ export function V2Map({
         const p = L[id];
         const r = view.visibleRegions[id] as Region | undefined;
         if (!p || !r?.structures?.length) continue;
-        const structs = r.structures;
-        const widths = structs.map((s) => Math.max(28, 7 * s.length + 14));
-        let tw = 0;
-        for (let i = 0; i < widths.length; i++) {
-          tw += widths[i]! + (i > 0 ? 6 : 0);
-        }
-        let cursor = p[0] - tw / 2;
-        const by = p[1] - 48;
-        for (let si = 0; si < structs.length; si++) {
-          const structure = structs[si]!;
-          const width = widths[si]!;
-          out.push(
-            <g key={`st-${id}-${si}-${structure}`}>
-              <rect
-                x={cursor}
-                y={by}
-                width={width}
-                height={16}
-                rx={8}
-                fill="#e4c36a"
-                stroke="#111"
-                opacity={0.98}
-              />
-              <text
-                x={cursor + width / 2}
-                y={by + 11}
-                fill="#111"
-                fontSize={9}
-                fontWeight="bold"
-                textAnchor="middle"
-              >
-                {structure}
-              </text>
-            </g>,
-          );
-          cursor += width + 6;
-        }
+        out.push(...renderStructureBadges(id, p, r.structures));
       }
     }
 
@@ -435,10 +442,10 @@ export function V2Map({
           aria-label="Territory map. Your garrison tier appears as T1–T4 in the center of regions you hold. Trail edge labels show travel time in ticks."
         >
           <rect
-            x={ox}
-            y={oy}
-            width={w}
-            height={h}
+            x={ox - 10000}
+            y={oy - 10000}
+            width={w + 20000}
+            height={h + 20000}
             className="v2-map-pan-layer"
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -463,6 +470,17 @@ export function V2Map({
             const edgeKey = trailEdgeKey(a, b);
             const isRoad = roadEdges.has(edgeKey);
             const tickLabel = trailBaseTicks?.get(edgeKey);
+            const rA = view.visibleRegions[a] as Region | undefined;
+            const rB = view.visibleRegions[b] as Region | undefined;
+            let pactKind: string | null = null;
+            if (rA?.owner === view.forTribe && pactSets.warTargets.has(rB?.owner as Tribe)) pactKind = "war";
+            else if (rB?.owner === view.forTribe && pactSets.warTargets.has(rA?.owner as Tribe)) pactKind = "war";
+            else if (rA?.owner === view.forTribe && pactSets.sharedVisionPartners.has(rB?.owner as Tribe)) pactKind = "sv";
+            else if (rB?.owner === view.forTribe && pactSets.sharedVisionPartners.has(rA?.owner as Tribe)) pactKind = "sv";
+            else if (rA?.owner === view.forTribe && pactSets.napPartners.has(rB?.owner as Tribe)) pactKind = "nap";
+            else if (rB?.owner === view.forTribe && pactSets.napPartners.has(rA?.owner as Tribe)) pactKind = "nap";
+            const plox = (-dy / len) * 6;
+            const ploy = (dx / len) * 6;
             return (
               <g key={`${a}-${b}-${i}`}>
                 <line
@@ -472,20 +490,17 @@ export function V2Map({
                   y2={pb[1]}
                   className={`v2-trail${isRoad ? " v2-trail-road" : ""}`}
                 />
-                {tickLabel != null && (
-                  <g>
-                    <title>Trail travel time (ticks), not combat tier</title>
-                    <rect x={mx - 12} y={my - 10} width={24} height={18} rx={4} fill="#111" stroke="#777" />
-                    <text
-                      x={mx}
-                      y={my + 3}
-                      textAnchor="middle"
-                      className="v2-map-trail-time"
-                    >
-                      {tickLabel}t
-                    </text>
-                  </g>
+                {pactKind && (
+                  <line
+                    x1={pa[0] + plox}
+                    y1={pa[1] + ploy}
+                    x2={pb[0] + plox}
+                    y2={pb[1] + ploy}
+                    className={`v2-trail-pact v2-trail-pact-${pactKind}`}
+                    pointerEvents="none"
+                  />
                 )}
+                {tickLabel != null && renderTrailTimeLabel(mx, my, tickLabel)}
               </g>
             );
           })}
@@ -494,9 +509,11 @@ export function V2Map({
             const r = view.visibleRegions[id] as Region;
             if (!p || !r) return null;
             const sel = selectedRegionId === id;
-            const short = regionShortName(id);
+            const short = regionDisplayName(id);
             const tc = TERRAIN_CLASS[r.type] ?? "terrain-plains";
-            const terrainLabel = TERRAIN_DISPLAY[r.type] ?? r.type;
+            const prod = regionProduction(r);
+            const visSrc = visibilitySource.get(id);
+            const visGlowClass = visSrc && visSrc !== "own" ? `v2-vis-glow-${visSrc}` : "";
             const myGarrison = showUnitGlyphs
               ? garrisonForceForRegion(id, view, glyphState)
               : undefined;
@@ -509,6 +526,15 @@ export function V2Map({
             return (
               <g key={id}>
                 <title>{regionTitle}</title>
+                {visGlowClass && (
+                  <circle
+                    cx={p[0]}
+                    cy={p[1]}
+                    r={48}
+                    className={visGlowClass}
+                    pointerEvents="none"
+                  />
+                )}
                 <circle
                   cx={p[0]}
                   cy={p[1]}
@@ -533,24 +559,9 @@ export function V2Map({
                 >
                   {short.length > 14 ? `${short.slice(0, 12)}…` : short}
                 </text>
-                <text
-                  x={p[0]}
-                  y={p[1] + 70}
-                  textAnchor="middle"
-                  className="v2-map-terrain-label"
-                >
-                  {terrainLabel}
-                </text>
-                {r.owner && (
-                  <text
-                    x={p[0]}
-                    y={p[1] - 18}
-                    textAnchor="middle"
-                    className="v2-map-tribe-name"
-                  >
-                    {tribeLabel(r.owner)}
-                  </text>
-                )}
+                {renderTerrainLabel(p, r)}
+                {r.owner && renderTribeNameLabel(p, r.owner)}
+                {showUnitGlyphs && renderProductionLabel(p, prod)}
               </g>
             );
           })}
@@ -562,18 +573,7 @@ export function V2Map({
               if (!p) return null;
               const myG = garrisonForceForRegion(id, view, glyphState);
               if (!myG) return null;
-              return (
-                <text
-                  key={`garrison-tier-${id}`}
-                  x={p[0]}
-                  y={p[1] + 6}
-                  textAnchor="middle"
-                  className="v2-map-garrison-tier"
-                  pointerEvents="none"
-                >
-                  T{myG.tier}
-                </text>
-              );
+              return renderGarrisonTierText(id, p, myG.tier);
             })}
           {showUnitGlyphs &&
             ids.map((id) => {
@@ -584,27 +584,25 @@ export function V2Map({
               if (myG || hasVisibleEnemy) return null;
               const r = view.visibleRegions[id] as Region | undefined;
               if (!r?.owner) return null;
+              return renderEmptyGarrisonCircle(id, p);
+            })}
+          {showUnitGlyphs &&
+            [...watchtowerRangeIds].map((id) => {
+              const p = layout[id];
+              if (!p) return null;
               return (
                 <circle
-                  key={`garrison-empty-${id}`}
+                  key={`wt-range-${id}`}
                   cx={p[0]}
                   cy={p[1]}
-                  r={8}
-                  className="v2-map-garrison-empty"
+                  r={52}
+                  className="v2-map-watchtower-range"
                   pointerEvents="none"
                 />
               );
             })}
-          <text
-            x={ox + w - 8}
-            y={oy + 20}
-            textAnchor="end"
-            className="v2-map-tick-overlay"
-            pointerEvents="none"
-          >
-            Tick {view.tick}/{view.tickLimit}
-          </text>
         </svg>
+        {showUnitGlyphs && <VictoryOverlay progress={victoryProgress} />}
       </div>
     </div>
   );

@@ -79,16 +79,16 @@ describe("restoreMatches", () => {
     }
   });
 
-  it("restarts autoplay for an in-progress match missing match_end", { timeout: 30_000 }, async () => {
-    const tmp = mkdtempSync(path.join(tmpdir(), "rr-restore-resume-"));
+  it("restores an in-progress match missing match_end as paused", async () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "rr-restore-paused-"));
     process.env.DATA_DIR = tmp;
 
     try {
       const req: CreateMatchRequest = {
-        seed: 99,
+        seed: 424242,
         mapPreset: "continent6p",
         tribes: [...CONTINENT_6],
-        tickLimit: 4,
+        tickLimit: 5,
         slots: CONTINENT_6.map((tribe) => ({ tribe, type: "pass" as const })),
       };
 
@@ -96,36 +96,90 @@ describe("restoreMatches", () => {
       const { matchId } = mgr1.createMatch(req);
 
       await new Promise<void>((resolve, reject) => {
-        const deadline = Date.now() + 15_000;
+        const deadline = Date.now() + 30_000;
         const step = () => {
           const m = mgr1.getMatch(matchId);
-          if (!m) return reject(new Error("missing"));
-          if (m.tickBuffer.length >= 2) return resolve();
-          if (Date.now() > deadline) return reject(new Error("timeout"));
-          setTimeout(step, 10);
+          if (!m) return reject(new Error("match missing"));
+          if (m.status === "finished") return resolve();
+          if (Date.now() > deadline) {
+            return reject(new Error(`timeout status=${m.status}`));
+          }
+          setTimeout(step, 15);
         };
         step();
       });
 
-      // Simulate SIGKILL before match_end is written: capture the log
-      // at a partial-finish point, cut off any final match_end, relaunch.
+      await mgr1.drain();
+
       const logPath = path.join(tmp, `${matchId}.jsonl`);
       const raw = readFileSync(logPath, "utf8");
       const linesAll = raw.split("\n").filter(Boolean);
-      const cut = linesAll.filter((l) => !l.includes('"kind":"match_end"'));
-      writeFileSync(logPath, cut.join("\n") + "\n");
-
-      await mgr1.drain();
+      const withoutEnd = linesAll.filter((l) => !l.includes('"kind":"match_end"'));
+      const truncated = withoutEnd.slice(0, 2);
+      writeFileSync(logPath, truncated.join("\n") + "\n");
 
       const mgr2 = await freshMatchManager();
       mgr2.restoreMatches();
       const restored = mgr2.getMatch(matchId);
       expect(restored).toBeDefined();
+      expect(restored!.status).toBe("paused");
+      expect(restored!.tickBuffer.length).toBeGreaterThanOrEqual(1);
+      await mgr2.drain();
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 
-      // Either the replay re-derived a winner (resolves directly as finished),
-      // or the autoplay loop resumes and drives to completion.
+  it("can resume a paused match and drive it to completion", { timeout: 30_000 }, async () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "rr-restore-resume-"));
+    process.env.DATA_DIR = tmp;
+
+    try {
+      const req: CreateMatchRequest = {
+        seed: 424242,
+        mapPreset: "continent6p",
+        tribes: [...CONTINENT_6],
+        tickLimit: 5,
+        slots: CONTINENT_6.map((tribe) => ({ tribe, type: "pass" as const })),
+      };
+
+      const mgr1 = await freshMatchManager();
+      const { matchId } = mgr1.createMatch(req);
+
       await new Promise<void>((resolve, reject) => {
-        const deadline = Date.now() + 20_000;
+        const deadline = Date.now() + 30_000;
+        const step = () => {
+          const m = mgr1.getMatch(matchId);
+          if (!m) return reject(new Error("match missing"));
+          if (m.status === "finished") return resolve();
+          if (Date.now() > deadline) {
+            return reject(new Error(`timeout status=${m.status}`));
+          }
+          setTimeout(step, 15);
+        };
+        step();
+      });
+
+      await mgr1.drain();
+
+      const logPath = path.join(tmp, `${matchId}.jsonl`);
+      const raw = readFileSync(logPath, "utf8");
+      const linesAll = raw.split("\n").filter(Boolean);
+      const withoutEnd = linesAll.filter((l) => !l.includes('"kind":"match_end"'));
+      const truncated = withoutEnd.slice(0, 2);
+      writeFileSync(logPath, truncated.join("\n") + "\n");
+
+      const mgr2 = await freshMatchManager();
+      mgr2.restoreMatches();
+      const restored = mgr2.getMatch(matchId);
+      expect(restored).toBeDefined();
+      expect(restored!.status).toBe("paused");
+
+      const ok = mgr2.resumeMatch(matchId);
+      expect(ok).toBe(true);
+
+      await new Promise<void>((resolve, reject) => {
+        const deadline = Date.now() + 30_000;
         const step = () => {
           if (restored!.status === "finished") return resolve();
           if (Date.now() > deadline) {

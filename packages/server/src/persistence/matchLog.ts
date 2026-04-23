@@ -116,6 +116,27 @@ export function listMatchLogFiles(): string[] {
     .map((f) => path.join(dir, f));
 }
 
+export function cleanUpOldMatchLogs(maxAgeMs: number): number {
+  const dir = getDataDir();
+  if (!fs.existsSync(dir)) return 0;
+  const now = Date.now();
+  let removed = 0;
+  for (const file of fs.readdirSync(dir)) {
+    if (!file.endsWith(".jsonl")) continue;
+    const fullPath = path.join(dir, file);
+    try {
+      const stat = fs.statSync(fullPath);
+      if (now - stat.mtimeMs > maxAgeMs) {
+        fs.unlinkSync(fullPath);
+        removed++;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return removed;
+}
+
 export function readMatchLogLines(matchId: string): string[] {
   const p = linePath(matchId);
   if (!fs.existsSync(p)) return [];

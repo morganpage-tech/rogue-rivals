@@ -87,7 +87,7 @@ export function createPassMatch(mgr: MatchManager): CreateMatchResponse {
 export function waitForMatchStatus(
   mgr: MatchManager,
   matchId: string,
-  status: "lobby" | "running" | "finished",
+  status: "lobby" | "running" | "finished" | "paused",
   timeoutMs = 30_000,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {

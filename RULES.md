@@ -742,12 +742,14 @@ Tick 8 and onward proceed similarly. Grey's scout arrives at r_02 on tick 8; the
 
 These are acknowledged incomplete and scheduled for a v2.1 revision after the first playable batch:
 
-- 5–8 player tribe definitions (currently 4 canonical only).
+- 5–8 player tribe definitions — **partially addressed**: Arctic and Tricoloured implemented for 6-player in `MAP_6P_v2.md` and `@rr/engine2/continent6pMap.ts`; full tribe definitions not yet in this document.
 - Recruitment delay ticks: currently zero — a recruited force is available the same tick. Consider adding a 1-tick delay for higher tiers.
 - Pact-breaker reputation mechanics: currently tag-only (no mechanical penalty). Consider adding a proposal-rejection probability for LLM personas.
 - Caravan path recomputation: currently frozen at dispatch. Consider recomputing if path regions change ownership mid-flight.
 - Ruins relics: GDD mentions Red starts with a relic (counts ½ Shrine). The mechanics of picking up relics from ruins regions is not yet specified — currently Red's bonus is Influence-only.
 - Forge as Tier IV gate: clarify whether Tier IV can *move through* regions without a forge (current spec: yes, the forge is only a recruitment gate, not a maintenance gate).
+
+Detailed proposals for addressing balance issues (NAP peace-lock, defender stack, trade escrow, persona kits, pacing) are tracked in `DESIGN_PROPOSAL_v2.1.md`.
 
 ---
 
@@ -765,4 +767,4 @@ An implementation is v2.0-conformant if it passes all of:
 
 ---
 
-*End of RULES.md. JSON schema files and the reference Python oracle (`tools/v2/`) follow in-repo.*
+*End of RULES.md. JSON schema files follow in-repo. The retired Python oracle (`tools/v2/`) has been removed; the authoritative engine is `@rr/engine2` (TypeScript).*

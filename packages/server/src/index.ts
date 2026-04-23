@@ -11,7 +11,7 @@ import type { CreateMatchRequest, JoinMatchRequest, SubmitOrdersRequest } from "
 
 import { verifyPlayerToken } from "./auth/jwt.js";
 import { registerDebugRoutes } from "./debug/debugRoutes.js";
-import { ensureDataDir } from "./persistence/matchLog.js";
+import { ensureDataDir, cleanUpOldMatchLogs } from "./persistence/matchLog.js";
 import { jwtSecret, MatchManager } from "./match/matchManager.js";
 import { handlePlayerConnection } from "./ws/playerHub.js";
 import { handleSpectatorConnection } from "./ws/spectatorHub.js";
@@ -46,7 +46,7 @@ export async function buildApp(
   server.delete<{ Params: { id: string } }>("/api/matches/:id", async (req, reply) => {
     const match = matchManager.getMatch(req.params.id);
     if (!match) return reply.code(404).send({ error: "not found" });
-    if (match.status === "running" || match.status === "lobby") {
+    if (match.status === "running" || match.status === "lobby" || match.status === "paused") {
       const ok = await matchManager.stopMatch(req.params.id);
       if (!ok) return reply.code(409).send({ error: "could not stop" });
       return { stopped: true, matchId: req.params.id };
@@ -75,6 +75,15 @@ export async function buildApp(
       const r = matchManager.joinMatch(req.params.id, req.body.tribe, req.body.displayName);
       if (!r) return reply.code(404).send({ error: "not found" });
       return r;
+    },
+  );
+
+  server.post<{ Params: { id: string } }>(
+    "/api/matches/:id/resume",
+    async (req, reply) => {
+      const ok = matchManager.resumeMatch(req.params.id);
+      if (!ok) return reply.code(404).send({ error: "not found or not paused" });
+      return { resumed: true, matchId: req.params.id };
     },
   );
 
@@ -179,6 +188,12 @@ async function main(): Promise<void> {
 
   const { server, matchManager } = await buildApp();
   matchManager.restoreMatches();
+
+  const ttlMs = Number(process.env.MATCH_LOG_TTL_MS ?? 86_400_000);
+  if (ttlMs > 0) {
+    const removed = cleanUpOldMatchLogs(ttlMs);
+    if (removed > 0) console.log(`[cleanup] removed ${removed} old match log(s)`);
+  }
 
   const port = Number(process.env.PORT ?? 3001);
   const host = process.env.HOST ?? "0.0.0.0";

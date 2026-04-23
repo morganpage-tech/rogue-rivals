@@ -53,7 +53,7 @@ export class ActiveMatch {
   spectatorSockets: Set<WebSocket> = new Set();
   debugSockets: Set<WebSocket> = new Set();
   playerSockets: Map<Tribe, WebSocket> = new Map();
-  status: "lobby" | "running" | "finished";
+  status: "lobby" | "running" | "finished" | "paused";
   autoPlay: boolean;
   tickTimeoutSeconds: number;
   acceptingWork = true;

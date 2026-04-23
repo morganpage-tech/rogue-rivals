@@ -1,9 +1,9 @@
 # Rogue Rivals — Server-Authoritative Migration Plan
 
-**Version:** 1.4
-**Date:** 2026-04-20
-**Status:** Ready for implementation
-**Companion docs:** `GDD.md`, `RULES.md`, `PROTOTYPE_SPEC.md`
+**Version:** 1.5
+**Date:** 2026-04-22
+**Status:** Largely implemented — server package (`@rr/server`) is live with match management, autoplay, persistence, and WebSocket hubs. Remaining work tracked per-phase in §7.
+**Companion docs:** `GDD.md`, `RULES.md`
 
 ---
 
@@ -171,7 +171,6 @@ rogue-rivals/
 │
 ├── GDD.md
 ├── RULES.md
-├── PROTOTYPE_SPEC.md
 └── SERVER_MIGRATION.md     # this file
 ```
 
@@ -519,7 +518,7 @@ those orders dropped by the server; preview is UX, not enforcement.
     "@rr/shared": "workspace:*",
     "fastify": "^5.0.0",
     "@fastify/websocket": "^11.0.0",
-    "@fastify/jwt": "^9.0.0",
+    "jsonwebtoken": "^9.0.0",
     "@fastify/cors": "^10.0.0",
     "uuid": "^10.0.0"
   },
@@ -1731,7 +1730,7 @@ These don't block implementation but should be resolved during Phase 9-11:
 1. **LLM persona presets** — should the server define hardcoded system prompts for personas (warlord, merchant, paranoid, etc.), or should the wizard accept free-form system prompt text?
 2. **Tick timeout defaults** — mechanism is fixed (§4.4b, `tickTimeoutSeconds`). Remaining product choice: confirm **300s** vs longer hosted-session defaults (e.g. 24h async PBEM); already configurable per match at creation.
 3. **Max concurrent matches** — is there a practical in-memory limit for MVP, or is it unbounded?
-4. **Invite link sharing** — should human slots have shareable invite links (like PROTOTYPE_SPEC.md magic links), or does the host manually send the play URL to each player?
+4. **Invite link sharing** — should human slots have shareable invite links (magic links), or does the host manually send the play URL to each player?
 5. **Match listing** — should there be a public list of spectatable matches, or are they URL-only?
 
 ---

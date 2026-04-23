@@ -106,7 +106,7 @@ export class MatchManager {
 
   async stopMatch(matchId: string): Promise<boolean> {
     const match = this.matches.get(matchId);
-    if (!match || (match.status !== "running" && match.status !== "lobby")) return false;
+    if (!match || (match.status !== "running" && match.status !== "lobby" && match.status !== "paused")) return false;
     match.acceptingWork = false;
     if (match.tickTimeoutTimer) {
       clearTimeout(match.tickTimeoutTimer);
@@ -120,6 +120,20 @@ export class MatchManager {
       finishedAt: new Date().toISOString(),
     });
     this.broadcastMatchEnd(match);
+    return true;
+  }
+
+  resumeMatch(matchId: string): boolean {
+    const match = this.matches.get(matchId);
+    if (!match || match.status !== "paused") return false;
+    match.status = "running";
+    if (match.autoPlay) {
+      void runAutoPlayLoop(match, matchId, (m, id) => {
+        this.afterTickResolved(m, id);
+      });
+    } else {
+      this.scheduleTickTimeout(match);
+    }
     return true;
   }
 
@@ -555,24 +569,40 @@ export class MatchManager {
       match.prevTickState = replay.prevTickState;
       match.prevTickEvents = replay.prevTickEvents;
       const isFinished = replay.finished || match.state.winner !== null;
-      match.status = isFinished ? "finished" : "running";
+      match.status = isFinished ? "finished" : "paused";
       this.matches.set(matchId, match);
-
-      if (isFinished) continue;
-
-      if (autoPlay) {
-        void runAutoPlayLoop(match, matchId, (m, id) => {
-          this.afterTickResolved(m, id);
-        });
-      } else {
-        this.scheduleTickTimeout(match);
-      }
     }
   }
 
-  async drain(_options?: { timeoutMs?: number }): Promise<void> {
-    for (const m of this.matches.values()) {
-      m.acceptingWork = false;
+  async drain(options?: { timeoutMs?: number }): Promise<void> {
+    const timeoutMs = options?.timeoutMs ?? 30_000;
+    const pending: Promise<void>[] = [];
+
+    for (const [matchId, match] of this.matches) {
+      if (match.status === "finished") continue;
+
+      match.acceptingWork = false;
+      if (match.tickTimeoutTimer) {
+        clearTimeout(match.tickTimeoutTimer);
+        match.tickTimeoutTimer = null;
+      }
+
+      pending.push(
+        match.withLock(async () => {
+          match.status = "finished";
+          appendMatchEnd(matchId, {
+            kind: "match_end",
+            winner: match.state.winner,
+            finishedAt: new Date().toISOString(),
+          });
+          this.broadcastMatchEnd(match);
+        }),
+      );
     }
+
+    const timeout = new Promise<void>((resolve) =>
+      setTimeout(resolve, timeoutMs),
+    );
+    await Promise.race([Promise.allSettled(pending), timeout]);
   }
 }

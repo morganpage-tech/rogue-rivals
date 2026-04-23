@@ -11,8 +11,11 @@ const MIN_ZOOM = 0.45;
 const MAX_ZOOM = 8;
 const WHEEL_FACTOR = 1.12;
 
-const NODE_R = 42;
-const LABEL_BELOW_CENTER = 58 + 18;
+/** Match largest decorative radius around a region (vis glow 48, watchtower ring 52). */
+const REGION_EXTENT_R = 52;
+/** Text / labels + trail-time pills below/above nodes (px beyond region center / extent). */
+const LABEL_BELOW_STACK = 72;
+const LABEL_TOP_MARGIN = 28;
 
 function clampCenter(
   cx: number,
@@ -25,19 +28,20 @@ function clampCenter(
 ): { cx: number; cy: number } {
   const vw = bw / zoom;
   const vh = bh / zoom;
-  const slack = 140;
   let ncx = cx;
   let ncy = cy;
   if (vw <= bw + 1e-6) {
-    const minCx = ox + vw / 2 - slack;
-    const maxCx = ox + bw - vw / 2 + slack;
+    // Tight [ox, ox+bw] so the viewport can never sit "inside" the world and clip an edge
+    // (positive slack on max was letting vx > ox when zoomed in, cutting off the left/top).
+    const minCx = ox + vw / 2;
+    const maxCx = ox + bw - vw / 2;
     ncx = Math.min(maxCx, Math.max(minCx, cx));
   } else {
     ncx = ox + bw / 2;
   }
   if (vh <= bh + 1e-6) {
-    const minCy = oy + vh / 2 - slack;
-    const maxCy = oy + bh - vh / 2 + slack;
+    const minCy = oy + vh / 2;
+    const maxCy = oy + bh - vh / 2;
     ncy = Math.min(maxCy, Math.max(minCy, cy));
   } else {
     ncy = oy + bh / 2;
@@ -93,13 +97,13 @@ export function useMapPanZoom({
     if (!Number.isFinite(minX) || !Number.isFinite(maxX)) {
       return { ox: 0, oy: 0, w: 400, h: 400 };
     }
-    const minXe = minX - NODE_R;
-    const maxXe = maxX + NODE_R;
-    const minYe = minY - NODE_R;
-    const maxYe = maxY + LABEL_BELOW_CENTER;
-    const padX = 48;
-    const padTop = 32;
-    const padBottom = 32;
+    const minXe = minX - REGION_EXTENT_R;
+    const maxXe = maxX + REGION_EXTENT_R;
+    const minYe = minY - REGION_EXTENT_R - LABEL_TOP_MARGIN;
+    const maxYe = maxY + LABEL_BELOW_STACK;
+    const padX = 72;
+    const padTop = 36;
+    const padBottom = 36;
     const w = maxXe - minXe + padX * 2;
     const h = maxYe - minYe + padTop + padBottom;
     const ox = minXe - padX;
