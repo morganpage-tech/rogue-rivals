@@ -12,8 +12,7 @@ export interface PersonaDef {
 
 const UNIVERSAL_ADAPTATION =
   "CRITICAL: Review your FAILED actions from last tick in the tick results section. " +
-  "Do NOT repeat any action that failed. If recruit failed with 'garrison already present', " +
-  "you must first move or use that force before recruiting there. If build failed with 'full', " +
+  "Do NOT repeat any action that failed. If build failed with 'full', " +
   "build in a different region. If an option ID was not found in the legal options list, " +
   "only use exact IDs from the current tick's Legal order options list. " +
   "If you have been repeating the same action for multiple ticks with no progress, CHANGE your strategy.";

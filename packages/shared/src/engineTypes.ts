@@ -37,8 +37,8 @@ export type StructureKind =
   | "shrine"
   | "forge";
 
-/** Force tiers I–IV, per RULES.md §4.2. */
-export type ForceTier = 1 | 2 | 3 | 4;
+/** Force strength (any positive integer; tiers 1–4 are the recruitable building blocks). */
+export type ForceTier = number;
 
 /**
  * Fuzzy tier string shown to observers under fog of war.

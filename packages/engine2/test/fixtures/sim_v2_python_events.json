@@ -5,39 +5,43 @@
     "events": [
       {
         "kind": "build_failed",
-        "reason": "no_influence",
-        "tribe": "brown"
+        "tribe": "brown",
+        "reason": "no_influence"
       },
       {
-        "from": "orange",
-        "id": "p_0000",
         "kind": "proposal_sent",
+        "from": "orange",
+        "to": "grey",
         "proposal_kind": "nap",
-        "to": "grey"
+        "id": "p_0000"
       },
       {
-        "kind": "recruit_failed",
-        "reason": "garrison_present"
+        "kind": "garrison_reinforced",
+        "tribe": "red",
+        "region_id": "r_red_desert",
+        "tier_added": 1,
+        "new_tier": 3,
+        "force_id": "f_red_003"
       },
       {
-        "amount": 3,
         "kind": "influence_credited",
-        "tribe": "orange"
+        "tribe": "orange",
+        "amount": 3
       },
       {
-        "amount": 5,
         "kind": "influence_credited",
-        "tribe": "grey"
+        "tribe": "grey",
+        "amount": 5
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "brown"
+        "tribe": "brown",
+        "amount": 2
       },
       {
-        "amount": 1,
         "kind": "influence_credited",
-        "tribe": "red"
+        "tribe": "red",
+        "amount": 1
       }
     ]
   },
@@ -47,42 +51,46 @@
     "events": [
       {
         "kind": "pact_formed",
-        "pact": "nap",
         "parties": [
           "grey",
           "orange"
-        ]
+        ],
+        "pact": "nap"
       },
       {
-        "kind": "recruit_failed",
-        "reason": "garrison_present"
+        "kind": "garrison_reinforced",
+        "tribe": "orange",
+        "region_id": "r_orange_plains",
+        "tier_added": 2,
+        "new_tier": 4,
+        "force_id": "f_orange_000"
       },
       {
-        "from": "r_brown_swamps",
         "kind": "dispatch_scout",
+        "tribe": "brown",
         "scout_id": "s_brown_000",
-        "to": "r_desert_wastes",
-        "tribe": "brown"
+        "from": "r_brown_swamps",
+        "to": "r_desert_wastes"
       },
       {
-        "amount": 3,
         "kind": "influence_credited",
-        "tribe": "orange"
+        "tribe": "orange",
+        "amount": 3
       },
       {
-        "amount": 5,
         "kind": "influence_credited",
-        "tribe": "grey"
+        "tribe": "grey",
+        "amount": 5
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "brown"
+        "tribe": "brown",
+        "amount": 2
       },
       {
-        "amount": 1,
         "kind": "influence_credited",
-        "tribe": "red"
+        "tribe": "red",
+        "amount": 1
       }
     ]
   },
@@ -91,52 +99,36 @@
     "tickAfter": 3,
     "events": [
       {
-        "from": "red",
-        "id": "p_0001",
         "kind": "proposal_sent",
+        "from": "red",
+        "to": "grey",
         "proposal_kind": "trade_offer",
-        "to": "grey"
-      },
-      {
-        "breaker": "orange",
-        "kind": "pact_broken_by_move",
-        "parties": [
-          "grey",
-          "orange"
-        ]
-      },
-      {
-        "force_id": "f_orange_000",
-        "from": "r_orange_plains",
-        "kind": "dispatch_move",
-        "ticks": 2,
-        "to": "r_ruins_center",
-        "tribe": "orange"
+        "id": "p_0001"
       },
       {
         "kind": "scout_arrived",
-        "region_id": "r_desert_wastes",
-        "scout_id": "s_brown_000"
+        "scout_id": "s_brown_000",
+        "region_id": "r_desert_wastes"
       },
       {
-        "amount": 3,
         "kind": "influence_credited",
-        "tribe": "orange"
+        "tribe": "orange",
+        "amount": 3
       },
       {
-        "amount": 5,
         "kind": "influence_credited",
-        "tribe": "grey"
+        "tribe": "grey",
+        "amount": 5
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "brown"
+        "tribe": "brown",
+        "amount": 2
       },
       {
-        "amount": 1,
         "kind": "influence_credited",
-        "tribe": "red"
+        "tribe": "red",
+        "amount": 1
       }
     ]
   },
@@ -145,44 +137,33 @@
     "tickAfter": 4,
     "events": [
       {
-        "amount": 6,
-        "id": "c_0000",
         "kind": "caravan_dispatched",
+        "id": "c_0000",
+        "amount": 6,
         "path": [
           "r_red_desert",
           "r_grey_mountains"
         ]
       },
       {
-        "force_id": "f_orange_000",
-        "kind": "force_arrived",
-        "region_id": "r_ruins_center"
-      },
-      {
-        "kind": "region_captured",
-        "previous_owner": "grey",
-        "region_id": "r_ruins_center",
-        "tribe": "orange"
-      },
-      {
-        "amount": 6,
         "kind": "influence_credited",
-        "tribe": "orange"
+        "tribe": "orange",
+        "amount": 3
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "grey"
+        "tribe": "grey",
+        "amount": 5
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "brown"
+        "tribe": "brown",
+        "amount": 2
       },
       {
-        "amount": 1,
         "kind": "influence_credited",
-        "tribe": "red"
+        "tribe": "red",
+        "amount": 1
       },
       {
         "kind": "scout_expired",
@@ -195,36 +176,36 @@
     "tickAfter": 5,
     "events": [
       {
-        "from": "red",
         "kind": "message_sent",
-        "to": "grey"
-      },
-      {
-        "amount": 6,
         "from": "red",
-        "id": "c_0000",
-        "kind": "caravan_delivered",
         "to": "grey"
       },
       {
-        "amount": 6,
-        "kind": "influence_credited",
-        "tribe": "orange"
+        "kind": "caravan_delivered",
+        "id": "c_0000",
+        "from": "red",
+        "to": "grey",
+        "amount": 6
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "grey"
+        "tribe": "orange",
+        "amount": 3
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "brown"
+        "tribe": "grey",
+        "amount": 5
       },
       {
-        "amount": 1,
         "kind": "influence_credited",
-        "tribe": "red"
+        "tribe": "brown",
+        "amount": 2
+      },
+      {
+        "kind": "influence_credited",
+        "tribe": "red",
+        "amount": 1
       }
     ]
   },
@@ -234,36 +215,36 @@
     "events": [
       {
         "kind": "built",
+        "tribe": "grey",
         "region_id": "r_grey_mountains",
-        "structure": "watchtower",
-        "tribe": "grey"
+        "structure": "watchtower"
       },
       {
-        "from": "orange",
-        "id": "p_0002",
         "kind": "proposal_sent",
+        "from": "orange",
+        "to": "brown",
         "proposal_kind": "nap",
-        "to": "brown"
+        "id": "p_0002"
       },
       {
-        "amount": 6,
         "kind": "influence_credited",
-        "tribe": "orange"
+        "tribe": "orange",
+        "amount": 3
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "grey"
+        "tribe": "grey",
+        "amount": 5
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "brown"
+        "tribe": "brown",
+        "amount": 2
       },
       {
-        "amount": 1,
         "kind": "influence_credited",
-        "tribe": "red"
+        "tribe": "red",
+        "amount": 1
       }
     ]
   },
@@ -272,32 +253,24 @@
     "tickAfter": 7,
     "events": [
       {
-        "force_id": "f_orange_000",
-        "from": "r_ruins_center",
-        "kind": "dispatch_move",
-        "ticks": 2,
-        "to": "r_grey_mountains",
-        "tribe": "orange"
+        "kind": "influence_credited",
+        "tribe": "orange",
+        "amount": 3
       },
       {
-        "amount": 6,
         "kind": "influence_credited",
-        "tribe": "orange"
+        "tribe": "grey",
+        "amount": 5
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "grey"
+        "tribe": "brown",
+        "amount": 2
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "brown"
-      },
-      {
-        "amount": 1,
-        "kind": "influence_credited",
-        "tribe": "red"
+        "tribe": "red",
+        "amount": 1
       }
     ]
   },
@@ -307,55 +280,36 @@
     "events": [
       {
         "kind": "built",
+        "tribe": "brown",
         "region_id": "r_brown_swamps",
-        "structure": "fort",
-        "tribe": "brown"
+        "structure": "fort"
       },
       {
-        "from": "r_grey_mountains",
         "kind": "dispatch_scout",
+        "tribe": "grey",
         "scout_id": "s_grey_001",
-        "to": "r_ruins_center",
-        "tribe": "grey"
-      },
-      {
-        "force_id": "f_orange_000",
-        "kind": "force_arrived",
-        "region_id": "r_grey_mountains"
-      },
-      {
-        "a_eff": 2,
-        "attacker": "orange",
-        "d_eff": 3,
-        "defender": "grey",
-        "kind": "combat",
-        "region": "r_grey_mountains",
-        "result": "defender_wins"
-      },
-      {
-        "force_id": "f_orange_000",
-        "kind": "force_retreated",
+        "from": "r_grey_mountains",
         "to": "r_ruins_center"
       },
       {
-        "amount": 6,
         "kind": "influence_credited",
-        "tribe": "orange"
+        "tribe": "orange",
+        "amount": 3
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "grey"
+        "tribe": "grey",
+        "amount": 5
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "brown"
+        "tribe": "brown",
+        "amount": 2
       },
       {
-        "amount": 1,
         "kind": "influence_credited",
-        "tribe": "red"
+        "tribe": "red",
+        "amount": 1
       }
     ]
   },
@@ -365,35 +319,35 @@
     "events": [
       {
         "kind": "scout_arrived",
-        "region_id": "r_ruins_center",
-        "scout_id": "s_grey_001"
+        "scout_id": "s_grey_001",
+        "region_id": "r_ruins_center"
       },
       {
-        "from": "orange",
-        "id": "p_0002",
         "kind": "proposal_expired",
+        "id": "p_0002",
         "proposal_kind": "nap",
+        "from": "orange",
         "to": "brown"
       },
       {
-        "amount": 6,
         "kind": "influence_credited",
-        "tribe": "orange"
+        "tribe": "orange",
+        "amount": 3
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "grey"
+        "tribe": "grey",
+        "amount": 5
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "brown"
+        "tribe": "brown",
+        "amount": 2
       },
       {
-        "amount": 1,
         "kind": "influence_credited",
-        "tribe": "red"
+        "tribe": "red",
+        "amount": 1
       }
     ]
   },
@@ -402,24 +356,24 @@
     "tickAfter": 10,
     "events": [
       {
-        "amount": 6,
         "kind": "influence_credited",
-        "tribe": "orange"
+        "tribe": "orange",
+        "amount": 3
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "grey"
+        "tribe": "grey",
+        "amount": 5
       },
       {
-        "amount": 2,
         "kind": "influence_credited",
-        "tribe": "brown"
+        "tribe": "brown",
+        "amount": 2
       },
       {
-        "amount": 1,
         "kind": "influence_credited",
-        "tribe": "red"
+        "tribe": "red",
+        "amount": 1
       },
       {
         "kind": "scout_expired",

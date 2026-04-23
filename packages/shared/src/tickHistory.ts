@@ -84,8 +84,10 @@ export function computeNarrativeForTribe(
       entries.push(`Your caravan delivered ${String(e.amount)} Influence to ${String(e.to)}`);
     } else if (e.kind === "force_destroyed_no_retreat" && String(e.force_id).startsWith(`f_${tribe}_`)) {
       entries.push(`Your force ${String(e.force_id)} was destroyed (no retreat)`);
-    } else if (e.kind === "arrival_rejected_garrison_cap" && String(e.force_id).startsWith(`f_${tribe}_`)) {
-      entries.push(`Your force ${String(e.force_id)} arrived at full region and was destroyed`);
+    } else if (e.kind === "force_merged" && String(e.force_id).startsWith(`f_${tribe}_`)) {
+      entries.push(`Your force ${String(e.force_id)} merged into garrison at ${String(e.region_id)} (now Tier ${String(e.new_tier)})`);
+    } else if (e.kind === "garrison_reinforced" && e.tribe === tribe) {
+      entries.push(`Reinforced garrison at ${String(e.region_id)} by Tier ${String(e.tier_added)} (now Tier ${String(e.new_tier)})`);
     } else if (e.kind === "victory") {
       entries.push(`GAME END: ${String(e.condition)}`);
     }
@@ -125,9 +127,6 @@ export function buildTickHistory(
   let structuresBuilt = 0;
   for (const e of prevEvents) {
     if (e.kind === "force_destroyed_no_retreat" && String(e.force_id).startsWith(`f_${tribe}_`)) {
-      forcesLost++;
-    }
-    if (e.kind === "arrival_rejected_garrison_cap" && String(e.force_id).startsWith(`f_${tribe}_`)) {
       forcesLost++;
     }
     if (e.kind === "built" && e.tribe === tribe) {

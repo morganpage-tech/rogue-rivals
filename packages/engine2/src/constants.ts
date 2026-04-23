@@ -135,12 +135,19 @@ export const STARTING_INFLUENCE: Record<Tribe, number> = {
 export const STARTING_GARRISON_TIER: ForceTier = 2;
 
 /** Fuzzy tier the observer sees when peeking at a foreign force. */
-export const FUZZY_TIER_FOR: Record<ForceTier, FuzzyTier> = {
+export const FUZZY_TIER_FOR: Record<number, FuzzyTier> = {
   1: "raiding_party",
   2: "warband",
   3: "large_host",
   4: "massive_army",
 };
+
+export function fuzzyTierFor(tier: number): FuzzyTier {
+  return FUZZY_TIER_FOR[tier] ?? "massive_army";
+}
+
+/** Cap on effective tier used in combat calculations. Stacks can grow beyond this but combat bonuses diminish. */
+export const COMBAT_MAX_EFFECTIVE_TIER = 6;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Match defaults (align with tools/v2/constants.py)

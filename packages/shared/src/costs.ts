@@ -2,9 +2,9 @@
  * Influence costs shared by engine and client preview — single source of truth.
  */
 
-import type { ForceTier, StructureKind } from "./engineTypes.js";
+import type { StructureKind } from "./engineTypes.js";
 
-export const FORCE_RECRUIT_COST: Record<ForceTier, number> = {
+export const FORCE_RECRUIT_COST: Record<number, number> = {
   1: 2,
   2: 5,
   3: 12,

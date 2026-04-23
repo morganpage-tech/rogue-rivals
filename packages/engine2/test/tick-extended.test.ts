@@ -276,14 +276,16 @@ describe("tick build", () => {
 });
 
 describe("tick recruit", () => {
-  it("recruit_failed when garrison present", () => {
+  it("recruit merges into existing friendly garrison", () => {
     const state = handMinimalState();
     const owned = Object.keys(state.regions).find(
       (rid) => state.regions[rid]!.owner === "orange",
     )!;
     const recruitOrder = { kind: "recruit" as const, regionId: owned, tier: 1 as const };
     const result = tick(state, packetsWithOrders(state, { orange: [recruitOrder] }));
-    expect(result.events.some((e) => e.kind === "recruit_failed" && (e as { reason: string }).reason === "garrison_present")).toBe(true);
+    expect(result.events.some((e) => e.kind === "garrison_reinforced")).toBe(true);
+    const garrison = state.forces[state.regions[owned]!.garrisonForceId!]!;
+    expect(garrison.tier).toBe(3); // started at 2, added 1
   });
 
   it("recruit_failed when no influence", () => {
@@ -415,5 +417,92 @@ describe("tick influence production", () => {
     for (const t of state.tribesAlive) {
       expect(state.players[t]!.influence).toBeGreaterThan(before[t]!);
     }
+  });
+});
+
+describe("tick force stacking", () => {
+  it("co-arriving friendly forces merge into garrison", () => {
+    const state = handMinimalState();
+    const orangeOwned = Object.keys(state.regions).find(
+      (rid) => state.regions[rid]!.owner === "orange",
+    )!;
+    const adj = state.trails.find((t) => t.a === orangeOwned || t.b === orangeOwned);
+    if (!adj) return;
+    const neighbor = adj.a === orangeOwned ? adj.b : adj.a;
+
+    const firstForceId = "f_test_merge_1";
+    const secondForceId = "f_test_merge_2";
+    state.forces[firstForceId] = {
+      id: firstForceId,
+      owner: "orange",
+      tier: 2,
+      location: {
+        kind: "transit",
+        trailIndex: adj.index,
+        directionFrom: orangeOwned,
+        directionTo: neighbor,
+        ticksRemaining: 0,
+      },
+    };
+    state.forces[secondForceId] = {
+      id: secondForceId,
+      owner: "orange",
+      tier: 3,
+      location: {
+        kind: "transit",
+        trailIndex: adj.index,
+        directionFrom: orangeOwned,
+        directionTo: neighbor,
+        ticksRemaining: 0,
+      },
+    };
+
+    const result = tick(state, emptyPackets(state));
+
+    expect(result.events.some((e) => e.kind === "force_merged")).toBe(true);
+    const garrison = state.regions[neighbor]!.garrisonForceId;
+    expect(garrison).toBeTruthy();
+    expect(state.forces[garrison!]!.tier).toBe(5);
+  });
+
+  it("recruit stacking adds to existing garrison tier", () => {
+    const state = handMinimalState();
+    const owned = Object.keys(state.regions).find(
+      (rid) => state.regions[rid]!.owner === "orange",
+    )!;
+    state.players["orange"]!.influence = 100;
+    const recruitOrder = { kind: "recruit" as const, regionId: owned, tier: 3 as const };
+    const result = tick(state, packetsWithOrders(state, { orange: [recruitOrder] }));
+    expect(result.events.some((e) => e.kind === "garrison_reinforced")).toBe(true);
+    const garrison = state.forces[state.regions[owned]!.garrisonForceId!]!;
+    expect(garrison.tier).toBe(5);
+  });
+
+  it("combat effective tier is capped at COMBAT_MAX_EFFECTIVE_TIER", () => {
+    const state = handMinimalState();
+    const defenderRegion = Object.keys(state.regions).find(
+      (rid) => state.regions[rid]!.owner === "orange",
+    )!;
+    state.regions[defenderRegion]!.structures.push("fort");
+
+    const defenderForce = Object.values(state.forces).find(
+      (f) => f.owner === "orange",
+    )!;
+    defenderForce.tier = 10;
+
+    const attackerForceId = "f_test_big_attacker";
+    state.forces[attackerForceId] = {
+      id: attackerForceId,
+      owner: "grey",
+      tier: 10,
+      location: { kind: "garrison", regionId: defenderRegion },
+    };
+
+    const result = tick(state, emptyPackets(state));
+    const combatEvents = result.events.filter((e) => e.kind === "combat");
+    expect(combatEvents.length).toBe(1);
+    const combat = combatEvents[0] as any;
+    expect(combat.d_eff).toBe(7); // min(10, 6) + 1 (capped own_region + fort)
+    expect(combat.a_eff).toBe(6); // min(10, 6)
   });
 });

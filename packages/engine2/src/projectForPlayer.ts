@@ -3,7 +3,7 @@ import {
   DEFAULT_SHARED_VISION_LENGTH,
   FORCE_RECRUIT_COST,
   FORGE_REQUIRED_FOR_TIER,
-  FUZZY_TIER_FOR,
+  fuzzyTierFor,
   MAX_STRUCTURES_PER_REGION,
   SCOUT_COST,
   STRUCTURE_COST,
@@ -306,7 +306,7 @@ export function projectForPlayer(state: GameState, tribe: Tribe): ProjectedView 
     visibleForces.push({
       regionId,
       owner: f.owner,
-      fuzzyTier: FUZZY_TIER_FOR[f.tier],
+      fuzzyTier: fuzzyTierFor(f.tier),
     });
   }
 
@@ -323,7 +323,7 @@ export function projectForPlayer(state: GameState, tribe: Tribe): ProjectedView 
       trailIndex: tr.trailIndex,
       observedInRegionId: observedIn,
       owner: f.owner,
-      fuzzyTier: FUZZY_TIER_FOR[f.tier],
+      fuzzyTier: fuzzyTierFor(f.tier),
       directionFrom: tr.directionFrom,
       directionTo: tr.directionTo,
     });

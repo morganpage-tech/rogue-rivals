@@ -19,7 +19,7 @@ Tier I (skirmishers): cost 2, no travel penalty.
 Tier II (warband): cost 5, no travel penalty.
 Tier III (host): cost 12, +1 tick per trail.
 Tier IV (massive): cost 30, +2 tick per trail, requires forge structure.
-Only ONE garrison per owned region. Recruit in a region you own without a garrison.
+Recruiting in a region with your existing garrison ADDS to its tier instead of failing. Forces arriving at a region with your existing garrison MERGE into it (tiers add up). Stacking has no upper limit.
 
 ### Structures (cost Influence, max 2 per region)
 granary 8 (+1 production), fort 10 (+1 defender tier), road 6 (halves one trail length), watchtower 6 (reveals adjacent regions + scout 2 hops), shrine 12 (+1 prod + counts toward cultural victory), forge 15 (enables Tier IV recruiting).

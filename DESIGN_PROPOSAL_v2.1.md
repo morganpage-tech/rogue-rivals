@@ -2,7 +2,7 @@
 
 **Status:** partially adopted (see implementation status below)
 **Baseline:** `RULES.md` v2.0, observed in `simulations/v2_6p_batch_legal_rerun/`
-**Scope:** balance + diplomacy + trade + persona + pacing adjustments. No change to wire format, map generation, or core order grammar.
+**Scope:** balance + diplomacy + trade + persona + pacing adjustments. Core rule changes allowed where needed for clean design (see §2.2 force stacking).
 
 ### Implementation status (audited 2026-04-23, updated during implementation)
 
@@ -16,7 +16,7 @@
 | | §2.7 Legal-option grammar (variable NAP lengths [3,8]) | **NOT DONE** — NAP always uses fixed length |
 | | §2.7 Error feedback (surface legal alternatives to LLM) | **DONE** — `ordersFromChooseIds` returns `ChooseIdRejection[]` with legal alternatives |
 | **B — Combat rebalance** | §2.2 Defender combined cap (own_region + fort ≤ 1) | **DONE** — `COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP=1` clamps combined bonus |
-| | §2.2 Multi-force attacker stacking | **NOT DONE** — second co-arriving attacker still destroyed via garrison cap |
+| | §2.2 Force stacking (merge-on-arrival + merge-on-recruit) | **DONE** — `ForceTier` widened to `number`; arrival merges into friendly garrison; recruit merges into existing garrison; `COMBAT_MAX_EFFECTIVE_TIER=6`; `arrival_rejected_garrison_cap` eliminated; see §2.2.1 |
 | | §2.2 Attacker scout-intel bonus (+1) | **NOT DONE** — only defender scout-reveal penalty exists |
 | | §2.3 Trade escrow at propose-time | **DONE** — sender debited at propose; refund on decline/expiry |
 | **C — Pace + commitments** | §2.5 Victory sustain 3→2 | **NOT DONE** — sustain logic itself is missing entirely from `tick.ts` |
@@ -90,6 +90,26 @@ Instead of adding artificial cost/cooldown/delay levers, tie inter-tribe proposa
 - **Cap `fort_home_combined_bonus = 1`.** Add `COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP = 1` in `constants.ts`. Resolution applies `min(own_region_bonus + fort_bonus, cap)`. `COMBAT_FORT_BONUS` stays at 1, but the combined home+fort stack is clamped. Rationale: forts remain meaningfully defensive — a tribe that invests in a fort gets a tangible benefit — but an equal-tier attacker in a home region faces +1 instead of +2, making aggression viable. Defender still retains terrain, garrison recruit, and ally-reinforcement options; this is a targeted fix for the double-stack problem, not a blanket defender nerf.
 - **Allow multi-force attacker stacking at the combat tick.** Current `arrival_rejected_garrison_cap` fires 6+ times per match, often blocking the second wave of an attack. Update force-arrival resolution in `tick.ts` to combine co-arriving attackers before applying the garrison cap.
 - **Attacker scout-intel bonus: +1 when attacker scouted the target ≥2 ticks before force arrival.** Mirrors the existing `COMBAT_SCOUT_REVEAL_PENALTY = -1`. Gives scouts offensive utility and rewards planning.
+
+#### 2.2.1 Force stacking (replaces multi-force attacker stacking above)
+
+The "merge co-arriving attackers before garrison cap" fix above was arbitrary — it only helped forces arriving on the *same* tick, while a force arriving one tick later was still destroyed. Instead, we move to a **merge-on-arrival stacking model** that replaces the one-garrison-per-owner-per-region rule entirely.
+
+**Core rule change:** When a force arrives at a region that already has a friendly garrison, the arriving force's tier is **added** to the garrison's tier and the arriving force entity is destroyed. No upper cap on stacked tier. This also applies to recruitment — recruiting in a garrisoned region adds to the existing garrison instead of failing.
+
+**Changes:**
+
+| Change | Detail |
+|--------|--------|
+| `ForceTier` widened | `type ForceTier = number` (was `1 \| 2 \| 3 \| 4`). Tiers 1–4 remain the recruitable building blocks. |
+| Arrival merge | `tick.ts` arrival loop: if arriving force's owner matches garrison owner, add tiers, destroy arrival, emit `force_merged`. No more `arrival_rejected_garrison_cap`. |
+| Recruit merge | `tick.ts` `applyRecruit`: if region has friendly garrison, add recruit tier to garrison tier, emit `garrison_reinforced`. No more `recruit_failed: garrison_present`. |
+| Combat effective tier cap | New constant `COMBAT_MAX_EFFECTIVE_TIER = 6`. Stacks can grow beyond 4 but the combat calculation caps the effective tier used. Prevents runaway numbers while keeping stacking meaningful. |
+| Fuzzy tier for 5+ | `FUZZY_TIER_FOR` becomes a function: tiers 1–4 map to existing labels, 5+ → `"massive_army"`. |
+
+**Rationale:** The one-garrison cap was the root cause of 0% attacker win rate. Two forces sent to the same target should combine naturally — this is how Civ, Neptune's Pride, and most strategy games work. The old model was "one army per tile," which punished multi-prong attacks and made combat prohibitively hard for attackers.
+
+**Bridge to v2.2:** This stacking model is the stepping stone toward a full Neptune's Pride strength-number model (see `DESIGN_PROPOSAL_v2.2.md`). Once stacking proves stable, the next phase replaces discrete Force entities with a simple strength-per-region number.
 
 ### 2.3 Fix trade with escrow
 

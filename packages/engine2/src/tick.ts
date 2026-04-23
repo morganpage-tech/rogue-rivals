@@ -4,6 +4,7 @@ import {
   COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP,
   COMBAT_DEFENDER_OWN_REGION_BONUS,
   COMBAT_FORT_BONUS,
+  COMBAT_MAX_EFFECTIVE_TIER,
   COMBAT_REINFORCEMENT_BONUS_CAP,
   COMBAT_REINFORCEMENT_BONUS_PER_ALLY,
   COMBAT_SCOUT_REVEAL_PENALTY,
@@ -203,7 +204,7 @@ function resolveCombatAt(
       continue;
     }
 
-    let dEff = defender.tier;
+    let dEff = Math.min(defender.tier, COMBAT_MAX_EFFECTIVE_TIER);
     let dBonus = COMBAT_DEFENDER_OWN_REGION_BONUS;
     if (region.structures.includes("fort")) {
       dBonus += COMBAT_FORT_BONUS;
@@ -222,7 +223,7 @@ function resolveCombatAt(
     }
     dEff += Math.min(reinf, COMBAT_REINFORCEMENT_BONUS_CAP);
 
-    let aEff = attacker.tier;
+    let aEff = Math.min(attacker.tier, COMBAT_MAX_EFFECTIVE_TIER);
     const revealedBy = scoutReveal.get(regionId) ?? [];
     if (revealedBy.includes(defender.owner)) {
       aEff += COMBAT_SCOUT_REVEAL_PENALTY;
@@ -358,6 +359,25 @@ function applyRecruit(
     return;
   }
   if (region.garrisonForceId !== null) {
+    const existingForce = state.forces[region.garrisonForceId]!;
+    if (existingForce.owner === tribe) {
+      const cost = FORCE_RECRUIT_COST[tier];
+      if (ps.influence < cost) {
+        events.push({ kind: "recruit_failed", reason: "no_influence" });
+        return;
+      }
+      ps.influence -= cost;
+      existingForce.tier += tier;
+      events.push({
+        kind: "garrison_reinforced",
+        tribe,
+        region_id: regionId,
+        tier_added: tier,
+        new_tier: existingForce.tier,
+        force_id: existingForce.id,
+      });
+      return;
+    }
     events.push({ kind: "recruit_failed", reason: "garrison_present" });
     return;
   }
@@ -679,7 +699,7 @@ function applyDispatchMove(
       break;
     }
   }
-  length += FORCE_TRAVEL_PENALTY[f.tier];
+  length += FORCE_TRAVEL_PENALTY[f.tier] ?? FORCE_TRAVEL_PENALTY[4] ?? 2;
 
   const destOwner = state.regions[dest]!.owner;
   if (destOwner !== null && destOwner !== tribe) {
@@ -950,23 +970,25 @@ export function tick(
   for (const dest of [...arrivalsByDest.keys()].sort()) {
     const region = state.regions[dest]!;
     const arrivals = arrivalsByDest.get(dest)!.sort((a, b) => a.id.localeCompare(b.id));
-    const ownersPresent = new Set<Tribe>();
-    if (region.garrisonForceId) {
-      ownersPresent.add(state.forces[region.garrisonForceId]!.owner);
-    }
     for (const f of arrivals) {
       f.location = { kind: "garrison", regionId: dest };
       events.push({ kind: "force_arrived", force_id: f.id, region_id: dest });
-      if (ownersPresent.has(f.owner)) {
-        events.push({
-          kind: "arrival_rejected_garrison_cap",
-          force_id: f.id,
-          region_id: dest,
-        });
-        destroyForce(state, f);
-        continue;
+      if (region.garrisonForceId !== null) {
+        const existingForce = state.forces[region.garrisonForceId]!;
+        if (existingForce.owner === f.owner) {
+          existingForce.tier += f.tier;
+          events.push({
+            kind: "force_merged",
+            force_id: f.id,
+            into_force_id: existingForce.id,
+            region_id: dest,
+            tier_added: f.tier,
+            new_tier: existingForce.tier,
+          });
+          destroyForce(state, f);
+          continue;
+        }
       }
-      ownersPresent.add(f.owner);
       if (region.garrisonForceId === null) {
         region.garrisonForceId = f.id;
         if (region.owner !== f.owner) {
