@@ -21,3 +21,4 @@ export { PERSONAS, PERSONA_BY_ID, type PersonaDef } from "./personas.js";
 export { ORDER_PACKET_SCHEMA } from "./orderPacketSchema.js";
 export { stripJsonFence } from "./stripJsonFence.js";
 export { NarrativeBuffer, type NarrativeEntry } from "./narrativeBuffer.js";
+export { renderKitBonuses, type PersonaKitLike } from "./kitRenderer.js";

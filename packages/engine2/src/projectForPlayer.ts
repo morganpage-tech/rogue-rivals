@@ -1,4 +1,5 @@
 import {
+  COMMITMENT_MAX_LENGTH_TICKS,
   DEFAULT_SHARED_VISION_LENGTH,
   FORCE_RECRUIT_COST,
   FORGE_REQUIRED_FOR_TIER,
@@ -10,7 +11,9 @@ import {
   DEFAULT_TICK_LIMIT,
 } from "./constants.js";
 import { adjacentRegions, trailBetween } from "./graph.js";
+import { getKitForTribe } from "./personaKit.js";
 import type {
+  Commitment,
   GameState,
   LegalOrderOption,
   Order,
@@ -87,6 +90,7 @@ function hasPact(state: GameState, kind: string, a: Tribe, b: Tribe): boolean {
 function legalOrderOptions(state: GameState, tribe: Tribe): LegalOrderOption[] {
   const ps = state.players[tribe];
   if (!ps) return [];
+  const kit = getKitForTribe(state, tribe);
 
   const options: LegalOrderOption[] = [];
 
@@ -123,8 +127,8 @@ function legalOrderOptions(state: GameState, tribe: Tribe): LegalOrderOption[] {
     if (region.garrisonForceId === null) {
       for (const tier of Object.keys(FORCE_RECRUIT_COST).map(Number) as (keyof typeof FORCE_RECRUIT_COST)[]) {
         if (tier === FORGE_REQUIRED_FOR_TIER && !region.structures.includes("forge")) continue;
-        const cost = FORCE_RECRUIT_COST[tier];
-        if (ps.influence < cost) continue;
+        const cost = FORCE_RECRUIT_COST[tier] + (kit.recruitCostModifier[tier] ?? 0);
+        if (cost <= 0 || ps.influence < cost) continue;
         addOption(
           `recruit:${regionId}:t${tier}`,
           "recruit",
@@ -287,6 +291,41 @@ function legalOrderOptions(state: GameState, tribe: Tribe): LegalOrderOption[] {
     }
   }
 
+  const visibleArr = [...visibleRegionSet(state, tribe)].sort();
+  for (const other of state.tribesAlive.filter((t) => t !== tribe).sort()) {
+    for (const rid of visibleArr) {
+      for (const len of [2, 4]) {
+        if (len > COMMITMENT_MAX_LENGTH_TICKS) continue;
+        addOption(
+          `commit:no_attack:${other}:${rid}:${len}`,
+          "message",
+          `Commit: no attack on ${rid} to ${other} (${len} ticks)`,
+          {
+            commitment: {
+              kind: "no_attack",
+              targetRegionId: rid,
+              lengthTicks: len,
+            } satisfies Commitment,
+            targetTribe: other,
+          },
+        );
+        addOption(
+          `commit:no_scout:${other}:${rid}:${len}`,
+          "message",
+          `Commit: no scout on ${rid} to ${other} (${len} ticks)`,
+          {
+            commitment: {
+              kind: "no_scout",
+              targetRegionId: rid,
+              lengthTicks: len,
+            } satisfies Commitment,
+            targetTribe: other,
+          },
+        );
+      }
+    }
+  }
+
   return options;
 }
 
@@ -362,6 +401,9 @@ export function projectForPlayer(state: GameState, tribe: Tribe): ProjectedView 
     inboxNew,
     announcementsNew,
     pactsInvolvingMe,
+    activeCommitmentsInvolvingMe: state.activeCommitments.filter(
+      (ac) => (ac.sender === tribe || ac.target === tribe) && !ac.breached,
+    ),
     legalOrderOptions: legalOrderOptions(state, tribe),
     tribesAlive: [...state.tribesAlive],
     tickLimit: DEFAULT_TICK_LIMIT,

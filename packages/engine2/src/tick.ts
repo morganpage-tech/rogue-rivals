@@ -9,6 +9,8 @@ import {
   COMBAT_REINFORCEMENT_BONUS_PER_ALLY,
   COMBAT_SCOUT_REVEAL_PENALTY,
   COMBAT_SCOUT_INTEL_BONUS,
+  COMMITMENT_BREACH_REPUTATION_PENALTY,
+  COMMITMENT_MAX_LENGTH_TICKS,
   CULTURAL_SHRINE_REQUIREMENT,
   DEFAULT_NAP_LENGTH,
   MESSAGE_CAP_PER_TRIBE,
@@ -39,6 +41,7 @@ import { hashState } from "./hashState.js";
 import { projectForPlayer, canSeeTribe } from "./projectForPlayer.js";
 import { getKitForTribe, type PersonaKit } from "./personaKit.js";
 import type {
+  ActiveCommitment,
   Caravan,
   Force,
   GameState,
@@ -690,6 +693,37 @@ function applyMessage(
     text,
   });
   events.push({ kind: "message_sent", from: tribe, to });
+
+  if (order.commitment) {
+    const c = order.commitment;
+    if (
+      (c.kind === "no_attack" || c.kind === "no_scout") &&
+      c.lengthTicks >= 1 &&
+      c.lengthTicks <= COMMITMENT_MAX_LENGTH_TICKS &&
+      state.regions[c.targetRegionId] !== undefined
+    ) {
+      const ac: ActiveCommitment = {
+        id: `ac_${tribe}_${state.nextProposalIdx}`,
+        sender: tribe,
+        target: to,
+        commitment: c,
+        issuedTick: state.tick,
+        expiresTick: state.tick + c.lengthTicks,
+        breached: false,
+      };
+      state.activeCommitments.push(ac);
+      state.nextProposalIdx += 1;
+      events.push({
+        kind: "commitment_issued",
+        commitment_id: ac.id,
+        sender: tribe,
+        target: to,
+        commitment_kind: c.kind,
+        target_region: c.targetRegionId,
+        length_ticks: c.lengthTicks,
+      });
+    }
+  }
 }
 
 function applyDispatchMove(
@@ -1221,6 +1255,73 @@ export function tick(
   }
 
   resolveCombats(state, events, scoutRevealThisTick);
+
+  // ── Commitment breach detection ──
+  const combatEvents = events.filter((e) => e.kind === "combat") as Array<ResolutionEvent & { attacker: Tribe; region: RegionId }>;
+  for (const ce of combatEvents) {
+    for (const ac of state.activeCommitments) {
+      if (ac.breached || ac.expiresTick <= state.tick) continue;
+      if (
+        ac.sender === ce.attacker &&
+        ac.commitment.kind === "no_attack" &&
+        ac.commitment.targetRegionId === ce.region
+      ) {
+        ac.breached = true;
+        state.players[ac.sender]!.reputationPenaltyExpiresTick =
+          state.tick + COMMITMENT_BREACH_REPUTATION_PENALTY;
+        events.push({
+          kind: "commitment_breach",
+          commitment_id: ac.id,
+          sender: ac.sender,
+          target: ac.target,
+          commitment_kind: ac.commitment.kind,
+          region: ce.region,
+        });
+        state.announcements.push({
+          tick: state.tick,
+          kind: "commitment_breach",
+          parties: [ac.sender, ac.target],
+          breaker: ac.sender,
+          detail: `${ac.sender} broke ${ac.commitment.kind} commitment at ${ce.region}`,
+        });
+      }
+    }
+  }
+  for (const se of events.filter((e) => e.kind === "scout_arrived") as Array<ResolutionEvent & { scout_id: string }>) {
+    const scout = state.scouts[se.scout_id];
+    if (!scout) continue;
+    for (const ac of state.activeCommitments) {
+      if (ac.breached || ac.expiresTick <= state.tick) continue;
+      if (
+        ac.sender === scout.owner &&
+        ac.commitment.kind === "no_scout" &&
+        ac.commitment.targetRegionId === (scout.location as { regionId: string }).regionId
+      ) {
+        ac.breached = true;
+        state.players[ac.sender]!.reputationPenaltyExpiresTick =
+          state.tick + COMMITMENT_BREACH_REPUTATION_PENALTY;
+        events.push({
+          kind: "commitment_breach",
+          commitment_id: ac.id,
+          sender: ac.sender,
+          target: ac.target,
+          commitment_kind: ac.commitment.kind,
+          region: (scout.location as { regionId: string }).regionId,
+        });
+        state.announcements.push({
+          tick: state.tick,
+          kind: "commitment_breach",
+          parties: [ac.sender, ac.target],
+          breaker: ac.sender,
+          detail: `${ac.sender} broke ${ac.commitment.kind} commitment`,
+        });
+      }
+    }
+  }
+  // ── Commitment expiry ──
+  state.activeCommitments = state.activeCommitments.filter(
+    (ac) => !ac.breached && ac.expiresTick > state.tick,
+  );
 
   state.pacts = state.pacts.filter((p) => p.kind === "war" || p.expiresTick > state.tick);
 

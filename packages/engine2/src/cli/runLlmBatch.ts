@@ -17,6 +17,7 @@ import {
   assertLlmEnvironmentConfigured,
   decideOrdersPacketJson,
   NarrativeBuffer,
+  renderKitBonuses,
   type TickHistory,
 } from "@rr/llm";
 import {
@@ -104,11 +105,23 @@ async function llmOrders(
   persona: string,
   tickHistory: TickHistory | undefined,
   narrative: NarrativeBuffer | undefined,
+  state?: GameState,
 ): Promise<{ orders: Order[]; chooseIds: string[] }> {
   const view = projectedView as ProjectedView;
+  const tribe = view.forTribe;
+  let kitBonusesText: string | undefined;
+  if (state && tribe) {
+    const kitId = state.personaKits[tribe];
+    if (kitId) {
+      const { getKitForTribe: getKit } = await import("../personaKit.js");
+      const kit = getKit(state, tribe);
+      kitBonusesText = renderKitBonuses(kitId, kit);
+    }
+  }
   const json = await decideOrdersPacketJson(view, persona, {
     tickHistory,
     narrative,
+    kitBonusesText,
   });
   const { orders: fromChoose } = ordersFromChooseIds(view, json.choose ?? []);
   const fromMessages = ordersFromLlmMessageList(view, json.messages ?? []);
@@ -182,7 +195,7 @@ async function runMatch(opts: {
       let orders: Order[] = [];
       let chooseIds: string[] = [];
       try {
-        const result = await llmOrders(view, persona, tickHistory, narrative);
+        const result = await llmOrders(view, persona, tickHistory, narrative, state);
         orders = result.orders;
         chooseIds = result.chooseIds;
         llmCalls += 1;

@@ -23,12 +23,13 @@
 | | §2.5 Victory sustain 3→2 | **DONE** — `DEFAULT_VICTORY_SUSTAIN_TICKS=2` in `constants.ts` and `matchConfig.ts` |
 | | §2.5 Late-game yield decay | **DONE** — `YIELD_DECAY_START_TICK=30`, `YIELD_DECAY_PER_TICK=0.05` (multiplicative, floor 1/region). Production refactored into shared `regionProduction()` helper eliminating 3x duplication |
 | | §2.5 `DEFAULT_TICK_LIMIT` 60→40 | **DONE** — `DEFAULT_TICK_LIMIT=40` in `constants.ts` and `matchConfig.ts` |
-| | §2.6 Commitment system (types, recording, breach, penalties) | **NOT DONE** — no `Commitment`, `ActiveCommitment`, or `MessagePayload` types |
+| | §2.6 Commitment system (types, recording, breach, penalties) | **DONE** — `Commitment` and `ActiveCommitment` types in `@rr/shared`. `MessageOrder` gains optional `commitment?` field. Recording in `applyMessage`, breach detection after combat/scout resolution, expiry cleanup. Legal options emit `commit:no_attack/no_scout:{tribe}:{region}:{length}`. `commitment_breach` events + announcements. 2-tick reputation penalty. `activeCommitmentsInvolvingMe` in `ProjectedView` and `compactView`. |
 | **D — Persona kits** | §2.4 Mechanical kit definitions | **DONE** — `packages/engine2/src/personaKit.ts` defines `PersonaKit` interface and `PERSONA_KITS` table for all 9 personas |
 | | §2.4 Persona integration in tick resolution | **DONE** — wired into `tick.ts` at: recruit cost (warlord -1 tier 2/3), trade escrow (merchant_prince -1), defender bonus (paranoid_isolationist +1), travel ticks (frostmarshal -1 mountains), scout dwell (veilweaver 2 ticks), capture bounty (opportunist +1), terrain production (cragwise +1 mountains/forest), shrine production (shadowreader +1), ambush attack (palmstalker +1 from own region) |
 | | §2.4 Match config `personaKits` field | **DONE** — `personaKits: Partial<Record<Tribe, PersonaKitId>>` on `MatchConfig` and `GameState`; initialised in `initMatch` |
+| | §2.4 Kit prompt integration + cost display | **DONE** — `kitRenderer.ts` in `@rr/llm` renders kit bonuses as system prompt text. `decideOrdersPacket` injects via `kitBonusesText` option. Legal option summaries show kit-adjusted recruit costs. Wired in batch runner and server LLM opponent. |
 
-**Resolved:** all 5 victory conditions from `RULES.md` §8 are now implemented in `tick.ts` (see Phase C status). The prerequisite gap is closed.
+**Status:** v2.1 is now fully implemented.
 
 ---
 

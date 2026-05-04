@@ -32,6 +32,7 @@ export interface DecideOrdersPacketOptions {
   readonly systemPromptAppend?: string;
   readonly tickHistory?: TickHistory;
   readonly narrative?: NarrativeBuffer;
+  readonly kitBonusesText?: string;
 }
 
 async function callLlmOrderPacket(
@@ -42,6 +43,7 @@ async function callLlmOrderPacket(
   systemPromptAppend: string | undefined,
   tickHistory: TickHistory | undefined,
   narrative: NarrativeBuffer | undefined,
+  kitBonusesText: string | undefined,
 ): Promise<{ data: Record<string, unknown>; rawResponse: string; usage: LlmUsageMeta; systemPrompt: string; userPrompt: string } | null> {
   const persona = PERSONA_BY_ID[personaId];
   if (!persona) {
@@ -69,6 +71,9 @@ async function callLlmOrderPacket(
     systemPrompt += `ADAPTATION RULES:\n${persona.adaptation_rules}\n\n`;
   }
   systemPrompt += `${COMPACT_RULES_V2}\n\n`;
+  if (kitBonusesText) {
+    systemPrompt += `${kitBonusesText}\n\n`;
+  }
   if (systemPromptAppend?.trim()) {
     systemPrompt += `${systemPromptAppend.trim()}\n\n`;
   }
@@ -159,6 +164,7 @@ export async function decideOrdersPacketJson(
     options?.systemPromptAppend,
     options?.tickHistory,
     options?.narrative,
+    options?.kitBonusesText,
   );
   if (result === null) return { choose: [], messages: [] };
 
@@ -197,6 +203,7 @@ export async function decideOrdersPacketWithDebug(
     options?.systemPromptAppend,
     options?.tickHistory,
     options?.narrative,
+    options?.kitBonusesText,
   );
 
   if (result === null) {

@@ -93,6 +93,13 @@ export const COMBAT_SCOUT_REVEAL_PENALTY = -1;
 export const COMBAT_SCOUT_INTEL_BONUS = 1;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Commitments (§2.6 v2.1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const COMMITMENT_BREACH_REPUTATION_PENALTY = 2;
+export const COMMITMENT_MAX_LENGTH_TICKS = 5;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Scouts & caravans (§4.6, §4.7)
 // ─────────────────────────────────────────────────────────────────────────────
 

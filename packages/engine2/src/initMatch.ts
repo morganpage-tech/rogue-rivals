@@ -33,6 +33,7 @@ export function initMatch(config: MatchConfig): GameState {
     caravans: {},
     players: {} as GameState["players"],
     pacts: [],
+    activeCommitments: [],
     announcements: [],
     victoryCounters: emptyVictoryCounters(config.tribes),
     personaKits: config.personaKits ?? {},

@@ -1,5 +1,5 @@
-import { decideOrdersPacketWithDebug, type TickHistory, type NarrativeBuffer } from "@rr/llm";
-import { projectForPlayer } from "@rr/engine2";
+import { decideOrdersPacketWithDebug, renderKitBonuses, type TickHistory, type NarrativeBuffer } from "@rr/llm";
+import { projectForPlayer, getKitForTribe } from "@rr/engine2";
 import type { GameState, Order } from "@rr/engine2";
 import { sanitizePlayerOrders, type LlmDecisionDebug } from "@rr/shared";
 import type { LlmSlotConfig, Tribe } from "@rr/shared";
@@ -21,6 +21,9 @@ export async function generateLlmOrders(
   narrative?: NarrativeBuffer,
 ): Promise<LlmOrdersWithDebug> {
   const view = projectForPlayer(state, tribe);
+  const kitId = state.personaKits[tribe];
+  const kit = getKitForTribe(state, tribe);
+  const kitBonusesText = kitId ? renderKitBonuses(kitId, kit) : undefined;
   const { result, debug } = await decideOrdersPacketWithDebug(
     view,
     config.persona ?? "opportunist",
@@ -28,6 +31,7 @@ export async function generateLlmOrders(
       systemPromptAppend: config.systemPrompt,
       tickHistory,
       narrative,
+      kitBonusesText,
     },
   );
   const { orders: fromChoose, rejected } = ordersFromChooseIds(view, result.choose ?? []);

@@ -251,6 +251,23 @@ export interface MessageOrder {
   readonly kind: "message";
   readonly to: Tribe;
   readonly text: string;
+  readonly commitment?: Commitment;
+}
+
+export interface Commitment {
+  readonly kind: "no_attack" | "no_scout";
+  readonly targetRegionId: RegionId;
+  readonly lengthTicks: number;
+}
+
+export interface ActiveCommitment {
+  readonly id: string;
+  readonly sender: Tribe;
+  readonly target: Tribe;
+  readonly commitment: Commitment;
+  readonly issuedTick: number;
+  readonly expiresTick: number;
+  breached: boolean;
 }
 
 /** One tribe's full submission for one tick. */
@@ -319,6 +336,7 @@ export interface Announcement {
     | "war_declared"
     | "tribe_eliminated"
     | "caravan_intercepted"
+    | "commitment_breach"
     | "victory";
   readonly parties?: readonly Tribe[];
   readonly detail?: string;
@@ -385,6 +403,7 @@ export interface ProjectedView {
   readonly inboxNew: readonly InboxMessage[];
   readonly announcementsNew: readonly Announcement[];
   readonly pactsInvolvingMe: readonly Pact[];
+  readonly activeCommitmentsInvolvingMe: readonly ActiveCommitment[];
   readonly legalOrderOptions: readonly LegalOrderOption[];
   readonly tribesAlive: readonly Tribe[];
   readonly tickLimit: number;

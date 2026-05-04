@@ -1,4 +1,5 @@
 import type {
+  ActiveCommitment,
   Announcement,
   Caravan,
   CaravanId,
@@ -33,6 +34,7 @@ export interface GameState {
 
   players: Record<Tribe, PlayerState>;
   pacts: Pact[];
+  activeCommitments: ActiveCommitment[];
 
   announcements: Announcement[];
   victoryCounters: VictoryCounters;

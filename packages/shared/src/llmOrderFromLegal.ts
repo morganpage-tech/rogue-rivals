@@ -1,4 +1,5 @@
 import type {
+  Commitment,
   ForceTier,
   LegalOrderOption,
   Order,
@@ -48,6 +49,16 @@ export function orderFromLegalOption(opt: LegalOrderOption): Order {
         proposalId: p.proposalId as string,
         response: p.response as "accept" | "decline",
       };
+    case "message":
+      if (opt.id.startsWith("commit:") && p.commitment) {
+        return {
+          kind: "message",
+          to: p.targetTribe as Tribe,
+          text: `I commit: ${(p.commitment as { kind: string }).kind} ${(p.commitment as { targetRegionId: string }).targetRegionId} for ${(p.commitment as { lengthTicks: number }).lengthTicks} ticks`,
+          commitment: p.commitment as Commitment,
+        };
+      }
+      throw new Error(`Unsupported legal option kind: message with id ${opt.id}`);
     default:
       throw new Error(`Unsupported legal option kind: ${String(opt.kind)}`);
   }

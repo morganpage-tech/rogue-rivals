@@ -167,6 +167,21 @@ export function compactView(
     }
   }
 
+  const commitments = (view.active_commitments_involving_me as Record<string, unknown>[]) ?? [];
+  if (commitments.length) {
+    lines.push("");
+    lines.push("Active commitments involving you:");
+    for (const ac of commitments) {
+      const role = str(ac.sender) === view.for_tribe ? "You committed" : `${str(ac.sender)} committed`;
+      const c = ac.commitment as Record<string, unknown> | undefined;
+      if (c) {
+        lines.push(
+          `  ${role}: ${str(c.kind)} on ${str(c.target_region_id)} to ${str(ac.target)} (expires tick ${str(ac.expires_tick)})`,
+        );
+      }
+    }
+  }
+
   const inboxNew = (view.inbox_new as Record<string, unknown>[]) ?? [];
   if (inboxNew.length) {
     lines.push("");

@@ -892,3 +892,142 @@ describe("tick combat attacker scout-intel bonus", () => {
     expect(combat.a_eff).toBe(attackerTier);
   });
 });
+
+describe("tick commitments", () => {
+  it("records a commitment from a message order", () => {
+    const state = handMinimalState();
+    const targetRegion = Object.keys(state.regions).find(
+      (rid) => state.regions[rid]!.owner !== "orange",
+    )!;
+    state.tick = 5;
+
+    const msgOrder = {
+      kind: "message" as const,
+      to: "grey" as const,
+      text: "I won't attack",
+      commitment: {
+        kind: "no_attack" as const,
+        targetRegionId: targetRegion,
+        lengthTicks: 3,
+      },
+    };
+
+    const result = tick(state, packetsWithOrders(state, { orange: [msgOrder] }));
+    expect(result.events.some((e) => e.kind === "commitment_issued")).toBe(true);
+    expect(state.activeCommitments.length).toBe(1);
+    expect(state.activeCommitments[0]!.sender).toBe("orange");
+    expect(state.activeCommitments[0]!.target).toBe("grey");
+    expect(state.activeCommitments[0]!.commitment.kind).toBe("no_attack");
+    expect(state.activeCommitments[0]!.expiresTick).toBe(8);
+  });
+
+  it("detects no_attack breach on combat", () => {
+    const state = handMinimalState();
+    const targetRegion = Object.keys(state.regions).find(
+      (rid) => state.regions[rid]!.owner === "orange",
+    )!;
+    state.tribesAlive = ["orange", "grey"];
+    state.players["grey"]!.influence = 100;
+    state.tick = 5;
+
+    state.activeCommitments.push({
+      id: "ac_test",
+      sender: "grey",
+      target: "orange",
+      commitment: { kind: "no_attack", targetRegionId: targetRegion, lengthTicks: 3 },
+      issuedTick: 5,
+      expiresTick: 8,
+      breached: false,
+    });
+
+    const defenderForce = Object.values(state.forces).find(
+      (f) => f.owner === "orange",
+    )!;
+    const trail = state.trails.find(
+      (t) => t.a === targetRegion || t.b === targetRegion,
+    )!;
+    const fromRegion = trail.a === targetRegion ? trail.b : trail.a;
+    state.forces["f_test_breach"] = {
+      id: "f_test_breach",
+      owner: "grey",
+      tier: defenderForce.tier,
+      location: {
+        kind: "transit",
+        trailIndex: trail.index,
+        directionFrom: fromRegion,
+        directionTo: targetRegion,
+        ticksRemaining: 0,
+      },
+    };
+
+    const result = tick(state, emptyPackets(state));
+    expect(result.events.some((e) => e.kind === "commitment_breach")).toBe(true);
+    expect(result.state.announcements.some((a) => a.kind === "commitment_breach")).toBe(true);
+  });
+
+  it("expires commitments after length_ticks", () => {
+    const state = handMinimalState();
+    state.tick = 4;
+    state.activeCommitments.push({
+      id: "ac_test",
+      sender: "orange",
+      target: "grey",
+      commitment: { kind: "no_attack", targetRegionId: Object.keys(state.regions)[0]!, lengthTicks: 2 },
+      issuedTick: 4,
+      expiresTick: 6,
+      breached: false,
+    });
+
+    tick(state, emptyPackets(state));
+    expect(state.activeCommitments.length).toBe(1);
+
+    tick(state, emptyPackets(state));
+    expect(state.activeCommitments.length).toBe(1);
+
+    tick(state, emptyPackets(state));
+    expect(state.activeCommitments.length).toBe(0);
+  });
+
+  it("does not breach for a different region", () => {
+    const state = handMinimalState();
+    const regions = Object.keys(state.regions);
+    const targetRegion = regions[0]!;
+    const otherRegion = regions[1]!;
+    state.tribesAlive = ["orange", "grey"];
+    state.players["grey"]!.influence = 100;
+    state.tick = 5;
+
+    state.activeCommitments.push({
+      id: "ac_test",
+      sender: "grey",
+      target: "orange",
+      commitment: { kind: "no_attack", targetRegionId: targetRegion, lengthTicks: 3 },
+      issuedTick: 5,
+      expiresTick: 8,
+      breached: false,
+    });
+
+    const trail = state.trails.find(
+      (t) => (t.a === otherRegion || t.b === otherRegion) && t.a !== targetRegion && t.b !== targetRegion,
+    );
+    if (!trail) return;
+
+    const dest = otherRegion;
+    const fromRegion = trail.a === dest ? trail.b : trail.a;
+    state.forces["f_test_safe"] = {
+      id: "f_test_safe",
+      owner: "grey",
+      tier: 2,
+      location: {
+        kind: "transit",
+        trailIndex: trail.index,
+        directionFrom: fromRegion,
+        directionTo: dest,
+        ticksRemaining: 0,
+      },
+    };
+
+    const result = tick(state, emptyPackets(state));
+    expect(result.events.some((e) => e.kind === "commitment_breach")).toBe(false);
+  });
+});
