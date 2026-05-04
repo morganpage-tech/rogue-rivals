@@ -167,6 +167,7 @@ export const MESSAGE_CAP_PER_TRIBE = 3;
 export const TERRITORIAL_DOMINANCE_FRACTION = 0.6;
 export const ECONOMIC_SUPREMACY_FRACTION = 0.5;
 export const CULTURAL_SHRINE_REQUIREMENT = 4;
+export const DEFAULT_VICTORY_SUSTAIN_TICKS = 3;
 
 /** Weights for end-of-match scoring fallback. Must sum to 1.0. */
 export const FINAL_SCORE_WEIGHTS = {

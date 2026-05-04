@@ -19,7 +19,8 @@
 | | §2.2 Force stacking (merge-on-arrival + merge-on-recruit) | **DONE** — `ForceTier` widened to `number`; arrival merges into friendly garrison; recruit merges into existing garrison; `COMBAT_MAX_EFFECTIVE_TIER=6`; `arrival_rejected_garrison_cap` eliminated; see §2.2.1 |
 | | §2.2 Attacker scout-intel bonus (+1) | **NOT DONE** — only defender scout-reveal penalty exists |
 | | §2.3 Trade escrow at propose-time | **DONE** — sender debited at propose; refund on decline/expiry |
-| **C — Pace + commitments** | §2.5 Victory sustain 3→2 | **NOT DONE** — sustain logic itself is missing entirely from `tick.ts` |
+| **C — Pace + commitments** | §2.5 Victory conditions (all 5 from RULES.md §8) | **DONE** — `tick.ts` implements cultural_ascendancy (instant, 4 shrines), territorial_dominance (60% regions, sustain 3), economic_supremacy (50% production, sustain 3), diplomatic_hegemony (NAPs with all + plurality, sustain 3), last_standing, tick_limit weighted score. Counters initialised per-tribe in `initMatch`. `victory_counter_incremented` events emitted. Priority: cultural > last_standing > sustained > tick_limit. |
+| | §2.5 Victory sustain 3→2 | **NOT DONE** — sustain implemented at 3 (`DEFAULT_VICTORY_SUSTAIN_TICKS=3`), proposal says 2 |
 | | §2.5 Late-game yield decay | **NOT DONE** |
 | | §2.5 `DEFAULT_TICK_LIMIT` 60→40 | **NOT DONE** — still 60 |
 | | §2.6 Commitment system (types, recording, breach, penalties) | **NOT DONE** — no `Commitment`, `ActiveCommitment`, or `MessagePayload` types |
@@ -27,7 +28,7 @@
 | | §2.4 Persona integration in tick resolution | **NOT DONE** |
 | | §2.4 Match config `persona_kit` field | **NOT DONE** |
 
-**Critical discovery:** the v2.0 baseline engine (`tick.ts`) only implements 2 of the 5 victory conditions described in `RULES.md` §8: *last_standing* and *tick_limit* weighted score. The sustained conditions (territorial, economic, diplomatic) and cultural ascendancy (4 shrines) are absent. This is a prerequisite gap that predates and blocks v2.1 pacing work.
+**Resolved:** all 5 victory conditions from `RULES.md` §8 are now implemented in `tick.ts` (see Phase C status). The prerequisite gap is closed.
 
 ---
 

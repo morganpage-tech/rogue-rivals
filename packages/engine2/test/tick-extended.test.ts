@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initMatch, tick, checkVictory } from "../src/index.js";
+import { REGION_PRODUCTION, ECONOMIC_SUPREMACY_FRACTION } from "../src/constants.js";
 import type { GameState, OrderPacket, Tribe } from "../src/types.js";
 
 function handMinimalState(): GameState {
@@ -238,6 +239,276 @@ describe("tick victory", () => {
     expect(result.state.tick).toBe(60);
     expect(result.events.some((e) => e.kind === "victory")).toBe(true);
     expect(result.state.winner).not.toBeNull();
+  });
+
+  it("cultural_ascendancy — instant win with 4 shrines", () => {
+    const state = handMinimalState();
+    const regionIds = Object.keys(state.regions);
+    for (const rid of regionIds) {
+      state.regions[rid]!.owner = "orange";
+    }
+    let shrinesBuilt = 0;
+    for (const rid of regionIds) {
+      if (shrinesBuilt >= 4) break;
+      if (!state.regions[rid]!.structures.includes("shrine")) {
+        state.regions[rid]!.structures.push("shrine");
+        shrinesBuilt++;
+      }
+    }
+    state.tick = 5;
+
+    const result = tick(state, packetsWithOrders(state, {}));
+    const victoryEvent = result.events.find((e) => e.kind === "victory");
+    expect(victoryEvent).toBeDefined();
+    expect((victoryEvent as any).condition).toBe("cultural_ascendancy");
+    expect(result.state.winner).toBe("orange");
+  });
+
+  it("cultural_ascendancy — does not trigger with fewer than 4 shrines", () => {
+    const state = handMinimalState();
+    const regionIds = Object.keys(state.regions);
+    for (const rid of regionIds) {
+      state.regions[rid]!.owner = "orange";
+    }
+    let shrinesBuilt = 0;
+    for (const rid of regionIds) {
+      if (shrinesBuilt >= 3) break;
+      if (!state.regions[rid]!.structures.includes("shrine")) {
+        state.regions[rid]!.structures.push("shrine");
+        shrinesBuilt++;
+      }
+    }
+    state.tick = 5;
+
+    const result = tick(state, packetsWithOrders(state, {}));
+    const culturalVictory = result.events.find(
+      (e) => e.kind === "victory" && (e as any).condition === "cultural_ascendancy",
+    );
+    expect(culturalVictory).toBeUndefined();
+  });
+
+  it("territorial_dominance — sustained after DEFAULT_VICTORY_SUSTAIN_TICKS", () => {
+    const state = handMinimalState();
+    const totalRegions = Object.keys(state.regions).length;
+    const needed = Math.ceil(totalRegions * 0.6);
+    const regionIds = Object.keys(state.regions);
+
+    const regionsByProd = [...regionIds].sort((a, b) => {
+      const pa = REGION_PRODUCTION[state.regions[a]!.type] ?? 0;
+      const pb = REGION_PRODUCTION[state.regions[b]!.type] ?? 0;
+      return pa - pb;
+    });
+
+    const orangeIds = regionsByProd.slice(0, needed);
+    const greyIds = regionsByProd.slice(needed);
+
+    let orangeProd = 0;
+    let greyProd = 0;
+    for (const rid of orangeIds) {
+      (state.regions[rid] as { owner: Tribe | null }).owner = "orange";
+      orangeProd += REGION_PRODUCTION[state.regions[rid]!.type] ?? 0;
+      const forceId = `f_test_td_${rid}`;
+      state.forces[forceId] = {
+        id: forceId,
+        owner: "orange",
+        tier: 1,
+        location: { kind: "garrison", regionId: rid },
+      };
+      state.regions[rid]!.garrisonForceId = forceId;
+    }
+    for (const rid of greyIds) {
+      (state.regions[rid] as { owner: Tribe | null }).owner = "grey";
+      greyProd += REGION_PRODUCTION[state.regions[rid]!.type] ?? 0;
+    }
+    state.tribesAlive = ["orange", "grey"];
+    state.players["grey"]!.influence = 100;
+    state.tick = 5;
+
+    const totalProd = orangeProd + greyProd;
+    if (totalProd > 0 && orangeProd / totalProd >= ECONOMIC_SUPREMACY_FRACTION) {
+      return;
+    }
+
+    for (let t = 0; t < 2; t++) {
+      const result = tick(state, packetsWithOrders(state, { grey: [] }));
+      const noSustained = result.events.find(
+        (e) => e.kind === "victory" && (e as any).condition !== "tick_limit",
+      );
+      expect(noSustained).toBeUndefined();
+    }
+
+    const finalResult = tick(state, packetsWithOrders(state, { grey: [] }));
+    const victoryEvent = finalResult.events.find((e) => e.kind === "victory");
+    expect(victoryEvent).toBeDefined();
+    expect((victoryEvent as any).condition).toBe("territorial_dominance");
+    expect(finalResult.state.winner).toBe("orange");
+  });
+
+  it("territorial_dominance — counter resets when condition lapses", () => {
+    const state = handMinimalState();
+    const totalRegions = Object.keys(state.regions).length;
+    const needed = Math.ceil(totalRegions * 0.6);
+    const regionIds = Object.keys(state.regions);
+
+    for (let i = 0; i < needed && i < regionIds.length; i++) {
+      state.regions[regionIds[i]!]!.owner = "orange";
+      const forceId = `f_test_td_${i}`;
+      state.forces[forceId] = {
+        id: forceId,
+        owner: "orange",
+        tier: 1,
+        location: { kind: "garrison", regionId: regionIds[i]! },
+      };
+      state.regions[regionIds[i]!]!.garrisonForceId = forceId;
+    }
+    state.tribesAlive = ["orange", "grey"];
+    state.players["grey"]!.influence = 100;
+    state.tick = 5;
+
+    tick(state, packetsWithOrders(state, { grey: [] }));
+    expect(state.victoryCounters["orange"]?.territorial_dominance).toBe(1);
+
+    state.regions[regionIds[0]!]!.owner = "grey";
+
+    tick(state, packetsWithOrders(state, { grey: [] }));
+    expect(state.victoryCounters["orange"]?.territorial_dominance).toBe(0);
+  });
+
+  it("economic_supremacy — sustained when tribe produces ≥50%", () => {
+    const state = handMinimalState();
+    const regionIds = Object.keys(state.regions);
+    for (const rid of regionIds) {
+      state.regions[rid]!.owner = "orange";
+    }
+    state.tribesAlive = ["orange", "grey"];
+    state.players["grey"]!.influence = 100;
+    state.tick = 5;
+
+    for (let t = 0; t < 2; t++) {
+      const result = tick(state, packetsWithOrders(state, { grey: [] }));
+      const noEcon = result.events.find(
+        (e) => e.kind === "victory" && (e as any).condition === "economic_supremacy",
+      );
+      expect(noEcon).toBeUndefined();
+    }
+
+    const finalResult = tick(state, packetsWithOrders(state, { grey: [] }));
+    const victoryEvent = finalResult.events.find(
+      (e) => e.kind === "victory" && (e as any).condition === "economic_supremacy",
+    );
+    expect(victoryEvent).toBeDefined();
+    expect(finalResult.state.winner).toBe("orange");
+  });
+
+  it("diplomatic_hegemony — sustained with NAPs to all + region plurality", () => {
+    const state = handMinimalState();
+    const regionIds = Object.keys(state.regions);
+    for (const rid of regionIds) {
+      state.regions[rid]!.owner = "orange";
+    }
+    state.tribesAlive = ["orange", "grey", "brown"];
+    state.players["grey"]!.influence = 100;
+    state.players["brown"]!.influence = 100;
+    state.tick = 5;
+
+    state.pacts.push(
+      { kind: "nap", parties: ["grey", "orange"], formedTick: 0, expiresTick: 999 },
+      { kind: "nap", parties: ["brown", "orange"], formedTick: 0, expiresTick: 999 },
+    );
+
+    for (let t = 0; t < 2; t++) {
+      const result = tick(state, packetsWithOrders(state, { grey: [], brown: [] }));
+      const noDiplo = result.events.find(
+        (e) => e.kind === "victory" && (e as any).condition === "diplomatic_hegemony",
+      );
+      expect(noDiplo).toBeUndefined();
+    }
+
+    const finalResult = tick(state, packetsWithOrders(state, { grey: [], brown: [] }));
+    const victoryEvent = finalResult.events.find(
+      (e) => e.kind === "victory" && (e as any).condition === "diplomatic_hegemony",
+    );
+    expect(victoryEvent).toBeDefined();
+    expect(finalResult.state.winner).toBe("orange");
+  });
+
+  it("diplomatic_hegemony — fails without region plurality", () => {
+    const state = handMinimalState();
+    const regionIds = Object.keys(state.regions);
+    const half = Math.floor(regionIds.length / 2) + 1;
+    for (let i = 0; i < regionIds.length; i++) {
+      state.regions[regionIds[i]!]!.owner = i < half ? "orange" : "grey";
+    }
+    state.tribesAlive = ["orange", "grey"];
+    state.players["grey"]!.influence = 100;
+    state.tick = 5;
+
+    state.pacts.push(
+      { kind: "nap", parties: ["grey", "orange"], formedTick: 0, expiresTick: 999 },
+    );
+
+    for (let t = 0; t < 3; t++) {
+      tick(state, packetsWithOrders(state, { grey: [] }));
+    }
+
+    const counter = state.victoryCounters["orange"]?.diplomatic_hegemony ?? 0;
+    expect(counter).toBe(3);
+  });
+
+  it("cultural_ascendancy takes priority over territorial_dominance", () => {
+    const state = handMinimalState();
+    const regionIds = Object.keys(state.regions);
+    for (const rid of regionIds) {
+      state.regions[rid]!.owner = "orange";
+    }
+    let shrinesBuilt = 0;
+    for (const rid of regionIds) {
+      if (shrinesBuilt >= 4) break;
+      state.regions[rid]!.structures.push("shrine");
+      shrinesBuilt++;
+    }
+    state.victoryCounters["orange"] = { territorial_dominance: 2 };
+    state.tribesAlive = ["orange", "grey"];
+    state.players["grey"]!.influence = 100;
+    state.tick = 5;
+
+    const result = tick(state, packetsWithOrders(state, { grey: [] }));
+    const victoryEvent = result.events.find((e) => e.kind === "victory");
+    expect(victoryEvent).toBeDefined();
+    expect((victoryEvent as any).condition).toBe("cultural_ascendancy");
+    expect(result.state.winner).toBe("orange");
+  });
+
+  it("sustain counter events emitted on increment", () => {
+    const state = handMinimalState();
+    const totalRegions = Object.keys(state.regions).length;
+    const needed = Math.ceil(totalRegions * 0.6);
+    const regionIds = Object.keys(state.regions);
+
+    for (let i = 0; i < needed && i < regionIds.length; i++) {
+      state.regions[regionIds[i]!]!.owner = "orange";
+      const forceId = `f_test_${i}`;
+      state.forces[forceId] = {
+        id: forceId,
+        owner: "orange",
+        tier: 1,
+        location: { kind: "garrison", regionId: regionIds[i]! },
+      };
+      state.regions[regionIds[i]!]!.garrisonForceId = forceId;
+    }
+    const greyRegion = regionIds[needed]!;
+    state.regions[greyRegion]!.owner = "grey";
+    state.tribesAlive = ["orange", "grey"];
+    state.players["grey"]!.influence = 100;
+    state.tick = 5;
+
+    const result = tick(state, packetsWithOrders(state, { grey: [] }));
+    expect(result.events.some((e) => e.kind === "victory_counter_incremented")).toBe(true);
+    const counterEvents = result.events.filter((e) => e.kind === "victory_counter_incremented");
+    const tdEvent = counterEvents.find((e) => (e as any).condition === "territorial_dominance");
+    expect(tdEvent).toBeDefined();
+    expect((tdEvent as any).tribe).toBe("orange");
+    expect((tdEvent as any).new_value).toBe(1);
   });
 });
 

@@ -8,10 +8,13 @@ import {
   COMBAT_REINFORCEMENT_BONUS_CAP,
   COMBAT_REINFORCEMENT_BONUS_PER_ALLY,
   COMBAT_SCOUT_REVEAL_PENALTY,
+  CULTURAL_SHRINE_REQUIREMENT,
   DEFAULT_NAP_LENGTH,
   MESSAGE_CAP_PER_TRIBE,
   DEFAULT_SHARED_VISION_LENGTH,
   DEFAULT_TICK_LIMIT,
+  DEFAULT_VICTORY_SUSTAIN_TICKS,
+  ECONOMIC_SUPREMACY_FRACTION,
   FINAL_SCORE_WEIGHTS,
   FORCE_RECRUIT_COST,
   FORCE_TRAVEL_PENALTY,
@@ -25,6 +28,7 @@ import {
   SCOUT_DWELL_TICKS,
   STRUCTURE_COST,
   STRUCTURE_PRODUCTION_BONUS,
+  TERRITORIAL_DOMINANCE_FRACTION,
   roadModifiedLength,
 } from "./constants.js";
 import { adjacentRegions, trailBetween } from "./graph.js";
@@ -43,6 +47,7 @@ import type {
   ResolutionEvent,
   TickResult,
   Tribe,
+  VictoryConditionKey,
 } from "./types.js";
 
 function findPact(
@@ -840,28 +845,89 @@ export function checkVictory(state: GameState): string | null {
   return (ev.condition as string) ?? null;
 }
 
-function checkVictoryInternal(state: GameState, events: ResolutionEvent[]): void {
-  const ownersWithRegions = new Set(
-    Object.values(state.regions)
-      .map((r) => r.owner)
-      .filter((o): o is Tribe => o !== null),
-  );
-  const aliveWithRegions = new Set(
-    [...ownersWithRegions].filter((t) => state.tribesAlive.includes(t)),
-  );
-  if (aliveWithRegions.size === 1) {
-    const winner = [...aliveWithRegions][0]!;
-    state.winner = winner;
-    state.announcements.push({
-      tick: state.tick,
-      kind: "victory",
-      parties: [winner],
-      condition: "last_standing",
-    });
-    events.push({ kind: "victory", tribe: winner, condition: "last_standing" });
-    return;
+function productionForTribe(state: GameState, tribe: Tribe): number {
+  let total = 0;
+  for (const region of Object.values(state.regions)) {
+    if (region.owner !== tribe) continue;
+    let base = REGION_PRODUCTION[region.type] ?? 0;
+    if (tribe === "orange" && region.type === "plains") base += 1;
+    for (const st of region.structures) {
+      base += STRUCTURE_PRODUCTION_BONUS[st] ?? 0;
+    }
+    total += base;
   }
+  return total;
+}
 
+function totalProduction(state: GameState): number {
+  let total = 0;
+  for (const tribe of state.tribesAlive) {
+    total += productionForTribe(state, tribe);
+  }
+  return total;
+}
+
+function regionCount(state: GameState, tribe: Tribe): number {
+  return Object.values(state.regions).filter((r) => r.owner === tribe).length;
+}
+
+function shrineCount(state: GameState, tribe: Tribe): number {
+  return Object.values(state.regions).filter(
+    (r) => r.owner === tribe && r.structures.includes("shrine"),
+  ).length;
+}
+
+function getSustainCounter(
+  state: GameState,
+  tribe: Tribe,
+  key: VictoryConditionKey,
+): number {
+  return state.victoryCounters[tribe]?.[key] ?? 0;
+}
+
+function setSustainCounter(
+  state: GameState,
+  tribe: Tribe,
+  key: VictoryConditionKey,
+  value: number,
+  events: ResolutionEvent[],
+): void {
+  if (!state.victoryCounters[tribe]) {
+    (state.victoryCounters as Record<string, unknown>)[tribe] = {};
+  }
+  (state.victoryCounters[tribe] as Record<VictoryConditionKey, number>)[key] = value;
+  if (value > 0) {
+    events.push({
+      kind: "victory_counter_incremented",
+      tribe,
+      condition: key,
+      new_value: value,
+    });
+  }
+}
+
+function triggerVictory(
+  state: GameState,
+  events: ResolutionEvent[],
+  winner: Tribe | Tribe[],
+  condition: string,
+): void {
+  state.winner = winner;
+  const parties = Array.isArray(winner) ? winner : [winner];
+  state.announcements.push({
+    tick: state.tick,
+    kind: "victory",
+    parties,
+    condition,
+  });
+  events.push({
+    kind: "victory",
+    ...(Array.isArray(winner) ? { tribes: winner } : { tribe: winner }),
+    condition,
+  });
+}
+
+function checkVictoryInternal(state: GameState, events: ResolutionEvent[]): void {
   for (const tribe of [...state.tribesAlive]) {
     const owned = Object.values(state.regions).some((r) => r.owner === tribe);
     const forced = Object.values(state.forces).some((f) => f.owner === tribe);
@@ -873,6 +939,86 @@ function checkVictoryInternal(state: GameState, events: ResolutionEvent[]): void
         parties: [tribe],
       });
       events.push({ kind: "tribe_eliminated", tribe });
+    }
+  }
+
+  if (state.tribesAlive.length === 1) {
+    triggerVictory(state, events, state.tribesAlive[0]!, "last_standing");
+    return;
+  }
+  if (state.tribesAlive.length === 0) {
+    return;
+  }
+
+  for (const tribe of state.tribesAlive) {
+    if (shrineCount(state, tribe) >= CULTURAL_SHRINE_REQUIREMENT) {
+      triggerVictory(state, events, tribe, "cultural_ascendancy");
+      return;
+    }
+  }
+
+  const sustainTicks = DEFAULT_VICTORY_SUSTAIN_TICKS;
+
+  const aliveOther = (t: Tribe) =>
+    state.tribesAlive.filter((x) => x !== t);
+
+  for (const tribe of state.tribesAlive) {
+    const others = aliveOther(tribe);
+    const hasNapWithAll = others.every((other) =>
+      state.pacts.some(
+        (p) => p.kind === "nap" && p.parties.includes(tribe) && p.parties.includes(other),
+      ),
+    );
+    const myRegions = regionCount(state, tribe);
+    const hasPlurality = others.every(
+      (other) => myRegions > regionCount(state, other),
+    );
+    const holds = hasNapWithAll && hasPlurality && myRegions > 0;
+    const prev = getSustainCounter(state, tribe, "diplomatic_hegemony");
+    setSustainCounter(state, tribe, "diplomatic_hegemony", holds ? prev + 1 : 0, events);
+  }
+
+  for (const tribe of state.tribesAlive) {
+    const totalProd = totalProduction(state);
+    const tribeProd = productionForTribe(state, tribe);
+    const holds = totalProd > 0 && tribeProd / totalProd >= ECONOMIC_SUPREMACY_FRACTION;
+    const prev = getSustainCounter(state, tribe, "economic_supremacy");
+    setSustainCounter(state, tribe, "economic_supremacy", holds ? prev + 1 : 0, events);
+  }
+
+  const totalRegions = Object.keys(state.regions).length;
+  for (const tribe of state.tribesAlive) {
+    const myRegions = regionCount(state, tribe);
+    const holds =
+      totalRegions > 0 && myRegions / totalRegions >= TERRITORIAL_DOMINANCE_FRACTION;
+    const prev = getSustainCounter(state, tribe, "territorial_dominance");
+    setSustainCounter(state, tribe, "territorial_dominance", holds ? prev + 1 : 0, events);
+  }
+
+  for (const tribe of state.tribesAlive) {
+    if (
+      getSustainCounter(state, tribe, "diplomatic_hegemony") >= sustainTicks
+    ) {
+      triggerVictory(state, events, tribe, "diplomatic_hegemony");
+      return;
+    }
+  }
+
+  for (const tribe of state.tribesAlive) {
+    if (
+      getSustainCounter(state, tribe, "economic_supremacy") >= sustainTicks
+    ) {
+      triggerVictory(state, events, tribe, "economic_supremacy");
+      return;
+    }
+  }
+
+  for (const tribe of state.tribesAlive) {
+    if (
+      getSustainCounter(state, tribe, "territorial_dominance") >= sustainTicks
+    ) {
+      triggerVictory(state, events, tribe, "territorial_dominance");
+      return;
     }
   }
 

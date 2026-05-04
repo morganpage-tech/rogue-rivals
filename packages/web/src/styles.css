@@ -779,11 +779,13 @@ code,
 
 .v2-node {
   fill: #1a2230;
-  stroke: #4a5568;
-  stroke-width: 3;
+  stroke: rgba(74, 85, 104, 0.3);
+  stroke-width: 2;
   cursor: pointer;
+  transition: stroke 0.2s, stroke-width 0.2s, filter 0.2s;
 }
 .v2-node:hover {
+  stroke: rgba(74, 85, 104, 0.6);
   filter: brightness(1.08);
 }
 .v2-node.selected {

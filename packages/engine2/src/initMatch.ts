@@ -1,11 +1,19 @@
 import { buildContinentMap6p, placeTribesContinent6p } from "./continent6pMap.js";
 import { buildExpandedMap, placeTribesExpanded } from "./expandedMap.js";
 import { buildHandMap, placeTribes } from "./handMap.js";
-import type { GameState, Tribe, VictoryCounters } from "./types.js";
+import type { GameState, Tribe, VictoryCounters, VictoryConditionKey } from "./types.js";
 import type { MatchConfig } from "./matchConfig.js";
 
-function emptyVictoryCounters(): VictoryCounters {
-  return {} as VictoryCounters;
+function emptyVictoryCounters(tribes: readonly Tribe[]): VictoryCounters {
+  const counters = {} as Record<string, Partial<Record<VictoryConditionKey, number>>>;
+  for (const tribe of tribes) {
+    counters[tribe] = {
+      territorial_dominance: 0,
+      economic_supremacy: 0,
+      diplomatic_hegemony: 0,
+    };
+  }
+  return counters as VictoryCounters;
 }
 
 export function initMatch(config: MatchConfig): GameState {
@@ -26,7 +34,7 @@ export function initMatch(config: MatchConfig): GameState {
     players: {} as GameState["players"],
     pacts: [],
     announcements: [],
-    victoryCounters: emptyVictoryCounters(),
+    victoryCounters: emptyVictoryCounters(config.tribes),
     winner: null,
     nextForceIdx: 0,
     nextScoutIdx: 0,
