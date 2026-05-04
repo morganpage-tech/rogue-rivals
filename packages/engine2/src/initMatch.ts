@@ -35,6 +35,7 @@ export function initMatch(config: MatchConfig): GameState {
     pacts: [],
     announcements: [],
     victoryCounters: emptyVictoryCounters(config.tribes),
+    personaKits: config.personaKits ?? {},
     winner: null,
     nextForceIdx: 0,
     nextScoutIdx: 0,

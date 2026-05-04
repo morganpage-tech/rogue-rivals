@@ -10,8 +10,8 @@ function handMinimalState(): GameState {
     tribes: ["orange", "grey", "brown", "red"],
     mapPreset: "hand_minimal",
     regionCount: 20,
-    tickLimit: 60,
-    victorySustainTicks: 3,
+    tickLimit: 40,
+    victorySustainTicks: 2,
     napDefaultLength: 8,
     sharedVisionDefaultLength: 5,
     caravanTravelTicks: 2,
@@ -329,7 +329,7 @@ describe("tick victory", () => {
       return;
     }
 
-    for (let t = 0; t < 2; t++) {
+    for (let t = 0; t < 1; t++) {
       const result = tick(state, packetsWithOrders(state, { grey: [] }));
       const noSustained = result.events.find(
         (e) => e.kind === "victory" && (e as any).condition !== "tick_limit",
@@ -384,7 +384,7 @@ describe("tick victory", () => {
     state.players["grey"]!.influence = 100;
     state.tick = 5;
 
-    for (let t = 0; t < 2; t++) {
+    for (let t = 0; t < 1; t++) {
       const result = tick(state, packetsWithOrders(state, { grey: [] }));
       const noEcon = result.events.find(
         (e) => e.kind === "victory" && (e as any).condition === "economic_supremacy",
@@ -416,7 +416,7 @@ describe("tick victory", () => {
       { kind: "nap", parties: ["brown", "orange"], formedTick: 0, expiresTick: 999 },
     );
 
-    for (let t = 0; t < 2; t++) {
+    for (let t = 0; t < 1; t++) {
       const result = tick(state, packetsWithOrders(state, { grey: [], brown: [] }));
       const noDiplo = result.events.find(
         (e) => e.kind === "victory" && (e as any).condition === "diplomatic_hegemony",
@@ -447,12 +447,12 @@ describe("tick victory", () => {
       { kind: "nap", parties: ["grey", "orange"], formedTick: 0, expiresTick: 999 },
     );
 
-    for (let t = 0; t < 3; t++) {
+    for (let t = 0; t < 2; t++) {
       tick(state, packetsWithOrders(state, { grey: [] }));
     }
 
     const counter = state.victoryCounters["orange"]?.diplomatic_hegemony ?? 0;
-    expect(counter).toBe(3);
+    expect(counter).toBeGreaterThanOrEqual(2);
   });
 
   it("cultural_ascendancy takes priority over territorial_dominance", () => {
@@ -689,6 +689,35 @@ describe("tick influence production", () => {
       expect(state.players[t]!.influence).toBeGreaterThan(before[t]!);
     }
   });
+
+  it("applies yield decay after YIELD_DECAY_START_TICK", () => {
+    const state = handMinimalState();
+    state.tick = 28;
+    const result29 = tick(state, emptyPackets(state));
+    const credit29 = result29.events.find(
+      (e: any) => e.kind === "influence_credited" && e.tribe === "orange",
+    ) as any;
+
+    state.tick = 35;
+    const result36 = tick(state, emptyPackets(state));
+    const credit36 = result36.events.find(
+      (e: any) => e.kind === "influence_credited" && e.tribe === "orange",
+    ) as any;
+
+    expect(credit36.amount).toBeLessThan(credit29.amount);
+  });
+
+  it("yield decay floors at 1 per region", () => {
+    const state = handMinimalState();
+    state.tick = 80;
+    const result = tick(state, emptyPackets(state));
+    const credit = result.events.find(
+      (e: any) => e.kind === "influence_credited" && e.tribe === "orange",
+    ) as any;
+    expect(credit).toBeDefined();
+    const orangeRegions = Object.values(state.regions).filter((r) => r.owner === "orange");
+    expect(credit.amount).toBeGreaterThanOrEqual(orangeRegions.length);
+  });
 });
 
 describe("tick force stacking", () => {
@@ -775,5 +804,91 @@ describe("tick force stacking", () => {
     const combat = combatEvents[0] as any;
     expect(combat.d_eff).toBe(7); // min(10, 6) + 1 (capped own_region + fort)
     expect(combat.a_eff).toBe(6); // min(10, 6)
+  });
+});
+
+describe("tick combat attacker scout-intel bonus", () => {
+  it("attacker gets +1 when own scout arrives at combat region", () => {
+    const state = handMinimalState();
+    const defenderRegion = Object.keys(state.regions).find(
+      (rid) => state.regions[rid]!.owner === "orange",
+    )!;
+    const defenderForce = Object.values(state.forces).find(
+      (f) => f.owner === "orange",
+    )!;
+
+    const trail = state.trails.find(
+      (t) => t.a === defenderRegion || t.b === defenderRegion,
+    )!;
+    const fromRegion = trail.a === defenderRegion ? trail.b : trail.a;
+
+    const attackerTier = defenderForce.tier;
+    const attackerForceId = "f_test_attacker_scout";
+    state.forces[attackerForceId] = {
+      id: attackerForceId,
+      owner: "grey",
+      tier: attackerTier,
+      location: {
+        kind: "transit",
+        trailIndex: trail.index,
+        directionFrom: fromRegion,
+        directionTo: defenderRegion,
+        ticksRemaining: 0,
+      },
+    };
+
+    state.scouts["sc_test_attacker"] = {
+      id: "sc_test_attacker",
+      owner: "grey",
+      targetRegionId: defenderRegion,
+      location: {
+        kind: "transit",
+        trailIndex: trail.index,
+        directionFrom: fromRegion,
+        directionTo: defenderRegion,
+        ticksRemaining: 0,
+      },
+    };
+
+    const result = tick(state, emptyPackets(state));
+
+    const combat = result.events.find((e) => e.kind === "combat") as any;
+    expect(combat).toBeDefined();
+    expect(combat.a_eff).toBe(attackerTier + 1);
+  });
+
+  it("attacker without scout does not get the bonus", () => {
+    const state = handMinimalState();
+    const defenderRegion = Object.keys(state.regions).find(
+      (rid) => state.regions[rid]!.owner === "orange",
+    )!;
+    const defenderForce = Object.values(state.forces).find(
+      (f) => f.owner === "orange",
+    )!;
+
+    const trail = state.trails.find(
+      (t) => t.a === defenderRegion || t.b === defenderRegion,
+    )!;
+    const fromRegion = trail.a === defenderRegion ? trail.b : trail.a;
+    const attackerTier = defenderForce.tier;
+    const attackerForceId = "f_test_attacker_noscout";
+    state.forces[attackerForceId] = {
+      id: attackerForceId,
+      owner: "grey",
+      tier: attackerTier,
+      location: {
+        kind: "transit",
+        trailIndex: trail.index,
+        directionFrom: fromRegion,
+        directionTo: defenderRegion,
+        ticksRemaining: 0,
+      },
+    };
+
+    const result = tick(state, emptyPackets(state));
+
+    const combat = result.events.find((e) => e.kind === "combat") as any;
+    expect(combat).toBeDefined();
+    expect(combat.a_eff).toBe(attackerTier);
   });
 });

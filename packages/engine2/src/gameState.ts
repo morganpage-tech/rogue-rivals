@@ -16,6 +16,7 @@ import type {
   Tribe,
   VictoryCounters,
 } from "@rr/shared";
+import type { PersonaKitId } from "./personaKit.js";
 
 /** The authoritative match state. Deterministic given seed + packet history. */
 export interface GameState {
@@ -35,6 +36,7 @@ export interface GameState {
 
   announcements: Announcement[];
   victoryCounters: VictoryCounters;
+  personaKits: Partial<Record<Tribe, PersonaKitId>>;
 
   /** null until a winning condition fires; a Tribe on solo win, an array on shared. */
   winner: Tribe | Tribe[] | null;

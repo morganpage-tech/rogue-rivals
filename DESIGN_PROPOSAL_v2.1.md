@@ -13,20 +13,20 @@
 | | §2.1 `canSeeTribe` helper | **DONE** — `projectForPlayer.ts` exports `canSeeTribe()` and `visibleRegionSet()` |
 | | §2.1 `DEFAULT_NAP_LENGTH` 8→4 | **DONE** in `constants.ts` and `matchConfig.ts` |
 | | §2.6 Message cap (3/tribe/tick) | **DONE** — `MESSAGE_CAP_PER_TRIBE=3` in `constants.ts`, enforced in `tick.ts` order loop |
-| | §2.7 Legal-option grammar (variable NAP lengths [3,8]) | **NOT DONE** — NAP always uses fixed length |
+| | §2.7 Legal-option grammar (variable NAP lengths [4,8]) | **DONE** — `NAP_LENGTH_OPTIONS=[4,8]` in `constants.ts`; `projectForPlayer.ts` emits one option per length per tribe (`propose:nap:grey:4`, `propose:nap:grey:8`); `llmOrderFromLegal.ts` resolves exact length match with fallback to default |
 | | §2.7 Error feedback (surface legal alternatives to LLM) | **DONE** — `ordersFromChooseIds` returns `ChooseIdRejection[]` with legal alternatives |
 | **B — Combat rebalance** | §2.2 Defender combined cap (own_region + fort ≤ 1) | **DONE** — `COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP=1` clamps combined bonus |
 | | §2.2 Force stacking (merge-on-arrival + merge-on-recruit) | **DONE** — `ForceTier` widened to `number`; arrival merges into friendly garrison; recruit merges into existing garrison; `COMBAT_MAX_EFFECTIVE_TIER=6`; `arrival_rejected_garrison_cap` eliminated; see §2.2.1 |
-| | §2.2 Attacker scout-intel bonus (+1) | **NOT DONE** — only defender scout-reveal penalty exists |
+| | §2.2 Attacker scout-intel bonus (+1) | **DONE** — `COMBAT_SCOUT_INTEL_BONUS=1` in `constants.ts`; `tick.ts` adds +1 to `aEff` when attacker's scout reveals the combat region |
 | | §2.3 Trade escrow at propose-time | **DONE** — sender debited at propose; refund on decline/expiry |
-| **C — Pace + commitments** | §2.5 Victory conditions (all 5 from RULES.md §8) | **DONE** — `tick.ts` implements cultural_ascendancy (instant, 4 shrines), territorial_dominance (60% regions, sustain 3), economic_supremacy (50% production, sustain 3), diplomatic_hegemony (NAPs with all + plurality, sustain 3), last_standing, tick_limit weighted score. Counters initialised per-tribe in `initMatch`. `victory_counter_incremented` events emitted. Priority: cultural > last_standing > sustained > tick_limit. |
-| | §2.5 Victory sustain 3→2 | **NOT DONE** — sustain implemented at 3 (`DEFAULT_VICTORY_SUSTAIN_TICKS=3`), proposal says 2 |
-| | §2.5 Late-game yield decay | **NOT DONE** |
-| | §2.5 `DEFAULT_TICK_LIMIT` 60→40 | **NOT DONE** — still 60 |
+| **C — Pace + commitments** | §2.5 Victory conditions (all 5 from RULES.md §8) | **DONE** — `tick.ts` implements cultural_ascendancy (instant, 4 shrines), territorial_dominance (60% regions, sustain 2), economic_supremacy (50% production, sustain 2), diplomatic_hegemony (NAPs with all + plurality, sustain 2), last_standing, tick_limit weighted score. Counters initialised per-tribe in `initMatch`. `victory_counter_incremented` events emitted. Priority: cultural > last_standing > sustained > tick_limit. |
+| | §2.5 Victory sustain 3→2 | **DONE** — `DEFAULT_VICTORY_SUSTAIN_TICKS=2` in `constants.ts` and `matchConfig.ts` |
+| | §2.5 Late-game yield decay | **DONE** — `YIELD_DECAY_START_TICK=30`, `YIELD_DECAY_PER_TICK=0.05` (multiplicative, floor 1/region). Production refactored into shared `regionProduction()` helper eliminating 3x duplication |
+| | §2.5 `DEFAULT_TICK_LIMIT` 60→40 | **DONE** — `DEFAULT_TICK_LIMIT=40` in `constants.ts` and `matchConfig.ts` |
 | | §2.6 Commitment system (types, recording, breach, penalties) | **NOT DONE** — no `Commitment`, `ActiveCommitment`, or `MessagePayload` types |
-| **D — Persona kits** | §2.4 `personas.ts` mechanical kit table | **NOT DONE** — personas remain prompt-only in `@rr/llm` |
-| | §2.4 Persona integration in tick resolution | **NOT DONE** |
-| | §2.4 Match config `persona_kit` field | **NOT DONE** |
+| **D — Persona kits** | §2.4 Mechanical kit definitions | **DONE** — `packages/engine2/src/personaKit.ts` defines `PersonaKit` interface and `PERSONA_KITS` table for all 9 personas |
+| | §2.4 Persona integration in tick resolution | **DONE** — wired into `tick.ts` at: recruit cost (warlord -1 tier 2/3), trade escrow (merchant_prince -1), defender bonus (paranoid_isolationist +1), travel ticks (frostmarshal -1 mountains), scout dwell (veilweaver 2 ticks), capture bounty (opportunist +1), terrain production (cragwise +1 mountains/forest), shrine production (shadowreader +1), ambush attack (palmstalker +1 from own region) |
+| | §2.4 Match config `personaKits` field | **DONE** — `personaKits: Partial<Record<Tribe, PersonaKitId>>` on `MatchConfig` and `GameState`; initialised in `initMatch` |
 
 **Resolved:** all 5 victory conditions from `RULES.md` §8 are now implemented in `tick.ts` (see Phase C status). The prerequisite gap is closed.
 

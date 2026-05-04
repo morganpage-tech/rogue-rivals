@@ -176,12 +176,20 @@ describe("ordersFromChooseIds", () => {
     expect(orders).toHaveLength(0);
   });
 
-  it("strips trailing tick count from propose:nap keys", () => {
+  it("matches exact NAP length option", () => {
     const view: ProjectedView = {
       ...baseView,
       legalOrderOptions: [
         {
-          id: "propose:nap:grey",
+          id: "propose:nap:grey:4",
+          kind: "propose",
+          summary: "",
+          payload: {
+            proposal: { id: "pending", kind: "nap", from: "orange", to: "grey", lengthTicks: 4, amountInfluence: 0, expiresTick: 3 },
+          },
+        },
+        {
+          id: "propose:nap:grey:8",
           kind: "propose",
           summary: "",
           payload: {
@@ -190,7 +198,27 @@ describe("ordersFromChooseIds", () => {
         },
       ],
     };
-    const { orders } = ordersFromChooseIds(view, ["propose:nap:grey:3"]);
+    const { orders } = ordersFromChooseIds(view, ["propose:nap:grey:8"]);
+    expect(orders).toHaveLength(1);
+    expect(orders[0]!.kind).toBe("propose");
+    expect((orders[0] as any).proposal.lengthTicks).toBe(8);
+  });
+
+  it("falls back to default NAP length when no suffix provided", () => {
+    const view: ProjectedView = {
+      ...baseView,
+      legalOrderOptions: [
+        {
+          id: "propose:nap:grey:4",
+          kind: "propose",
+          summary: "",
+          payload: {
+            proposal: { id: "pending", kind: "nap", from: "orange", to: "grey", lengthTicks: 4, amountInfluence: 0, expiresTick: 3 },
+          },
+        },
+      ],
+    };
+    const { orders } = ordersFromChooseIds(view, ["propose:nap:grey"]);
     expect(orders).toHaveLength(1);
     expect(orders[0]!.kind).toBe("propose");
   });

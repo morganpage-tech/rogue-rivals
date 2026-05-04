@@ -38,6 +38,9 @@ export const STRUCTURE_PRODUCTION_BONUS: Partial<Record<StructureKind, number>> 
   shrine: 1,
 };
 
+export const YIELD_DECAY_START_TICK = 30;
+export const YIELD_DECAY_PER_TICK = 0.05;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Force recruiting (§4.2)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,6 +90,7 @@ export const COMBAT_REINFORCEMENT_BONUS_PER_ALLY = 1;
 export const COMBAT_REINFORCEMENT_BONUS_CAP = 2;
 export const COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP = 1;
 export const COMBAT_SCOUT_REVEAL_PENALTY = -1;
+export const COMBAT_SCOUT_INTEL_BONUS = 1;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scouts & caravans (§4.6, §4.7)
@@ -154,9 +158,10 @@ export const COMBAT_MAX_EFFECTIVE_TIER = 6;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Fallback tick cap for victory scoring when not reading match config (Python oracle). */
-export const DEFAULT_TICK_LIMIT = 60;
+export const DEFAULT_TICK_LIMIT = 40;
 
 export const DEFAULT_NAP_LENGTH = 4;
+export const NAP_LENGTH_OPTIONS = [4, 8] as const;
 export const DEFAULT_SHARED_VISION_LENGTH = 5;
 export const MESSAGE_CAP_PER_TRIBE = 3;
 
@@ -167,7 +172,7 @@ export const MESSAGE_CAP_PER_TRIBE = 3;
 export const TERRITORIAL_DOMINANCE_FRACTION = 0.6;
 export const ECONOMIC_SUPREMACY_FRACTION = 0.5;
 export const CULTURAL_SHRINE_REQUIREMENT = 4;
-export const DEFAULT_VICTORY_SUSTAIN_TICKS = 3;
+export const DEFAULT_VICTORY_SUSTAIN_TICKS = 2;
 
 /** Weights for end-of-match scoring fallback. Must sum to 1.0. */
 export const FINAL_SCORE_WEIGHTS = {

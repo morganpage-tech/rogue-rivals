@@ -173,7 +173,7 @@ describe("projectForSpectator", () => {
   it("defaults tickLimit to DEFAULT_TICK_LIMIT", () => {
     const state = handMinimalState();
     const sv = projectForSpectator(state);
-    expect(sv.tickLimit).toBe(60);
+    expect(sv.tickLimit).toBe(40);
   });
 
   it("winner is null at init", () => {

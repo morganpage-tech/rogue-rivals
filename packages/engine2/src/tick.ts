@@ -8,6 +8,7 @@ import {
   COMBAT_REINFORCEMENT_BONUS_CAP,
   COMBAT_REINFORCEMENT_BONUS_PER_ALLY,
   COMBAT_SCOUT_REVEAL_PENALTY,
+  COMBAT_SCOUT_INTEL_BONUS,
   CULTURAL_SHRINE_REQUIREMENT,
   DEFAULT_NAP_LENGTH,
   MESSAGE_CAP_PER_TRIBE,
@@ -29,11 +30,14 @@ import {
   STRUCTURE_COST,
   STRUCTURE_PRODUCTION_BONUS,
   TERRITORIAL_DOMINANCE_FRACTION,
+  YIELD_DECAY_START_TICK,
+  YIELD_DECAY_PER_TICK,
   roadModifiedLength,
 } from "./constants.js";
 import { adjacentRegions, trailBetween } from "./graph.js";
 import { hashState } from "./hashState.js";
 import { projectForPlayer, canSeeTribe } from "./projectForPlayer.js";
+import { getKitForTribe, type PersonaKit } from "./personaKit.js";
 import type {
   Caravan,
   Force,
@@ -210,11 +214,12 @@ function resolveCombatAt(
     }
 
     let dEff = Math.min(defender.tier, COMBAT_MAX_EFFECTIVE_TIER);
-    let dBonus = COMBAT_DEFENDER_OWN_REGION_BONUS;
+    const defKit = getKitForTribe(state, defender.owner);
+    let dBonus = COMBAT_DEFENDER_OWN_REGION_BONUS + defKit.defenderBonusOwnRegion;
     if (region.structures.includes("fort")) {
       dBonus += COMBAT_FORT_BONUS;
     }
-    dEff += Math.min(dBonus, COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP);
+    dEff += Math.min(dBonus, COMBAT_DEFENDER_OWN_REGION_AND_FORT_CAP + defKit.defenderBonusOwnRegion);
     let reinf = 0;
     for (const adjId of adjacentRegions(state, regionId)) {
       const adj = state.regions[adjId]!;
@@ -232,6 +237,19 @@ function resolveCombatAt(
     const revealedBy = scoutReveal.get(regionId) ?? [];
     if (revealedBy.includes(defender.owner)) {
       aEff += COMBAT_SCOUT_REVEAL_PENALTY;
+    }
+    if (revealedBy.includes(attacker.owner)) {
+      aEff += COMBAT_SCOUT_INTEL_BONUS;
+    }
+    const atkKit = getKitForTribe(state, attacker.owner);
+    if (atkKit.ambushAttackBonus > 0) {
+      const fromRegion =
+        attacker.location.kind === "transit"
+          ? state.regions[attacker.location.directionFrom]
+          : undefined;
+      if (fromRegion && fromRegion.owner === attacker.owner) {
+        aEff += atkKit.ambushAttackBonus;
+      }
     }
 
     if (aEff > dEff) {
@@ -366,7 +384,8 @@ function applyRecruit(
   if (region.garrisonForceId !== null) {
     const existingForce = state.forces[region.garrisonForceId]!;
     if (existingForce.owner === tribe) {
-      const cost = FORCE_RECRUIT_COST[tier];
+      const kit = getKitForTribe(state, tribe);
+      const cost = FORCE_RECRUIT_COST[tier] + (kit.recruitCostModifier[tier] ?? 0);
       if (ps.influence < cost) {
         events.push({ kind: "recruit_failed", reason: "no_influence" });
         return;
@@ -390,7 +409,8 @@ function applyRecruit(
     events.push({ kind: "recruit_failed", reason: "no_forge" });
     return;
   }
-  const cost = FORCE_RECRUIT_COST[tier];
+  const kit = getKitForTribe(state, tribe);
+  const cost = FORCE_RECRUIT_COST[tier] + (kit.recruitCostModifier[tier] ?? 0);
   if (ps.influence < cost) {
     events.push({ kind: "recruit_failed", reason: "no_influence" });
     return;
@@ -514,7 +534,8 @@ function applyPropose(
   }
 
   if (kind === "trade_offer") {
-    const escrowTotal = amount + 1;
+    const kit = getKitForTribe(state, tribe);
+    const escrowTotal = amount + 1 + kit.tradeCostModifier;
     const senderPs = state.players[tribe]!;
     if (senderPs.influence < escrowTotal) {
       events.push({ kind: "trade_propose_failed", reason: "sender_insolvent" });
@@ -705,6 +726,14 @@ function applyDispatchMove(
     }
   }
   length += FORCE_TRAVEL_PENALTY[f.tier] ?? FORCE_TRAVEL_PENALTY[4] ?? 2;
+  const moveKit = getKitForTribe(state, tribe);
+  const destRegion = state.regions[dest]!;
+  for (const mod of moveKit.travelTickModifier) {
+    if (destRegion.type === mod.terrain) {
+      length += mod.delta;
+    }
+  }
+  length = Math.max(1, length);
 
   const destOwner = state.regions[dest]!.owner;
   if (destOwner !== null && destOwner !== tribe) {
@@ -793,18 +822,35 @@ function applyDispatchScout(
   });
 }
 
+function regionProduction(
+  region: Region,
+  owner: Tribe,
+  currentTick: number,
+  kit: PersonaKit,
+): number {
+  let base = REGION_PRODUCTION[region.type] ?? 0;
+  if (owner === "orange" && region.type === "plains") base += 1;
+  for (const st of region.structures) {
+    base += STRUCTURE_PRODUCTION_BONUS[st] ?? 0;
+  }
+  for (const tb of kit.terrainProductionBonus) {
+    if (region.type === tb.terrain) base += tb.bonus;
+  }
+  base += kit.shrineProductionBonus * region.structures.filter((s) => s === "shrine").length;
+  if (currentTick >= YIELD_DECAY_START_TICK) {
+    const factor = Math.pow(1 - YIELD_DECAY_PER_TICK, currentTick - YIELD_DECAY_START_TICK);
+    base = Math.max(1, Math.floor(base * factor));
+  }
+  return base;
+}
+
 function weightedScoreWinner(state: GameState): Tribe | Tribe[] | null {
   const scores: Partial<Record<Tribe, number>> = {};
   const totalRegions = Math.max(1, Object.keys(state.regions).length);
   let totalProduction = 0;
   for (const region of Object.values(state.regions)) {
     if (region.owner === null) continue;
-    let base = REGION_PRODUCTION[region.type] ?? 0;
-    if (region.owner === "orange" && region.type === "plains") base += 1;
-    for (const st of region.structures) {
-      base += STRUCTURE_PRODUCTION_BONUS[st] ?? 0;
-    }
-    totalProduction += base;
+    totalProduction += regionProduction(region, region.owner, state.tick, getKitForTribe(state, region.owner));
   }
   totalProduction = Math.max(1, totalProduction);
 
@@ -813,12 +859,7 @@ function weightedScoreWinner(state: GameState): Tribe | Tribe[] | null {
     let ownProd = 0;
     for (const region of Object.values(state.regions)) {
       if (region.owner !== tribe) continue;
-      let base = REGION_PRODUCTION[region.type] ?? 0;
-      if (tribe === "orange" && region.type === "plains") base += 1;
-      for (const st of region.structures) {
-        base += STRUCTURE_PRODUCTION_BONUS[st] ?? 0;
-      }
-      ownProd += base;
+      ownProd += regionProduction(region, tribe, state.tick, getKitForTribe(state, tribe));
     }
     const shrines = Object.values(state.regions).filter(
       (r) => r.owner === tribe && r.structures.includes("shrine"),
@@ -846,15 +887,11 @@ export function checkVictory(state: GameState): string | null {
 }
 
 function productionForTribe(state: GameState, tribe: Tribe): number {
+  const kit = getKitForTribe(state, tribe);
   let total = 0;
   for (const region of Object.values(state.regions)) {
     if (region.owner !== tribe) continue;
-    let base = REGION_PRODUCTION[region.type] ?? 0;
-    if (tribe === "orange" && region.type === "plains") base += 1;
-    for (const st of region.structures) {
-      base += STRUCTURE_PRODUCTION_BONUS[st] ?? 0;
-    }
-    total += base;
+    total += regionProduction(region, tribe, state.tick, kit);
   }
   return total;
 }
@@ -1146,6 +1183,10 @@ export function tick(
             region_id: dest,
             previous_owner: previousOwner,
           });
+          const captureKit = getKitForTribe(state, f.owner);
+          if (captureKit.captureBountyInfluence > 0) {
+            state.players[f.owner]!.influence += captureKit.captureBountyInfluence;
+          }
         }
       }
     }
@@ -1155,10 +1196,12 @@ export function tick(
     if (s.location.kind !== "transit") continue;
     if (s.location.ticksRemaining > 0) continue;
     const dest = s.location.directionTo;
+    const scoutKit = getKitForTribe(state, s.owner);
+    const dwellTicks = scoutKit.scoutDwellTicksOverride ?? SCOUT_DWELL_TICKS;
     s.location = {
       kind: "arrived",
       regionId: dest,
-      expiresTick: state.tick + SCOUT_DWELL_TICKS + 1,
+      expiresTick: state.tick + dwellTicks + 1,
     };
     const list = scoutRevealThisTick.get(dest) ?? [];
     list.push(s.owner);
@@ -1208,15 +1251,11 @@ export function tick(
   }
 
   for (const tribe of state.tribesAlive) {
+    const kit = getKitForTribe(state, tribe);
     let total = 0;
     for (const region of Object.values(state.regions)) {
       if (region.owner !== tribe) continue;
-      let base = REGION_PRODUCTION[region.type] ?? 0;
-      if (tribe === "orange" && region.type === "plains") base += 1;
-      for (const st of region.structures) {
-        base += STRUCTURE_PRODUCTION_BONUS[st] ?? 0;
-      }
-      total += base;
+      total += regionProduction(region, tribe, state.tick, kit);
     }
     state.players[tribe]!.influence += total;
     events.push({ kind: "influence_credited", tribe, amount: total });

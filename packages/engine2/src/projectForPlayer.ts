@@ -1,8 +1,8 @@
 import {
-  DEFAULT_NAP_LENGTH,
   DEFAULT_SHARED_VISION_LENGTH,
   FORCE_RECRUIT_COST,
   FORGE_REQUIRED_FOR_TIER,
+  NAP_LENGTH_OPTIONS,
   fuzzyTierFor,
   MAX_STRUCTURES_PER_REGION,
   SCOUT_COST,
@@ -194,22 +194,24 @@ function legalOrderOptions(state: GameState, tribe: Tribe): LegalOrderOption[] {
     const canSeeOther = canSeeTribe(state, tribe, other);
 
     if (!hasNap && !hasWar && canSeeOther) {
-      addOption(
-        `propose:nap:${other}`,
-        "propose",
-        `Propose NAP to ${other} (${DEFAULT_NAP_LENGTH} ticks)`,
-        {
-          proposal: {
-            id: "pending",
-            kind: "nap",
-            from: tribe,
-            to: other,
-            lengthTicks: DEFAULT_NAP_LENGTH,
-            amountInfluence: 0,
-            expiresTick: 0,
-          } satisfies Proposal,
-        },
-      );
+      for (const len of NAP_LENGTH_OPTIONS) {
+        addOption(
+          `propose:nap:${other}:${len}`,
+          "propose",
+          `Propose NAP to ${other} (${len} ticks)`,
+          {
+            proposal: {
+              id: "pending",
+              kind: "nap",
+              from: tribe,
+              to: other,
+              lengthTicks: len,
+              amountInfluence: 0,
+              expiresTick: 0,
+            } satisfies Proposal,
+          },
+        );
+      }
     }
     if (!hasSharedVision && !hasWar && canSeeOther) {
       addOption(

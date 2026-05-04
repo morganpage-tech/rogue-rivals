@@ -23,3 +23,10 @@ export {
 } from "@rr/shared";
 export { cloneState } from "./cloneState.js";
 export { rebuildStateAtTick, type RebuildResult, type TickPacketRecord } from "./rebuildState.js";
+export {
+  PERSONA_KITS,
+  EMPTY_KIT,
+  getKitForTribe,
+  type PersonaKit,
+  type PersonaKitId,
+} from "./personaKit.js";

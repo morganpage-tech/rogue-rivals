@@ -77,6 +77,9 @@ function optionIdLookupKeys(rawId: string): string[] {
       keys.push(parts.slice(0, -1).join(":"));
     }
   }
+  if (parts.length === 3 && parts[0] === "propose" && parts[1] === "nap") {
+    keys.push(`${s}:4`);
+  }
   const colonCount = (s.match(/:/g) ?? []).length;
   if (s.startsWith("propose:trade_offer:") && colonCount === 2) {
     keys.push(`${s}:5`);

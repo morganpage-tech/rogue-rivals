@@ -1,4 +1,5 @@
 import type { MapPreset, Tribe } from "@rr/shared";
+import type { PersonaKitId } from "./personaKit.js";
 
 export interface MatchConfig {
   readonly seed: number;
@@ -11,6 +12,7 @@ export interface MatchConfig {
   readonly napDefaultLength: number;
   readonly sharedVisionDefaultLength: number;
   readonly caravanTravelTicks: number;
+  readonly personaKits?: Partial<Record<Tribe, PersonaKitId>>;
 }
 
 /** Default config mirroring RULES.md §2. */
@@ -19,8 +21,8 @@ export const DEFAULT_MATCH_CONFIG: Omit<MatchConfig, "seed"> = {
   tribes: ["orange", "grey", "brown", "red"],
   mapPreset: "hand_minimal",
   regionCount: 20,
-  tickLimit: 60,
-  victorySustainTicks: 3,
+  tickLimit: 40,
+  victorySustainTicks: 2,
   napDefaultLength: 4,
   sharedVisionDefaultLength: 5,
   caravanTravelTicks: 2,
